@@ -85,6 +85,6 @@ fun ProfileScreen(viewModel: AppViewModel) {
             "数据只存在这台手机里。两个人共用时，来这里切换身份就好。",
             style = MaterialTheme.typography.bodySmall,
         )
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(96.dp))
     }
 }

@@ -31,7 +31,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -58,9 +57,9 @@ fun SoftCard(
 ) {
     Column(
         modifier = modifier
-            .shadow(10.dp, RoundedCornerShape(28.dp), ambientColor = Color(0x14000000), spotColor = Color(0x1A000000))
             .clip(RoundedCornerShape(28.dp))
             .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, Color(0x14000000), RoundedCornerShape(28.dp))
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(20.dp),
         content = content,

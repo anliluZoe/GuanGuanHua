@@ -65,7 +65,7 @@ fun ExpensesScreen(viewModel: AppViewModel) {
         Spacer(Modifier.height(12.dp))
         PageHeader("小账本", "看看这个月花到哪里去了")
         LazyColumn(
-            contentPadding = PaddingValues(bottom = 24.dp, top = 8.dp),
+            contentPadding = PaddingValues(bottom = 96.dp, top = 8.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             item {
