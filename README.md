@@ -53,6 +53,10 @@ cd backend && docker compose up --build
 | --- | --- | --- |
 | ![审核](docs/screenshots/request_detail_approver.png) | ![月度消费](docs/screenshots/expenses_summary.png) | ![切换身份](docs/screenshots/profile_switch_role.png) |
 
+| 审核人收到新申请通知 | 申请人收到审核结果 |
+| --- | --- |
+| ![新申请通知](docs/screenshots/notification_new_request.png) | ![审核结果通知](docs/screenshots/notification_review_result.png) |
+
 ## 技术栈
 
 - App：Kotlin 2.0 · Jetpack Compose · Retrofit
