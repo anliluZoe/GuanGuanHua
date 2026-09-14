@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- 钱袋轮廓 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,30 C42,30 32,42 32,58 C32,70 42,78 54,78 C66,78 76,70 76,58 C76,42 66,30 54,30 Z" />
+    <!-- 袋口 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M46,24 L62,24 L58,32 L50,32 Z" />
+    <!-- ¥ 符号 -->
+    <path
+        android:fillColor="#1B6B4A"
+        android:pathData="M47,44 L51,44 L54,51 L57,44 L61,44 L56,54 L60,54 L60,57 L55.5,57 L55.5,60 L60,60 L60,63 L55.5,63 L55.5,68 L52.5,68 L52.5,63 L48,63 L48,60 L52.5,60 L52.5,57 L48,57 L48,54 L52,54 Z" />
+</vector>
