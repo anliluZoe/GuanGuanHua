@@ -4,20 +4,26 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ListAlt
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.PieChart
-import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
@@ -31,14 +37,15 @@ import com.savemoney.app.ui.NewRequestScreen
 import com.savemoney.app.ui.ProfileScreen
 import com.savemoney.app.ui.RequestDetailScreen
 import com.savemoney.app.ui.RequestListScreen
+import com.savemoney.app.ui.theme.Cute
 import com.savemoney.app.ui.theme.SaveMoneyTheme
 
-private data class Tab(val route: String, val label: String, val icon: ImageVector)
+private data class Tab(val route: String, val label: String, val emoji: String)
 
 private val TABS = listOf(
-    Tab("requests", "申请", Icons.AutoMirrored.Filled.ListAlt),
-    Tab("expenses", "消费", Icons.Default.PieChart),
-    Tab("profile", "我的", Icons.Default.Person),
+    Tab("requests", "申请", "📝"),
+    Tab("expenses", "账本", "🐷"),
+    Tab("profile", "我们", "💛"),
 )
 
 class MainActivity : ComponentActivity() {
@@ -53,15 +60,28 @@ class MainActivity : ComponentActivity() {
                 val currentRoute = backStackEntry?.destination?.route
                 val showBottomBar = TABS.any { it.route == currentRoute }
 
-                Surface {
-                    Scaffold(
-                        bottomBar = {
-                            if (showBottomBar) {
-                                NavigationBar {
-                                    TABS.forEach { tab ->
-                                        NavigationBarItem(
-                                            selected = currentRoute == tab.route,
-                                            onClick = {
+                Scaffold(
+                    containerColor = Cute.Cream,
+                    bottomBar = {
+                        if (showBottomBar) {
+                            Row(
+                                modifier = Modifier
+                                    .windowInsetsPadding(WindowInsets.navigationBars)
+                                    .padding(horizontal = 20.dp, vertical = 10.dp)
+                                    .shadow(16.dp, RoundedCornerShape(32.dp), ambientColor = Color(0x14000000), spotColor = Color(0x1A000000))
+                                    .clip(RoundedCornerShape(32.dp))
+                                    .background(Color.White)
+                                    .padding(horizontal = 8.dp, vertical = 8.dp)
+                                    .fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceEvenly,
+                            ) {
+                                TABS.forEach { tab ->
+                                    val selected = currentRoute == tab.route
+                                    Column(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(24.dp))
+                                            .background(if (selected) Cute.PeachSoft else Color.Transparent)
+                                            .clickable {
                                                 navController.navigate(tab.route) {
                                                     popUpTo(navController.graph.findStartDestination().id) {
                                                         saveState = true
@@ -69,43 +89,48 @@ class MainActivity : ComponentActivity() {
                                                     launchSingleTop = true
                                                     restoreState = true
                                                 }
-                                            },
-                                            icon = { Icon(tab.icon, contentDescription = tab.label) },
-                                            label = { Text(tab.label) },
+                                            }
+                                            .padding(horizontal = 22.dp, vertical = 8.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                    ) {
+                                        Text(tab.emoji)
+                                        Text(
+                                            tab.label,
+                                            color = if (selected) Color(0xFF5A2A12) else Cute.Muted,
                                         )
                                     }
                                 }
                             }
-                        },
-                    ) { padding ->
-                        NavHost(
-                            navController = navController,
-                            startDestination = "requests",
-                            modifier = Modifier.padding(padding),
-                        ) {
-                            composable("requests") {
-                                RequestListScreen(
-                                    viewModel = viewModel,
-                                    onCreate = { navController.navigate("requests/new") },
-                                    onOpen = { id -> navController.navigate("requests/$id") },
-                                )
-                            }
-                            composable("requests/new") {
-                                NewRequestScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
-                            }
-                            composable(
-                                route = "requests/{id}",
-                                arguments = listOf(navArgument("id") { type = NavType.LongType }),
-                            ) { entry ->
-                                RequestDetailScreen(
-                                    viewModel = viewModel,
-                                    requestId = entry.arguments?.getLong("id") ?: 0L,
-                                    onBack = { navController.popBackStack() },
-                                )
-                            }
-                            composable("expenses") { ExpensesScreen(viewModel = viewModel) }
-                            composable("profile") { ProfileScreen(viewModel = viewModel) }
                         }
+                    },
+                ) { padding ->
+                    NavHost(
+                        navController = navController,
+                        startDestination = "requests",
+                        modifier = Modifier.padding(padding),
+                    ) {
+                        composable("requests") {
+                            RequestListScreen(
+                                viewModel = viewModel,
+                                onCreate = { navController.navigate("requests/new") },
+                                onOpen = { id -> navController.navigate("requests/$id") },
+                            )
+                        }
+                        composable("requests/new") {
+                            NewRequestScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+                        }
+                        composable(
+                            route = "requests/{id}",
+                            arguments = listOf(navArgument("id") { type = NavType.LongType }),
+                        ) { entry ->
+                            RequestDetailScreen(
+                                viewModel = viewModel,
+                                requestId = entry.arguments?.getLong("id") ?: 0L,
+                                onBack = { navController.popBackStack() },
+                            )
+                        }
+                        composable("expenses") { ExpensesScreen(viewModel = viewModel) }
+                        composable("profile") { ProfileScreen(viewModel = viewModel) }
                     }
                 }
             }

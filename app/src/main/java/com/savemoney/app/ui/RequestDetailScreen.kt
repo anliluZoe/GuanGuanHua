@@ -1,5 +1,6 @@
 package com.savemoney.app.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,27 +12,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -46,8 +31,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.savemoney.app.AppViewModel
 import com.savemoney.app.UserRole
 import com.savemoney.app.data.RequestStatus
+import com.savemoney.app.ui.theme.Cute
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RequestDetailScreen(viewModel: AppViewModel, requestId: Long, onBack: () -> Unit) {
     val requestFlow = remember(requestId) { viewModel.observeRequest(requestId) }
@@ -56,179 +41,134 @@ fun RequestDetailScreen(viewModel: AppViewModel, requestId: Long, onBack: () -> 
     var comment by rememberSaveable { mutableStateOf("") }
     var confirmWithdraw by rememberSaveable { mutableStateOf(false) }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("申请详情") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
-                    }
-                },
-            )
-        },
-    ) { padding ->
-        val current = request
-        if (current == null) {
-            Box(modifier = Modifier.padding(padding).fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
+    val current = request
+    if (current == null) {
+        Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = Cute.Peach)
+        }
+        return
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        PageHeader("申请详情", current.itemName, onBack = onBack)
+        SoftCard(modifier = Modifier.fillMaxWidth()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CategoryBubble(current.category)
+                Spacer(Modifier.weight(1f))
+                StatusBadge(current.status)
             }
-            return@Scaffold
+            Spacer(Modifier.height(16.dp))
+            Text(current.itemName, style = MaterialTheme.typography.headlineSmall)
+            Spacer(Modifier.height(6.dp))
+            Text(
+                current.totalCents.toYuan(),
+                style = MaterialTheme.typography.displaySmall,
+                color = Cute.Peach,
+                fontWeight = FontWeight.Bold,
+            )
+            Spacer(Modifier.height(16.dp))
+            listOf(
+                "分类" to "${CATEGORY_EMOJI[current.category]} ${current.category}",
+                "单价" to current.unitPriceCents.toYuan(),
+                "数量" to "${current.quantity}",
+                "申请人" to current.requesterName,
+                "申请时间" to current.createdAt.toDateTimeText(),
+            ).forEach { (label, value) ->
+                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
+                    Text(label, color = Cute.Muted, modifier = Modifier.weight(1f))
+                    Text(value, fontWeight = FontWeight.Medium)
+                }
+            }
+            if (current.reason.isNotBlank()) {
+                Spacer(Modifier.height(8.dp))
+                Text("购买理由", color = Cute.Muted)
+                Spacer(Modifier.height(4.dp))
+                Text(current.reason)
+            }
         }
 
-        Column(
-            modifier = Modifier
-                .padding(padding)
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-            ) {
-                Column(modifier = Modifier.padding(20.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = current.itemName,
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.weight(1f),
-                        )
-                        StatusBadge(current.status)
-                    }
-                    Spacer(Modifier.height(12.dp))
+        when {
+            current.status != RequestStatus.PENDING -> {
+                SoftCard(modifier = Modifier.fillMaxWidth()) {
+                    Text(if (current.status == RequestStatus.APPROVED) "🎉 已通过" else "这次先不买啦", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(6.dp))
                     Text(
-                        text = current.totalCents.toYuan(),
-                        style = MaterialTheme.typography.displaySmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold,
+                        "${current.reviewerName ?: "-"} 于 ${current.reviewedAt?.toDateTimeText() ?: "-"} ${current.status.label}",
+                        color = Cute.Muted,
                     )
-                    Spacer(Modifier.height(16.dp))
-                    HorizontalDivider()
+                    current.reviewComment?.let {
+                        Spacer(Modifier.height(6.dp))
+                        Text("意见：$it")
+                    }
+                    if (current.status == RequestStatus.APPROVED) {
+                        Spacer(Modifier.height(6.dp))
+                        Text("已自动记入当月消费小账本", color = Cute.Peach, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+
+            profile.role == UserRole.APPROVER -> {
+                SoftCard(modifier = Modifier.fillMaxWidth()) {
+                    Text("帮TA把把关", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(10.dp))
+                    SoftField(
+                        value = comment,
+                        onValueChange = { comment = it },
+                        label = "审核意见（可选）",
+                        singleLine = false,
+                        minLines = 2,
+                    )
                     Spacer(Modifier.height(12.dp))
-                    listOf(
-                        "分类" to current.category,
-                        "单价" to current.unitPriceCents.toYuan(),
-                        "数量" to "${current.quantity}",
-                        "申请人" to current.requesterName,
-                        "申请时间" to current.createdAt.toDateTimeText(),
-                    ).forEach { (label, value) ->
-                        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                            Text(
-                                text = label,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.weight(1f),
-                            )
-                            Text(text = value, fontWeight = FontWeight.Medium)
-                        }
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        CharcoalPillButton("拒绝", filled = false, onClick = {
+                            viewModel.review(current.id, approve = false, comment = comment)
+                            onBack()
+                        }, modifier = Modifier.weight(1f))
+                        CharcoalPillButton("通过", onClick = {
+                            viewModel.review(current.id, approve = true, comment = comment)
+                            onBack()
+                        }, modifier = Modifier.weight(1f))
                     }
-                    if (current.reason.isNotBlank()) {
-                        Spacer(Modifier.height(8.dp))
-                        Text("购买理由", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(Modifier.height(4.dp))
-                        Text(current.reason)
-                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text("通过后会自动记入当月消费。", color = Cute.Muted, style = MaterialTheme.typography.bodySmall)
                 }
             }
 
-            when {
-                current.status != RequestStatus.PENDING -> {
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text("审核结果", style = MaterialTheme.typography.titleMedium)
-                            Text(
-                                text = "${current.reviewerName ?: "-"} 于 ${current.reviewedAt?.toDateTimeText() ?: "-"} ${current.status.label}",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            current.reviewComment?.let { Text("意见：$it") }
-                            if (current.status == RequestStatus.APPROVED) {
-                                Text(
-                                    text = "已自动计入审核当月的消费记录",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.primary,
-                                )
-                            }
-                        }
-                    }
-                }
-
-                profile.role == UserRole.APPROVER -> {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("审核", style = MaterialTheme.typography.titleMedium)
-                        OutlinedTextField(
-                            value = comment,
-                            onValueChange = { comment = it },
-                            label = { Text("审核意见（可选）") },
-                            minLines = 2,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            OutlinedButton(
-                                onClick = {
-                                    viewModel.review(current.id, approve = false, comment = comment)
-                                    onBack()
-                                },
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                                modifier = Modifier.weight(1f),
-                            ) {
-                                Icon(Icons.Default.Close, contentDescription = null)
-                                Text(" 拒绝")
-                            }
-                            Button(
-                                onClick = {
-                                    viewModel.review(current.id, approve = true, comment = comment)
-                                    onBack()
-                                },
-                                modifier = Modifier.weight(1f),
-                            ) {
-                                Icon(Icons.Default.Check, contentDescription = null)
-                                Text(" 通过")
-                            }
-                        }
-                        Text(
-                            text = "通过后将自动记入当月消费。",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-
-                else -> {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            text = "等待 ${profile.approverName} 审核中…",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        OutlinedButton(
-                            onClick = { confirmWithdraw = true },
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text("撤回申请")
-                        }
-                    }
+            else -> {
+                SoftCard(modifier = Modifier.fillMaxWidth()) {
+                    Text("正在等 ${profile.approverName} 看一眼…", color = Cute.Muted)
+                    Spacer(Modifier.height(12.dp))
+                    CharcoalPillButton("撤回申请", filled = false, onClick = { confirmWithdraw = true })
                 }
             }
         }
+        Spacer(Modifier.height(24.dp))
+    }
 
-        if (confirmWithdraw) {
-            AlertDialog(
-                onDismissRequest = { confirmWithdraw = false },
-                title = { Text("撤回申请") },
-                text = { Text("撤回后该申请将被删除，确定要撤回吗？") },
-                confirmButton = {
-                    TextButton(onClick = {
-                        confirmWithdraw = false
-                        viewModel.withdrawRequest(current.id)
-                        onBack()
-                    }) { Text("撤回") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { confirmWithdraw = false }) { Text("取消") }
-                },
-            )
-        }
+    if (confirmWithdraw) {
+        AlertDialog(
+            onDismissRequest = { confirmWithdraw = false },
+            title = { Text("撤回申请") },
+            text = { Text("撤回后这条申请会消失哦，确定吗？") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmWithdraw = false
+                    viewModel.withdrawRequest(current.id)
+                    onBack()
+                }) { Text("撤回", color = Cute.Peach) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmWithdraw = false }) { Text("再想想") }
+            },
+            containerColor = MaterialTheme.colorScheme.surface,
+            shape = MaterialTheme.shapes.large,
+        )
     }
 }

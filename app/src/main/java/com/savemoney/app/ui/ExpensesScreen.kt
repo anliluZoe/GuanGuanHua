@@ -1,5 +1,6 @@
 package com.savemoney.app.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -9,26 +10,21 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -36,15 +32,15 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.savemoney.app.AppViewModel
+import com.savemoney.app.ui.theme.Cute
 import java.time.YearMonth
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExpensesScreen(viewModel: AppViewModel) {
     val month by viewModel.selectedMonth.collectAsStateWithLifecycle()
@@ -58,14 +54,19 @@ fun ExpensesScreen(viewModel: AppViewModel) {
     val byCategory = expenses.groupBy { it.category }
         .map { (category, list) -> category to list.sumOf { it.amountCents } }
         .sortedByDescending { it.second }
+    val overBudget = budgetCents != null && totalCents > budgetCents
 
-    Scaffold(
-        topBar = { TopAppBar(title = { Text("消费记录") }) },
-    ) { padding ->
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(horizontal = 20.dp),
+    ) {
+        Spacer(Modifier.height(12.dp))
+        PageHeader("小账本", "看看这个月花到哪里去了")
         LazyColumn(
-            modifier = Modifier.padding(padding).fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(bottom = 24.dp, top = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             item {
                 Row(
@@ -74,161 +75,140 @@ fun ExpensesScreen(viewModel: AppViewModel) {
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     IconButton(onClick = { viewModel.shiftMonth(-1) }) {
-                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "上个月")
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "上个月", tint = Cute.Ink)
                     }
                     Text(
-                        text = "${month.year}年${month.monthValue}月",
+                        "${month.year}年${month.monthValue}月",
                         style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.SemiBold,
                     )
-                    IconButton(
-                        onClick = { viewModel.shiftMonth(1) },
-                        enabled = month < YearMonth.now(),
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "下个月")
+                    IconButton(onClick = { viewModel.shiftMonth(1) }, enabled = month < YearMonth.now()) {
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "下个月", tint = Cute.Ink)
                     }
                 }
             }
 
             item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-                ) {
-                    Column(modifier = Modifier.padding(20.dp)) {
-                        Text("本月已消费", color = MaterialTheme.colorScheme.onPrimaryContainer)
-                        Text(
-                            text = totalCents.toYuan(),
-                            style = MaterialTheme.typography.displaySmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        )
-                        Spacer(Modifier.height(12.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                SoftCard(modifier = Modifier.fillMaxWidth()) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Mascot(MascotKind.Piggy, size = 88.dp)
+                        Spacer(Modifier.width(8.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("本月已消费", color = Cute.Muted, style = MaterialTheme.typography.bodyMedium)
                             Text(
-                                text = if (budgetCents == null) "尚未设置本月预算"
-                                else "预算 ${budgetCents.toYuan()} · 剩余 ${(budgetCents - totalCents).toYuan()}",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = if (budgetCents != null && totalCents > budgetCents) MaterialTheme.colorScheme.error
-                                else MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.weight(1f),
-                            )
-                            IconButton(onClick = {
-                                budgetText = budgetCents?.toYuan()?.removePrefix("¥") ?: ""
-                                editingBudget = true
-                            }) {
-                                Icon(Icons.Default.Edit, contentDescription = "设置预算")
-                            }
-                        }
-                        if (budgetCents != null && budgetCents > 0) {
-                            LinearProgressIndicator(
-                                progress = { (totalCents.toFloat() / budgetCents).coerceIn(0f, 1f) },
-                                modifier = Modifier.fillMaxWidth().height(8.dp),
-                                color = if (totalCents > budgetCents) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                                totalCents.toYuan(),
+                                style = MaterialTheme.typography.displaySmall,
+                                color = if (overBudget) MaterialTheme.colorScheme.error else Cute.Ink,
                             )
                         }
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            text = "共 ${expenses.size} 笔已通过的购买",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        text = if (budgetCents == null) "还没设预算，点下面设一个小目标"
+                        else "预算 ${budgetCents.toYuan()}  ·  剩余 ${(budgetCents - totalCents).toYuan()}",
+                        color = if (overBudget) MaterialTheme.colorScheme.error else Cute.Muted,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    if (budgetCents != null && budgetCents > 0) {
+                        Spacer(Modifier.height(10.dp))
+                        LinearProgressIndicator(
+                            progress = { (totalCents.toFloat() / budgetCents).coerceIn(0f, 1f) },
+                            modifier = Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(20.dp)),
+                            color = if (overBudget) MaterialTheme.colorScheme.error else Cute.Peach,
+                            trackColor = Cute.PeachSoft,
                         )
                     }
+                    Spacer(Modifier.height(12.dp))
+                    ChoiceChip(
+                        label = if (budgetCents == null) "设置预算" else "改预算",
+                        selected = false,
+                        onClick = {
+                            budgetText = budgetCents?.toYuan()?.removePrefix("¥") ?: ""
+                            editingBudget = true
+                        },
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text("共 ${expenses.size} 笔已通过的购买", color = Cute.Muted, style = MaterialTheme.typography.bodySmall)
                 }
             }
 
             if (byCategory.isNotEmpty()) {
                 item {
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Text("分类占比", style = MaterialTheme.typography.titleMedium)
-                            byCategory.forEach { (category, cents) ->
-                                Column {
-                                    Row(modifier = Modifier.fillMaxWidth()) {
-                                        Text(category, modifier = Modifier.weight(1f))
-                                        Text(cents.toYuan(), fontWeight = FontWeight.Medium)
-                                    }
-                                    Spacer(Modifier.height(4.dp))
-                                    LinearProgressIndicator(
-                                        progress = { if (totalCents == 0L) 0f else cents.toFloat() / totalCents },
-                                        modifier = Modifier.fillMaxWidth().height(6.dp),
-                                    )
+                    SoftCard(modifier = Modifier.fillMaxWidth()) {
+                        Text("花在哪儿", style = MaterialTheme.typography.titleMedium)
+                        Spacer(Modifier.height(12.dp))
+                        byCategory.forEach { (category, cents) ->
+                            Column(modifier = Modifier.padding(bottom = 10.dp)) {
+                                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                    Text("${CATEGORY_EMOJI[category]}  $category", modifier = Modifier.weight(1f))
+                                    Text(cents.toYuan(), fontWeight = FontWeight.Medium)
                                 }
+                                Spacer(Modifier.height(6.dp))
+                                LinearProgressIndicator(
+                                    progress = { if (totalCents == 0L) 0f else cents.toFloat() / totalCents },
+                                    modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(20.dp)),
+                                    color = Cute.Sky,
+                                    trackColor = Cute.SkySoft,
+                                )
                             }
                         }
                     }
                 }
             }
 
-            item {
-                Text(
-                    text = "明细",
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
-            }
+            item { Text("明细", style = MaterialTheme.typography.titleMedium) }
 
             if (expenses.isEmpty()) {
                 item {
-                    Text(
-                        text = "本月还没有消费记录。申请审核通过后会自动出现在这里。",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(vertical = 24.dp),
-                    )
+                    EmptyHint(MascotKind.Wallet, "本月还是空空的", "申请通过后，会自动出现在这里")
                 }
             } else {
                 items(expenses, key = { it.id }) { record ->
-                    Column {
-                        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    SoftCard(modifier = Modifier.fillMaxWidth()) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CategoryBubble(record.category)
+                            Spacer(Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(record.itemName, fontWeight = FontWeight.Medium)
+                                Text(record.itemName, style = MaterialTheme.typography.titleMedium)
                                 Text(
-                                    text = "${record.category} · ${record.requesterName} 申请 · ${record.reviewerName} 审核 · ${record.spentAt.toDateTimeText()}",
+                                    "${record.requesterName} 申请 · ${record.reviewerName} 审核 · ${record.spentAt.toDateTimeText()}",
+                                    color = Cute.Muted,
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
-                            Text(
-                                text = record.amountCents.toYuan(),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
-                            )
+                            Text(record.amountCents.toYuan(), fontWeight = FontWeight.Bold, color = Cute.Peach)
                         }
-                        HorizontalDivider()
                     }
                 }
             }
         }
+    }
 
-        if (editingBudget) {
-            val parsed = budgetText.yuanToCentsOrNull()
-            AlertDialog(
-                onDismissRequest = { editingBudget = false },
-                title = { Text("设置 ${month.year}年${month.monthValue}月 预算") },
-                text = {
-                    OutlinedTextField(
-                        value = budgetText,
-                        onValueChange = { budgetText = it },
-                        label = { Text("预算金额（元）") },
-                        prefix = { Text("¥") },
-                        singleLine = true,
-                        isError = budgetText.isNotBlank() && parsed == null,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    )
-                },
-                confirmButton = {
-                    TextButton(
-                        enabled = parsed != null,
-                        onClick = {
-                            viewModel.setBudget(parsed!!)
-                            editingBudget = false
-                        },
-                    ) { Text("保存") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { editingBudget = false }) { Text("取消") }
-                },
-            )
-        }
+    if (editingBudget) {
+        val parsed = budgetText.yuanToCentsOrNull()
+        AlertDialog(
+            onDismissRequest = { editingBudget = false },
+            title = { Text("设置 ${month.year}年${month.monthValue}月预算") },
+            text = {
+                SoftField(
+                    value = budgetText,
+                    onValueChange = { budgetText = it },
+                    label = "预算金额（元）",
+                    prefix = "¥",
+                    isError = budgetText.isNotBlank() && parsed == null,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                )
+            },
+            confirmButton = {
+                TextButton(enabled = parsed != null, onClick = {
+                    viewModel.setBudget(parsed!!)
+                    editingBudget = false
+                }) { Text("保存", color = Cute.Peach) }
+            },
+            dismissButton = {
+                TextButton(onClick = { editingBudget = false }) { Text("取消") }
+            },
+            containerColor = MaterialTheme.colorScheme.surface,
+            shape = MaterialTheme.shapes.large,
+        )
     }
 }

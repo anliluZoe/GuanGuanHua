@@ -1,8 +1,8 @@
 package com.savemoney.app.ui
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -14,18 +14,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.outlined.Inbox
-import androidx.compose.material3.Card
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Icon
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -38,9 +29,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.savemoney.app.AppViewModel
 import com.savemoney.app.UserRole
+import com.savemoney.app.data.PurchaseRequest
 import com.savemoney.app.data.RequestStatus
+import com.savemoney.app.ui.theme.Cute
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RequestListScreen(
     viewModel: AppViewModel,
@@ -50,123 +42,95 @@ fun RequestListScreen(
     val requests by viewModel.requests.collectAsStateWithLifecycle()
     val profile by viewModel.profile.collectAsStateWithLifecycle()
     var filter by rememberSaveable { mutableStateOf<RequestStatus?>(null) }
-
     val shown = if (filter == null) requests else requests.filter { it.status == filter }
     val pendingCount = requests.count { it.status == RequestStatus.PENDING }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text("购买申请")
-                        Text(
-                            text = "${profile.role.label} · ${profile.currentName}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-            )
-        },
-        floatingActionButton = {
-            if (profile.role == UserRole.REQUESTER) {
-                ExtendedFloatingActionButton(
-                    onClick = onCreate,
-                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                    text = { Text("新建申请") },
-                )
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(horizontal = 20.dp),
+    ) {
+        Spacer(Modifier.height(12.dp))
+        PageHeader(
+            title = "买买申请",
+            subtitle = "${profile.role.label} · ${profile.currentName}，一起把关每一笔开销",
+        )
+        Spacer(Modifier.height(16.dp))
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            ChoiceChip("全部", filter == null, onClick = { filter = null })
+            RequestStatus.entries.forEach { status ->
+                val label = if (status == RequestStatus.PENDING && pendingCount > 0)
+                    "${status.label} $pendingCount" else status.label
+                ChoiceChip(label, filter == status, onClick = { filter = status })
             }
-        },
-    ) { padding ->
-        Column(modifier = Modifier.padding(padding).fillMaxSize()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+        }
+        Spacer(Modifier.height(16.dp))
+        if (shown.isEmpty()) {
+            Column(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                verticalArrangement = Arrangement.Center,
             ) {
-                FilterChip(
-                    selected = filter == null,
-                    onClick = { filter = null },
-                    label = { Text("全部") },
+                EmptyHint(
+                    kind = MascotKind.Coin,
+                    title = if (profile.role == UserRole.REQUESTER) "还没有想买的东西" else "暂时没有待看的申请",
+                    subtitle = if (profile.role == UserRole.REQUESTER) "点下面的按钮，发起第一笔申请吧" else "等申请人提交后会出现在这里",
                 )
-                RequestStatus.entries.forEach { status ->
-                    FilterChip(
-                        selected = filter == status,
-                        onClick = { filter = status },
-                        label = {
-                            Text(
-                                if (status == RequestStatus.PENDING && pendingCount > 0)
-                                    "${status.label} $pendingCount"
-                                else status.label
-                            )
-                        },
-                    )
+            }
+            if (profile.role == UserRole.REQUESTER) {
+                CharcoalPillButton("新建申请", onClick = onCreate)
+                Spacer(Modifier.height(12.dp))
+            }
+        } else {
+            LazyColumn(
+                contentPadding = PaddingValues(bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.weight(1f),
+            ) {
+                items(shown, key = { it.id }) { request ->
+                    RequestCard(request, onClick = { onOpen(request.id) })
+                }
+                if (profile.role == UserRole.REQUESTER) {
+                    item {
+                        Spacer(Modifier.height(4.dp))
+                        CharcoalPillButton("＋  新建申请", onClick = onCreate)
+                    }
                 }
             }
+        }
+    }
+}
 
-            if (shown.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(
-                            Icons.Outlined.Inbox,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            text = if (profile.role == UserRole.REQUESTER) "还没有申请，点击右下角新建" else "暂无申请",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+@Composable
+private fun RequestCard(request: PurchaseRequest, onClick: () -> Unit) {
+    SoftCard(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            CategoryBubble(request.category)
+            Spacer(Modifier.width(14.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        request.itemName,
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.weight(1f),
+                    )
+                    StatusBadge(request.status)
                 }
-            } else {
-                LazyColumn(
-                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 96.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    items(shown, key = { it.id }) { request ->
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onOpen(request.id) },
-                        ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(
-                                        text = request.itemName,
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.SemiBold,
-                                        modifier = Modifier.weight(1f),
-                                    )
-                                    StatusBadge(request.status)
-                                }
-                                Spacer(Modifier.height(6.dp))
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(
-                                        text = request.totalCents.toYuan(),
-                                        style = MaterialTheme.typography.titleLarge,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        fontWeight = FontWeight.Bold,
-                                    )
-                                    Spacer(Modifier.width(8.dp))
-                                    Text(
-                                        text = "${request.unitPriceCents.toYuan()} × ${request.quantity}",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                                Spacer(Modifier.height(6.dp))
-                                Text(
-                                    text = "${request.category} · ${request.requesterName} · ${request.createdAt.toDateTimeText()}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
-                    }
-                }
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    request.totalCents.toYuan(),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = Cute.Peach,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    "${request.unitPriceCents.toYuan()} × ${request.quantity} · ${request.requesterName} · ${request.createdAt.toDateTimeText()}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Cute.Muted,
+                )
             }
         }
     }

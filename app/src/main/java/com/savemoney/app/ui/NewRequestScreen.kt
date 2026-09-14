@@ -1,5 +1,6 @@
 package com.savemoney.app.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -13,18 +14,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.Button
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -32,11 +23,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.savemoney.app.AppViewModel
+import com.savemoney.app.ui.theme.Cute
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun NewRequestScreen(viewModel: AppViewModel, onBack: () -> Unit) {
     var itemName by rememberSaveable { mutableStateOf("") }
@@ -51,78 +44,55 @@ fun NewRequestScreen(viewModel: AppViewModel, onBack: () -> Unit) {
     val nameValid = itemName.isNotBlank()
     val formValid = nameValid && priceCents != null && quantity != null
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("新建购买申请") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
-                    }
-                },
-            )
-        },
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .padding(padding)
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            OutlinedTextField(
-                value = itemName,
-                onValueChange = { itemName = it },
-                label = { Text("物品名称") },
-                singleLine = true,
-                isError = submitted && !nameValid,
-                supportingText = if (submitted && !nameValid) ({ Text("请输入物品名称") }) else null,
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            Column {
-                Text("分类", style = MaterialTheme.typography.labelLarge)
-                Spacer(Modifier.height(6.dp))
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    CATEGORIES.forEach { option ->
-                        FilterChip(
-                            selected = category == option,
-                            onClick = { category = option },
-                            label = { Text(option) },
-                        )
-                    }
-                }
-            }
-
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = priceText,
-                    onValueChange = { priceText = it },
-                    label = { Text("单价（元）") },
-                    prefix = { Text("¥") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    isError = submitted && priceCents == null,
-                    supportingText = if (submitted && priceCents == null) ({ Text("请输入正确金额，最多两位小数") }) else null,
-                    modifier = Modifier.weight(1.4f),
-                )
-                OutlinedTextField(
-                    value = quantityText,
-                    onValueChange = { quantityText = it },
-                    label = { Text("数量") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    isError = submitted && quantity == null,
-                    supportingText = if (submitted && quantity == null) ({ Text("1~9999") }) else null,
-                    modifier = Modifier.weight(1f),
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        PageHeader("想买点什么？", "填好物品和小金额，交给另一半把关", onBack = onBack)
+        SoftField(
+            value = itemName,
+            onValueChange = { itemName = it },
+            label = "物品名称",
+            isError = submitted && !nameValid,
+            supportingText = if (submitted && !nameValid) "给它起个名字吧" else null,
+        )
+        Text("分类", style = MaterialTheme.typography.labelLarge)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            CATEGORIES.forEach { option ->
+                ChoiceChip(
+                    label = "${CATEGORY_EMOJI[option]} $option",
+                    selected = category == option,
+                    onClick = { category = option },
                 )
             }
-
-            if (priceCents != null && quantity != null) {
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            SoftField(
+                value = priceText,
+                onValueChange = { priceText = it },
+                label = "单价（元）",
+                prefix = "¥",
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                isError = submitted && priceCents == null,
+                supportingText = if (submitted && priceCents == null) "最多两位小数" else null,
+                modifier = Modifier.weight(1.4f),
+            )
+            SoftField(
+                value = quantityText,
+                onValueChange = { quantityText = it },
+                label = "数量",
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                isError = submitted && quantity == null,
+                supportingText = if (submitted && quantity == null) "1~9999" else null,
+                modifier = Modifier.weight(1f),
+            )
+        }
+        if (priceCents != null && quantity != null) {
+            SoftCard(modifier = Modifier.fillMaxWidth()) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -130,34 +100,33 @@ fun NewRequestScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                 ) {
                     Text("合计", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        text = (priceCents * quantity).toYuan(),
+                        (priceCents * quantity).toYuan(),
                         style = MaterialTheme.typography.headlineSmall,
-                        color = MaterialTheme.colorScheme.primary,
+                        color = Cute.Peach,
+                        fontWeight = FontWeight.Bold,
                     )
                 }
             }
-
-            OutlinedTextField(
-                value = reason,
-                onValueChange = { reason = it },
-                label = { Text("购买理由（可选）") },
-                minLines = 3,
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            Spacer(Modifier.height(8.dp))
-            Button(
-                onClick = {
-                    submitted = true
-                    if (formValid) {
-                        viewModel.submitRequest(itemName, category, priceCents!!, quantity!!, reason)
-                        onBack()
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("提交申请")
-            }
         }
+        SoftField(
+            value = reason,
+            onValueChange = { reason = it },
+            label = "购买理由（可选）",
+            singleLine = false,
+            minLines = 3,
+        )
+        Spacer(Modifier.height(4.dp))
+        CharcoalPillButton(
+            text = "提交申请",
+            enabled = true,
+            onClick = {
+                submitted = true
+                if (formValid) {
+                    viewModel.submitRequest(itemName, category, priceCents!!, quantity!!, reason)
+                    onBack()
+                }
+            },
+        )
+        Spacer(Modifier.height(24.dp))
     }
 }

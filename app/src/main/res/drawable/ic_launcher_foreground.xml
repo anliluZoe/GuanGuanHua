@@ -4,16 +4,30 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- 钱袋轮廓 -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M54,30 C42,30 32,42 32,58 C32,70 42,78 54,78 C66,78 76,70 76,58 C76,42 66,30 54,30 Z" />
-    <!-- 袋口 -->
+        android:fillColor="#F5D76E"
+        android:pathData="M54,54m-28,0a28,28 0,1 1,56 0a28,28 0,1 1,-56 0" />
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M46,24 L62,24 L58,32 L50,32 Z" />
-    <!-- ¥ 符号 -->
+        android:fillColor="#FFF6C8"
+        android:pathData="M54,54m-20,0a20,20 0,1 1,40 0a20,20 0,1 1,-40 0" />
+    <!-- sleepy eyes -->
     <path
-        android:fillColor="#1B6B4A"
-        android:pathData="M47,44 L51,44 L54,51 L57,44 L61,44 L56,54 L60,54 L60,57 L55.5,57 L55.5,60 L60,60 L60,63 L55.5,63 L55.5,68 L52.5,68 L52.5,63 L48,63 L48,60 L52.5,60 L52.5,57 L48,57 L48,54 L52,54 Z" />
+        android:fillColor="#00000000"
+        android:strokeColor="#2C2C2C"
+        android:strokeWidth="2.2"
+        android:strokeLineCap="round"
+        android:pathData="M44,50 a4,4 0 0 1 8,0" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#2C2C2C"
+        android:strokeWidth="2.2"
+        android:strokeLineCap="round"
+        android:pathData="M56,50 a4,4 0 0 1 8,0" />
+    <!-- smile -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#2C2C2C"
+        android:strokeWidth="2.2"
+        android:strokeLineCap="round"
+        android:pathData="M48,58 a6,6 0 0 0 12,0" />
 </vector>
