@@ -6,10 +6,13 @@ import android.net.Uri
 import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.work.WorkManager
 import com.savemoney.app.data.ExpenseRecord
 import com.savemoney.app.data.MonthlyBudget
 import com.savemoney.app.data.PurchaseRequest
 import com.savemoney.app.data.SessionDto
+import com.savemoney.app.notify.ReviewActivity
+import com.savemoney.app.notify.ReviewActivityWorker
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -91,7 +94,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             runCatching {
                 val remote = repo.session()
                 applyRemoteSession(remote.role, remote.requesterName, remote.approverName, remote.householdCode)
-                _requests.value = repo.listRequests()
+                syncRequests()
                 loadMonth(_selectedMonth.value)
             }.onFailure { _statusMessage.value = it.message ?: "同步失败" }
         }
@@ -106,9 +109,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun leaveHome() {
+        WorkManager.getInstance(getApplication()).cancelUniqueWork(ReviewActivityWorker.WORK_NAME)
         prefs.edit {
             remove("token")
             remove("householdCode")
+            remove(ReviewActivity.PREF_SINCE)
         }
         _session.update { it.copy(token = "", householdCode = "") }
         _requests.value = emptyList()
@@ -137,7 +142,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             runCatching {
                 repo.createRequest(itemName.trim(), category, unitPriceCents, quantity, reason.trim(), imageUri?.let(Uri::parse))
-                _requests.value = repo.listRequests()
+                syncRequests()
             }.onFailure { _statusMessage.value = it.message ?: "提交失败" }
         }
     }
@@ -146,7 +151,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             runCatching {
                 repo.review(requestId, approve, comment)
-                _requests.value = repo.listRequests()
+                syncRequests()
                 loadMonth(_selectedMonth.value)
             }.onFailure { _statusMessage.value = it.message ?: "审核失败" }
         }
@@ -156,7 +161,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             runCatching {
                 repo.withdraw(requestId)
-                _requests.value = repo.listRequests()
+                syncRequests()
             }.onFailure { _statusMessage.value = it.message ?: "撤回失败" }
         }
     }
@@ -187,9 +192,21 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             prefs.edit(commit = true) { putString("token", remote.token) }
             applyRemoteSession(remote.role, remote.requesterName, remote.approverName, remote.householdCode)
             _session.update { it.copy(token = remote.token, householdCode = remote.householdCode) }
-            _requests.value = repo.listRequests()
+            syncRequests()
             loadMonth(_selectedMonth.value)
+            ReviewActivityWorker.schedule(getApplication())
         }.onFailure { _statusMessage.value = it.message ?: "连接失败，请检查服务器地址" }
+    }
+
+    /** 拉取申请列表；如果对方有新动作（新申请 / 审核结果），顺手在页面上提示一句。 */
+    private suspend fun syncRequests() {
+        val list = repo.listRequests()
+        val since = prefs.getLong(ReviewActivity.PREF_SINCE, 0L)
+        if (since > 0L) {
+            ReviewActivity.newItems(list, _profile.value.role, since).lastOrNull()?.let { _statusMessage.value = it.title }
+        }
+        prefs.edit(commit = true) { putLong(ReviewActivity.PREF_SINCE, ReviewActivity.watermark(list, since)) }
+        _requests.value = list
     }
 
     private suspend fun loadMonth(month: YearMonth) {
