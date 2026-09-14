@@ -22,9 +22,9 @@
 
 奶油底、大圆角卡片、睡着的小金币和深色金色胶囊按钮，风格偏轻量生活 App。截图来自 Android 14 模拟器。
 
-| 申请列表 | 新建申请 | 申请详情（申请人） |
+| 申请列表 | 新建申请 | 加点照片 |
 | --- | --- | --- |
-| ![申请列表](docs/screenshots/request_list.png) | ![新建申请](docs/screenshots/new_request_form.png) | ![申请详情-申请人](docs/screenshots/request_detail_requester.png) |
+| ![申请列表](docs/screenshots/request_list.png) | ![新建申请](docs/screenshots/new_request_form.png) | ![加点照片](docs/screenshots/photo_attach.png) |
 
 | 审核人审核 | 小账本 | 我们俩 |
 | --- | --- | --- |
