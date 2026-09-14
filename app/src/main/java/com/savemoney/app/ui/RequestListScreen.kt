@@ -18,6 +18,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -44,6 +45,7 @@ fun RequestListScreen(
     var filter by rememberSaveable { mutableStateOf<RequestStatus?>(null) }
     val shown = if (filter == null) requests else requests.filter { it.status == filter }
     val pendingCount = requests.count { it.status == RequestStatus.PENDING }
+    LaunchedEffect(Unit) { viewModel.refresh() }
 
     Column(
         modifier = Modifier

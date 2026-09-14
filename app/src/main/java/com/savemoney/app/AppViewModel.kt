@@ -6,24 +6,19 @@ import android.net.Uri
 import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.savemoney.app.data.ExpenseRecord
 import com.savemoney.app.data.MonthlyBudget
-import com.savemoney.app.data.PhotoStore
 import com.savemoney.app.data.PurchaseRequest
-import com.savemoney.app.data.RequestStatus
-import kotlinx.coroutines.ExperimentalCoroutinesApi
+import com.savemoney.app.data.SessionDto
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.YearMonth
-import java.time.ZoneId
 
-/** 当前使用者的角色。同一台手机上可以在设置页切换。 */
 enum class UserRole(val label: String) {
     REQUESTER("申请人"),
     APPROVER("审核人"),
@@ -38,52 +33,96 @@ data class UserProfile(
         get() = if (role == UserRole.REQUESTER) requesterName else approverName
 }
 
-@OptIn(ExperimentalCoroutinesApi::class)
+data class HouseholdSession(
+    val serverUrl: String,
+    val token: String,
+    val householdCode: String,
+) {
+    val joined: Boolean get() = token.isNotBlank()
+}
+
 class AppViewModel(app: Application) : AndroidViewModel(app) {
 
-    private val db = (app as SaveMoneyApp).database
-    private val photos = PhotoStore(app)
-    private val prefs = app.getSharedPreferences("profile", Context.MODE_PRIVATE)
+    private val repo = (app as SaveMoneyApp).repository
+    private val prefs = app.getSharedPreferences("session", Context.MODE_PRIVATE)
+
+    private val _session = MutableStateFlow(
+        HouseholdSession(
+            serverUrl = prefs.getString("serverUrl", "http://10.0.2.2:8080")!!,
+            token = prefs.getString("token", "")!!,
+            householdCode = prefs.getString("householdCode", "")!!,
+        )
+    )
+    val session: StateFlow<HouseholdSession> = _session.asStateFlow()
 
     private val _profile = MutableStateFlow(
         UserProfile(
-            role = UserRole.valueOf(prefs.getString("role", UserRole.REQUESTER.name)!!),
+            role = runCatching { UserRole.valueOf(prefs.getString("role", UserRole.REQUESTER.name)!!) }.getOrDefault(UserRole.REQUESTER),
             requesterName = prefs.getString("requesterName", "申请人")!!,
             approverName = prefs.getString("approverName", "审核人")!!,
         )
     )
     val profile: StateFlow<UserProfile> = _profile.asStateFlow()
 
-    val requests: StateFlow<List<PurchaseRequest>> = db.requestDao().observeAll()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    private val _requests = MutableStateFlow<List<PurchaseRequest>>(emptyList())
+    val requests: StateFlow<List<PurchaseRequest>> = _requests.asStateFlow()
 
     private val _selectedMonth = MutableStateFlow(YearMonth.now())
     val selectedMonth: StateFlow<YearMonth> = _selectedMonth.asStateFlow()
 
-    val monthExpenses = _selectedMonth.flatMapLatest { month ->
-        val zone = ZoneId.systemDefault()
-        val start = month.atDay(1).atStartOfDay(zone).toInstant().toEpochMilli()
-        val end = month.plusMonths(1).atDay(1).atStartOfDay(zone).toInstant().toEpochMilli()
-        db.expenseDao().observeBetween(start, end)
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    private val _monthExpenses = MutableStateFlow<List<ExpenseRecord>>(emptyList())
+    val monthExpenses: StateFlow<List<ExpenseRecord>> = _monthExpenses.asStateFlow()
 
-    val monthBudget: StateFlow<MonthlyBudget?> = _selectedMonth.flatMapLatest { month ->
-        db.budgetDao().observe(month.toString())
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    private val _monthBudget = MutableStateFlow<MonthlyBudget?>(null)
+    val monthBudget: StateFlow<MonthlyBudget?> = _monthBudget.asStateFlow()
 
-    fun observeRequest(id: Long): Flow<PurchaseRequest?> = db.requestDao().observeById(id)
+    private val _statusMessage = MutableStateFlow<String?>(null)
+    val statusMessage: StateFlow<String?> = _statusMessage.asStateFlow()
+
+    init {
+        if (_session.value.joined) refresh()
+    }
+
+    fun observeRequest(id: Long): Flow<PurchaseRequest?> =
+        requests.map { list -> list.firstOrNull { it.id == id } }
+
+    fun refresh() {
+        viewModelScope.launch {
+            runCatching {
+                val remote = repo.session()
+                applyRemoteSession(remote.role, remote.requesterName, remote.approverName, remote.householdCode)
+                _requests.value = repo.listRequests()
+                loadMonth(_selectedMonth.value)
+            }.onFailure { _statusMessage.value = it.message ?: "同步失败" }
+        }
+    }
+
+    fun createHome(serverUrl: String, name: String, role: UserRole) {
+        viewModelScope.launch { connect(serverUrl) { repo.createHousehold(name, role.name) } }
+    }
+
+    fun joinHome(serverUrl: String, code: String, name: String, role: UserRole) {
+        viewModelScope.launch { connect(serverUrl) { repo.joinHousehold(code, name, role.name) } }
+    }
+
+    fun leaveHome() {
+        prefs.edit {
+            remove("token")
+            remove("householdCode")
+        }
+        _session.update { it.copy(token = "", householdCode = "") }
+        _requests.value = emptyList()
+        _monthExpenses.value = emptyList()
+        _monthBudget.value = null
+    }
 
     fun updateProfile(role: UserRole, requesterName: String, approverName: String) {
-        val next = UserProfile(
-            role = role,
-            requesterName = requesterName.trim().ifBlank { "申请人" },
-            approverName = approverName.trim().ifBlank { "审核人" },
-        )
+        val next = UserProfile(role, requesterName.trim().ifBlank { "申请人" }, approverName.trim().ifBlank { "审核人" })
         _profile.value = next
-        prefs.edit {
-            putString("role", next.role.name)
-            putString("requesterName", next.requesterName)
-            putString("approverName", next.approverName)
+        persistProfile(next)
+        viewModelScope.launch {
+            runCatching { repo.updateSession(next.role.name, next.requesterName, next.approverName) }
+                .onFailure { _statusMessage.value = it.message ?: "保存失败" }
         }
     }
 
@@ -96,51 +135,85 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         imageUri: String?,
     ) {
         viewModelScope.launch {
-            val savedPath = imageUri?.let { photos.save(Uri.parse(it)) }
-            db.requestDao().insert(
-                PurchaseRequest(
-                    itemName = itemName.trim(),
-                    category = category,
-                    unitPriceCents = unitPriceCents,
-                    quantity = quantity,
-                    reason = reason.trim(),
-                    requesterName = _profile.value.requesterName,
-                    createdAt = System.currentTimeMillis(),
-                    imagePath = savedPath,
-                )
-            )
+            runCatching {
+                repo.createRequest(itemName.trim(), category, unitPriceCents, quantity, reason.trim(), imageUri?.let(Uri::parse))
+                _requests.value = repo.listRequests()
+            }.onFailure { _statusMessage.value = it.message ?: "提交失败" }
         }
     }
 
     fun review(requestId: Long, approve: Boolean, comment: String) {
         viewModelScope.launch {
-            db.reviewDao().review(
-                requestId = requestId,
-                approve = approve,
-                reviewerName = _profile.value.approverName,
-                comment = comment,
-                now = System.currentTimeMillis(),
-            )
+            runCatching {
+                repo.review(requestId, approve, comment)
+                _requests.value = repo.listRequests()
+                loadMonth(_selectedMonth.value)
+            }.onFailure { _statusMessage.value = it.message ?: "审核失败" }
         }
     }
 
     fun withdrawRequest(requestId: Long) {
         viewModelScope.launch {
-            val current = db.requestDao().getById(requestId)
-            if (current?.status == RequestStatus.PENDING) {
-                photos.delete(current.imagePath)
-                db.requestDao().deletePending(requestId)
-            }
+            runCatching {
+                repo.withdraw(requestId)
+                _requests.value = repo.listRequests()
+            }.onFailure { _statusMessage.value = it.message ?: "撤回失败" }
         }
     }
 
     fun shiftMonth(delta: Long) {
         _selectedMonth.update { it.plusMonths(delta) }
+        viewModelScope.launch { runCatching { loadMonth(_selectedMonth.value) } }
     }
 
     fun setBudget(amountCents: Long) {
         viewModelScope.launch {
-            db.budgetDao().upsert(MonthlyBudget(_selectedMonth.value.toString(), amountCents))
+            runCatching {
+                _monthBudget.value = repo.setBudget(_selectedMonth.value.toString(), amountCents)
+            }.onFailure { _statusMessage.value = it.message ?: "预算保存失败" }
+        }
+    }
+
+    fun consumeStatus() {
+        _statusMessage.value = null
+    }
+
+    private suspend fun connect(serverUrl: String, action: suspend () -> SessionDto) {
+        val url = serverUrl.trim().trimEnd('/')
+        prefs.edit(commit = true) { putString("serverUrl", url) }
+        _session.update { it.copy(serverUrl = url) }
+        runCatching {
+            val remote = action()
+            prefs.edit(commit = true) { putString("token", remote.token) }
+            applyRemoteSession(remote.role, remote.requesterName, remote.approverName, remote.householdCode)
+            _session.update { it.copy(token = remote.token, householdCode = remote.householdCode) }
+            _requests.value = repo.listRequests()
+            loadMonth(_selectedMonth.value)
+        }.onFailure { _statusMessage.value = it.message ?: "连接失败，请检查服务器地址" }
+    }
+
+    private suspend fun loadMonth(month: YearMonth) {
+        _monthExpenses.value = repo.listExpenses(month.toString())
+        _monthBudget.value = repo.getBudget(month.toString())
+    }
+
+    private fun applyRemoteSession(role: String, requester: String, approver: String, code: String) {
+        val next = UserProfile(
+            role = runCatching { UserRole.valueOf(role) }.getOrDefault(UserRole.REQUESTER),
+            requesterName = requester,
+            approverName = approver,
+        )
+        _profile.value = next
+        persistProfile(next)
+        prefs.edit { putString("householdCode", code) }
+        _session.update { it.copy(householdCode = code) }
+    }
+
+    private fun persistProfile(next: UserProfile) {
+        prefs.edit {
+            putString("role", next.role.name)
+            putString("requesterName", next.requesterName)
+            putString("approverName", next.approverName)
         }
     }
 }

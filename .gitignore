@@ -12,4 +12,8 @@ local.properties
 /app/release
 *.apk
 *.aab
+*.aab
 *.log
+/backend/data
+/backend/__pycache__
+

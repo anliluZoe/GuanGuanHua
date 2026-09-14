@@ -1,26 +1,48 @@
 # 省钱助手（saveMoney）
 
-一个用于两人协作的购买申请审核与月度消费记录安卓应用。
+两人协作的购买申请审核与月度消费记录。**数据存在自己的后端**，两部手机用同一个家庭码同步申请、审核、照片和账本。
 
-- **申请人**提交购买物品的申请（物品、分类、单价、数量、理由）
-- **审核人**审核申请：通过或拒绝，并可填写审核意见
-- **审核通过**后自动生成一条消费记录，计入当月消费
-- 按月查看消费总额、预算余额、分类占比与明细
+- **申请人**提交购买申请（可附照片）
+- **审核人**通过或拒绝；通过后自动记入当月消费
+- 按月看总额、预算、分类占比和明细
 
-## 功能页面
+## 两部手机怎么一起用
 
-| 页面 | 说明 |
-| --- | --- |
-| 申请 | 申请列表，按「全部 / 待审核 / 已通过 / 已拒绝」筛选；申请人可新建申请，点击进入详情 |
-| 申请详情 | 查看申请信息；审核人可通过/拒绝；申请人可撤回待审核的申请 |
-| 消费 | 月份切换、本月已消费、预算与剩余、分类占比、消费明细；可设置每月预算 |
-| 我的 | 切换当前身份（申请人 / 审核人），修改成员名称 |
+1. 在电脑或云主机上启动后端（见下方）。
+2. 第一部手机打开 App，填服务器地址（例如 `http://192.168.1.8:8080`），选「申请人」，点 **创建家庭账本**，记下 6 位家庭码。
+3. 第二部手机填**同一个地址**，选「审核人」，输入家庭码，点 **加入**。
+4. 之后两边的申请、照片和消费都会同步；在「我们」页下拉进入即可看到家庭码。
 
-数据仅保存在本机（Room 数据库）。没有独立后端，两人共用一台设备时，在「我的」页切换身份即可。申请可以附带一张本地照片（从相册选择后复制到应用私有目录）。
+同一 Wi‑Fi 下用电脑的局域网 IP；不在一个网时，需要把后端放到有公网 IP 的服务器（或内网穿透）。
+
+## 启动后端
+
+```bash
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn main:app --host 0.0.0.0 --port 8080
+```
+
+或：
+
+```bash
+cd backend && docker compose up --build
+```
+
+模拟器访问电脑上的后端请用 `http://10.0.2.2:8080`。
+
+## 构建 App
+
+```bash
+./gradlew assembleDebug
+./gradlew testDebugUnitTest
+```
+
+需要 JDK 17+ 与 Android SDK（compileSdk 35）。未用 Android Studio 时，在根目录 `local.properties` 写入 `sdk.dir=/path/to/android-sdk`。
 
 ## 界面截图
-
-奶油底、大圆角卡片、睡着的小金币和深色金色胶囊按钮，风格偏轻量生活 App。截图来自 Android 14 模拟器。
 
 | 申请列表 | 新建申请 | 加点照片 |
 | --- | --- | --- |
@@ -32,38 +54,6 @@
 
 ## 技术栈
 
-- Kotlin 2.0 · Jetpack Compose · Material 3
-- Room（KSP）持久化，审核与记账在同一事务内完成
-- Navigation Compose · ViewModel · Kotlin Flow
+- App：Kotlin 2.0 · Jetpack Compose · Retrofit
+- 后端：FastAPI · SQLite · 本地文件存照片
 - minSdk 26，compileSdk / targetSdk 35
-
-## 构建
-
-```bash
-# 需要 JDK 17+ 与 Android SDK（compileSdk 35）
-./gradlew assembleDebug          # 生成 app/build/outputs/apk/debug/app-debug.apk
-./gradlew testDebugUnitTest      # 运行单元测试
-```
-
-若未使用 Android Studio，请在项目根目录创建 `local.properties` 并写入 `sdk.dir=/path/to/android-sdk`。
-
-## 项目结构
-
-```
-app/src/main/java/com/savemoney/app/
-├── MainActivity.kt          # 导航与底部栏
-├── AppViewModel.kt          # 业务状态：申请、消费、预算、身份
-├── SaveMoneyApp.kt          # Application，持有数据库实例
-├── data/
-│   ├── Entities.kt          # PurchaseRequest / ExpenseRecord / MonthlyBudget
-│   ├── Daos.kt              # DAO 与审核事务
-│   └── AppDatabase.kt
-└── ui/
-    ├── RequestListScreen.kt
-    ├── NewRequestScreen.kt
-    ├── RequestDetailScreen.kt
-    ├── ExpensesScreen.kt
-    ├── ProfileScreen.kt
-    ├── Common.kt            # 金额/日期格式化、分类、状态标签
-    └── theme/Theme.kt
-```

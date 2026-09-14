@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
@@ -37,6 +38,7 @@ import com.savemoney.app.ui.NewRequestScreen
 import com.savemoney.app.ui.ProfileScreen
 import com.savemoney.app.ui.RequestDetailScreen
 import com.savemoney.app.ui.RequestListScreen
+import com.savemoney.app.ui.SetupScreen
 import com.savemoney.app.ui.theme.Cute
 import com.savemoney.app.ui.theme.SaveMoneyTheme
 
@@ -56,9 +58,15 @@ class MainActivity : ComponentActivity() {
             SaveMoneyTheme {
                 val navController = rememberNavController()
                 val viewModel: AppViewModel = viewModel()
+                val session by viewModel.session.collectAsStateWithLifecycle()
                 val backStackEntry by navController.currentBackStackEntryAsState()
                 val currentRoute = backStackEntry?.destination?.route
-                val showBottomBar = TABS.any { it.route == currentRoute }
+                val showBottomBar = session.joined && TABS.any { it.route == currentRoute }
+
+                if (!session.joined) {
+                    SetupScreen(viewModel)
+                    return@SaveMoneyTheme
+                }
 
                 Scaffold(
                     containerColor = Cute.Cream,

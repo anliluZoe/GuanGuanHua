@@ -26,6 +26,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -55,6 +56,7 @@ fun ExpensesScreen(viewModel: AppViewModel) {
         .map { (category, list) -> category to list.sumOf { it.amountCents } }
         .sortedByDescending { it.second }
     val overBudget = budgetCents != null && totalCents > budgetCents
+    LaunchedEffect(Unit) { viewModel.refresh() }
 
     Column(
         modifier = Modifier
