@@ -18,6 +18,18 @@
 
 数据仅保存在本机（Room 数据库）。两人共用一台设备时，在「我的」页切换身份即可。
 
+## 界面截图
+
+以下截图来自 Android 14（API 34）模拟器实机运行。
+
+| 申请列表（申请人） | 新建申请 | 申请详情（申请人可撤回） | 切换身份 |
+| --- | --- | --- | --- |
+| ![申请列表](docs/screenshots/request_list.png) | ![新建申请](docs/screenshots/new_request_form.png) | ![申请详情-申请人](docs/screenshots/request_detail_requester.png) | ![切换身份](docs/screenshots/profile_switch_role.png) |
+
+| 审核人审核 | 审核结果 | 月度消费统计 | 消费明细 |
+| --- | --- | --- | --- |
+| ![审核](docs/screenshots/request_detail_approver.png) | ![审核结果](docs/screenshots/request_detail_approved.png) | ![月度消费](docs/screenshots/expenses_summary.png) | ![消费明细](docs/screenshots/expenses_detail.png) |
+
 ## 技术栈
 
 - Kotlin 2.0 · Jetpack Compose · Material 3
