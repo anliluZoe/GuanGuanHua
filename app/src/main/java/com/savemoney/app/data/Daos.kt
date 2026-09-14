@@ -22,6 +22,9 @@ interface PurchaseRequestDao {
     @Query("SELECT * FROM purchase_requests WHERE id = :id")
     fun observeById(id: Long): Flow<PurchaseRequest?>
 
+    @Query("SELECT * FROM purchase_requests WHERE id = :id")
+    suspend fun getById(id: Long): PurchaseRequest?
+
     @Query("DELETE FROM purchase_requests WHERE id = :id AND status = 'PENDING'")
     suspend fun deletePending(id: Long)
 }

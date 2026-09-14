@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -32,10 +33,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.savemoney.app.data.RequestStatus
 import com.savemoney.app.ui.theme.Cute
+import java.io.File
 
 val CATEGORY_EMOJI = mapOf(
     "餐饮" to "🍜",
@@ -209,6 +213,69 @@ fun CategoryBubble(category: String, modifier: Modifier = Modifier) {
         contentAlignment = Alignment.Center,
     ) {
         Text(CATEGORY_EMOJI[category] ?: "✨", style = MaterialTheme.typography.titleLarge)
+    }
+}
+
+@Composable
+fun RequestThumb(category: String, imagePath: String?, modifier: Modifier = Modifier) {
+    if (imagePath.isNullOrBlank()) {
+        CategoryBubble(category, modifier)
+    } else {
+        PhotoSlot(model = imagePath, modifier = modifier.size(56.dp), showEmpty = false)
+    }
+}
+
+@Composable
+fun PhotoSlot(
+    model: String?,
+    modifier: Modifier = Modifier,
+    showEmpty: Boolean = true,
+    emptyLabel: String = "加点照片，给审核的人看看",
+    onClick: (() -> Unit)? = null,
+    onClear: (() -> Unit)? = null,
+) {
+    val imageModel: Any? = when {
+        model.isNullOrBlank() -> null
+        model.startsWith("/") -> File(model)
+        else -> model
+    }
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(22.dp))
+            .background(Cute.PeachSoft)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+    ) {
+        if (imageModel != null) {
+            AsyncImage(
+                model = imageModel,
+                contentDescription = "物品照片",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+            if (onClear != null) {
+                Text(
+                    "✕",
+                    color = Cute.Ink,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.92f))
+                        .clickable(onClick = onClear)
+                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                )
+            }
+        } else if (showEmpty) {
+            Column(
+                modifier = Modifier.fillMaxSize().padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Text("📷", style = MaterialTheme.typography.headlineSmall)
+                Spacer(Modifier.height(6.dp))
+                Text(emptyLabel, color = Color(0xFF5A2A12), style = MaterialTheme.typography.bodyMedium)
+            }
+        }
     }
 }
 

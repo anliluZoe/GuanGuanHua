@@ -108,7 +108,7 @@ fun RequestListScreen(
 private fun RequestCard(request: PurchaseRequest, onClick: () -> Unit) {
     SoftCard(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            CategoryBubble(request.category)
+            RequestThumb(request.category, request.imagePath)
             Spacer(Modifier.width(14.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

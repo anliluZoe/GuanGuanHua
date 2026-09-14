@@ -25,6 +25,7 @@ data class PurchaseRequest(
     val reviewedAt: Long? = null,
     val reviewerName: String? = null,
     val reviewComment: String? = null,
+    val imagePath: String? = null,
 ) {
     val totalCents: Long get() = unitPriceCents * quantity
 }

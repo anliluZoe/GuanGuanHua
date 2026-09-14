@@ -2,11 +2,14 @@ package com.savemoney.app
 
 import android.app.Application
 import android.content.Context
+import android.net.Uri
 import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.savemoney.app.data.MonthlyBudget
+import com.savemoney.app.data.PhotoStore
 import com.savemoney.app.data.PurchaseRequest
+import com.savemoney.app.data.RequestStatus
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -39,6 +42,7 @@ data class UserProfile(
 class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private val db = (app as SaveMoneyApp).database
+    private val photos = PhotoStore(app)
     private val prefs = app.getSharedPreferences("profile", Context.MODE_PRIVATE)
 
     private val _profile = MutableStateFlow(
@@ -89,8 +93,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         unitPriceCents: Long,
         quantity: Int,
         reason: String,
+        imageUri: String?,
     ) {
         viewModelScope.launch {
+            val savedPath = imageUri?.let { photos.save(Uri.parse(it)) }
             db.requestDao().insert(
                 PurchaseRequest(
                     itemName = itemName.trim(),
@@ -100,6 +106,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     reason = reason.trim(),
                     requesterName = _profile.value.requesterName,
                     createdAt = System.currentTimeMillis(),
+                    imagePath = savedPath,
                 )
             )
         }
@@ -118,7 +125,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun withdrawRequest(requestId: Long) {
-        viewModelScope.launch { db.requestDao().deletePending(requestId) }
+        viewModelScope.launch {
+            val current = db.requestDao().getById(requestId)
+            if (current?.status == RequestStatus.PENDING) {
+                photos.delete(current.imagePath)
+                db.requestDao().deletePending(requestId)
+            }
+        }
     }
 
     fun shiftMonth(delta: Long) {

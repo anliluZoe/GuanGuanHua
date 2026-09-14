@@ -60,9 +60,17 @@ fun RequestDetailScreen(viewModel: AppViewModel, requestId: Long, onBack: () -> 
         PageHeader("申请详情", current.itemName, onBack = onBack)
         SoftCard(modifier = Modifier.fillMaxWidth()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                CategoryBubble(current.category)
+                RequestThumb(current.category, current.imagePath)
                 Spacer(Modifier.weight(1f))
                 StatusBadge(current.status)
+            }
+            if (!current.imagePath.isNullOrBlank()) {
+                Spacer(Modifier.height(14.dp))
+                PhotoSlot(
+                    model = current.imagePath,
+                    showEmpty = false,
+                    modifier = Modifier.fillMaxWidth().height(220.dp),
+                )
             }
             Spacer(Modifier.height(16.dp))
             Text(current.itemName, style = MaterialTheme.typography.headlineSmall)

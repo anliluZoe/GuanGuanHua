@@ -1,5 +1,8 @@
 package com.savemoney.app.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -37,7 +40,11 @@ fun NewRequestScreen(viewModel: AppViewModel, onBack: () -> Unit) {
     var priceText by rememberSaveable { mutableStateOf("") }
     var quantityText by rememberSaveable { mutableStateOf("1") }
     var reason by rememberSaveable { mutableStateOf("") }
+    var photoUri by rememberSaveable { mutableStateOf<String?>(null) }
     var submitted by rememberSaveable { mutableStateOf(false) }
+    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        photoUri = uri?.toString()
+    }
 
     val priceCents = priceText.yuanToCentsOrNull()
     val quantity = quantityText.trim().toIntOrNull()?.takeIf { it in 1..9999 }
@@ -115,6 +122,14 @@ fun NewRequestScreen(viewModel: AppViewModel, onBack: () -> Unit) {
             singleLine = false,
             minLines = 3,
         )
+        PhotoSlot(
+            model = photoUri,
+            modifier = Modifier.fillMaxWidth().height(180.dp),
+            onClick = {
+                photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+            },
+            onClear = photoUri?.let { { photoUri = null } },
+        )
         Spacer(Modifier.height(4.dp))
         CharcoalPillButton(
             text = "提交申请",
@@ -122,7 +137,7 @@ fun NewRequestScreen(viewModel: AppViewModel, onBack: () -> Unit) {
             onClick = {
                 submitted = true
                 if (formValid) {
-                    viewModel.submitRequest(itemName, category, priceCents!!, quantity!!, reason)
+                    viewModel.submitRequest(itemName, category, priceCents!!, quantity!!, reason, photoUri)
                     onBack()
                 }
             },
