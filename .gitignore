@@ -15,5 +15,6 @@ local.properties
 *.aab
 *.log
 /backend/data
+/backend/node_modules
 /backend/__pycache__
 

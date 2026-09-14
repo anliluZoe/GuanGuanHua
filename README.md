@@ -17,12 +17,12 @@
 
 ## 启动后端
 
+需要 Node.js 22+。
+
 ```bash
 cd backend
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn main:app --host 0.0.0.0 --port 8080
+npm install
+npm start
 ```
 
 或：
@@ -55,5 +55,5 @@ cd backend && docker compose up --build
 ## 技术栈
 
 - App：Kotlin 2.0 · Jetpack Compose · Retrofit
-- 后端：FastAPI · SQLite · 本地文件存照片
+- 后端：Node.js（Express）· SQLite · 本地文件存照片
 - minSdk 26，compileSdk / targetSdk 35
