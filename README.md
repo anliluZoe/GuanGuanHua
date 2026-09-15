@@ -49,9 +49,9 @@ cd backend && docker compose up --build
 | --- | --- | --- |
 | ![申请列表](docs/screenshots/request_list.png) | ![新建申请](docs/screenshots/new_request_form.png) | ![加点照片](docs/screenshots/photo_attach.png) |
 
-| 帮对方把关 | 小账本 | 我们俩 |
+| 帮对方把关 | 部分通过 | 我们俩 |
 | --- | --- | --- |
-| ![审核](docs/screenshots/request_detail_approver.png) | ![月度消费](docs/screenshots/expenses_summary.png) | ![我们俩](docs/screenshots/profile_partner.png) |
+| ![审核](docs/screenshots/request_detail_approver.png) | ![部分通过](docs/screenshots/request_detail_partial.png) | ![我们俩](docs/screenshots/profile_partner.png) |
 
 | 审核人收到新申请通知 | 申请人收到审核结果 |
 | --- | --- |
