@@ -1,0 +1,12 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - savemoney-data:/data
+    environment:
+      SAVE_MONEY_DATA: /data
+
+volumes:
+  savemoney-data:
