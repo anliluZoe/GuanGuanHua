@@ -51,6 +51,9 @@ fun ExpensesScreen(viewModel: AppViewModel) {
     val month by viewModel.selectedMonth.collectAsStateWithLifecycle()
     val expenses by viewModel.monthExpenses.collectAsStateWithLifecycle()
     val budget by viewModel.monthBudget.collectAsStateWithLifecycle()
+    val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
+    val isBusy by viewModel.isBusy.collectAsStateWithLifecycle()
+    val isReady by viewModel.isReady.collectAsStateWithLifecycle()
     var editingBudget by rememberSaveable { mutableStateOf(false) }
     var budgetText by rememberSaveable { mutableStateOf("") }
 
@@ -65,9 +68,10 @@ fun ExpensesScreen(viewModel: AppViewModel) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Palette.ScreenGlow)
-            .padding(horizontal = 20.dp),
+            .background(Palette.ScreenGlow),
     ) {
+        RefreshBar(visible = isRefreshing && isReady)
+        Column(modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
         Spacer(Modifier.height(12.dp))
         Mascot(MascotKind.Dog, size = 56.dp)
         Spacer(Modifier.height(8.dp))
@@ -87,14 +91,14 @@ fun ExpensesScreen(viewModel: AppViewModel) {
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
-                    IconButton(onClick = { viewModel.shiftMonth(-1) }) {
+                    IconButton(onClick = { viewModel.shiftMonth(-1) }, enabled = !isRefreshing && !isBusy) {
                         Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "上个月", tint = Palette.Ink)
                     }
                     Text(
                         "${month.year}年${month.monthValue}月",
                         style = MaterialTheme.typography.titleLarge,
                     )
-                    IconButton(onClick = { viewModel.shiftMonth(1) }, enabled = month < YearMonth.now()) {
+                    IconButton(onClick = { viewModel.shiftMonth(1) }, enabled = month < YearMonth.now() && !isRefreshing && !isBusy) {
                         Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "下个月", tint = Palette.Ink)
                     }
                 }
@@ -199,7 +203,9 @@ fun ExpensesScreen(viewModel: AppViewModel) {
 
             item { Text("明细", style = MaterialTheme.typography.titleMedium) }
 
-            if (expenses.isEmpty()) {
+            if (!isReady) {
+                item { LoadingHint("正在同步账本…") }
+            } else if (expenses.isEmpty()) {
                 item {
                     EmptyHint(MascotKind.Dog, "哼，这个月还没花过？", "申请通过后，会自动出现在这里")
                 }
@@ -223,12 +229,13 @@ fun ExpensesScreen(viewModel: AppViewModel) {
                 }
             }
         }
+        }
     }
 
     if (editingBudget) {
         val parsed = budgetText.yuanToCentsOrNull()
         AlertDialog(
-            onDismissRequest = { editingBudget = false },
+            onDismissRequest = { if (!isBusy) editingBudget = false },
             title = { Text("设置 ${month.year}年${month.monthValue}月预算") },
             text = {
                 SoftField(
@@ -241,13 +248,12 @@ fun ExpensesScreen(viewModel: AppViewModel) {
                 )
             },
             confirmButton = {
-                TextButton(enabled = parsed != null, onClick = {
-                    viewModel.setBudget(parsed!!)
-                    editingBudget = false
+                TextButton(enabled = parsed != null && !isBusy, onClick = {
+                    viewModel.setBudget(parsed!!) { editingBudget = false }
                 }) { Text("保存", color = Palette.Coral) }
             },
             dismissButton = {
-                TextButton(onClick = { editingBudget = false }) { Text("取消") }
+                TextButton(enabled = !isBusy, onClick = { editingBudget = false }) { Text("取消") }
             },
             containerColor = MaterialTheme.colorScheme.surface,
             shape = MaterialTheme.shapes.large,

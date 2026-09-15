@@ -31,7 +31,9 @@ import androidx.compose.material.icons.outlined.Restaurant
 import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -42,6 +44,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -319,6 +322,69 @@ fun PhotoSlot(
                 Text("📷", style = MaterialTheme.typography.headlineSmall)
                 Spacer(Modifier.height(6.dp))
                 Text(emptyLabel, color = Palette.Ink, style = MaterialTheme.typography.bodyMedium)
+            }
+        }
+    }
+}
+
+@Composable
+fun CoralProgress(modifier: Modifier = Modifier) {
+    CircularProgressIndicator(
+        modifier = modifier.size(36.dp),
+        color = Palette.Coral,
+        strokeWidth = 3.dp,
+        trackColor = Palette.CoralSoft,
+    )
+}
+
+@Composable
+fun RefreshBar(visible: Boolean, modifier: Modifier = Modifier) {
+    if (visible) {
+        LinearProgressIndicator(
+            modifier = modifier.fillMaxWidth().height(3.dp),
+            color = Palette.Coral,
+            trackColor = Palette.CoralSoft,
+        )
+    }
+}
+
+@Composable
+fun LoadingHint(title: String = "稍等一下哦…") {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 28.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        CoralProgress()
+        Text(title, color = Palette.Muted, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+@Composable
+fun LoadingScrim(visible: Boolean, hint: String = "稍等一下哦…") {
+    if (!visible) return
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background.copy(alpha = 0.72f))
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        awaitPointerEvent()
+                    }
+                }
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        SoftCard(modifier = Modifier.padding(horizontal = 28.dp)) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Mascot(MascotKind.Cat, size = 72.dp)
+                CoralProgress()
+                Text(hint, color = Palette.Muted, style = MaterialTheme.typography.bodyMedium)
             }
         }
     }

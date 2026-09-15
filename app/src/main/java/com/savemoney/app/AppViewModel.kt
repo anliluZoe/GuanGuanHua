@@ -15,9 +15,11 @@ import com.savemoney.app.notify.ReviewActivity
 import com.savemoney.app.notify.ReviewActivityWorker
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.YearMonth
@@ -73,6 +75,21 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val _statusMessage = MutableStateFlow<String?>(null)
     val statusMessage: StateFlow<String?> = _statusMessage.asStateFlow()
 
+    private val _busyCount = MutableStateFlow(0)
+    /** 提交、审核、建家等写操作进行中；界面用遮罩并禁用主按钮。 */
+    val isBusy: StateFlow<Boolean> = _busyCount
+        .map { it > 0 }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    private val _refreshCount = MutableStateFlow(0)
+    /** 拉列表/账本/资料。首次居中转圈，之后顶栏细进度；后台 30 秒轮询走 quiet。 */
+    val isRefreshing: StateFlow<Boolean> = _refreshCount
+        .map { it > 0 }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    private val _ready = MutableStateFlow(false)
+    val isReady: StateFlow<Boolean> = _ready.asStateFlow()
+
     init {
         if (_session.value.joined) refresh()
     }
@@ -80,22 +97,29 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun observeRequest(id: Long): Flow<PurchaseRequest?> =
         requests.map { list -> list.firstOrNull { it.id == id } }
 
-    fun refresh() {
+    fun refresh(quiet: Boolean = false) {
         viewModelScope.launch {
-            runCatching {
-                applyRemoteSession(repo.session())
-                syncRequests()
-                loadMonth(_selectedMonth.value)
-            }.onFailure { _statusMessage.value = it.message ?: "同步失败" }
+            track(_refreshCount, enabled = !quiet) {
+                runCatching {
+                    applyRemoteSession(repo.session())
+                    syncRequests()
+                    loadMonth(_selectedMonth.value)
+                }.onFailure { _statusMessage.value = it.message ?: "同步失败" }
+                _ready.value = true
+            }
         }
     }
 
     fun createHome(serverUrl: String, name: String) {
-        viewModelScope.launch { connect(serverUrl) { repo.createHousehold(name.trim()) } }
+        viewModelScope.launch {
+            track(_busyCount) { connect(serverUrl) { repo.createHousehold(name.trim()) } }
+        }
     }
 
     fun joinHome(serverUrl: String, code: String, name: String) {
-        viewModelScope.launch { connect(serverUrl) { repo.joinHousehold(code, name.trim()) } }
+        viewModelScope.launch {
+            track(_busyCount) { connect(serverUrl) { repo.joinHousehold(code, name.trim()) } }
+        }
     }
 
     fun leaveHome() {
@@ -109,6 +133,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         _requests.value = emptyList()
         _monthExpenses.value = emptyList()
         _monthBudget.value = null
+        _ready.value = false
     }
 
     fun updateName(name: String) {
@@ -118,8 +143,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
         viewModelScope.launch {
-            runCatching { applyRemoteSession(repo.updateName(trimmed)) }
-                .onFailure { _statusMessage.value = it.message ?: "保存失败" }
+            track(_busyCount) {
+                runCatching { applyRemoteSession(repo.updateName(trimmed)) }
+                    .onFailure { _statusMessage.value = it.message ?: "保存失败" }
+            }
         }
     }
 
@@ -130,12 +157,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         quantity: Int,
         reason: String,
         imageUri: String?,
+        onSuccess: () -> Unit = {},
     ) {
         viewModelScope.launch {
-            runCatching {
-                repo.createRequest(itemName.trim(), category, unitPriceCents, quantity, reason.trim(), imageUri?.let(Uri::parse))
-                syncRequests()
-            }.onFailure { _statusMessage.value = it.message ?: "提交失败" }
+            track(_busyCount) {
+                runCatching {
+                    repo.createRequest(itemName.trim(), category, unitPriceCents, quantity, reason.trim(), imageUri?.let(Uri::parse))
+                    syncRequests()
+                }.onSuccess { onSuccess() }
+                    .onFailure { _statusMessage.value = it.message ?: "提交失败" }
+            }
         }
     }
 
@@ -145,35 +176,47 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         comment: String,
         unitPriceCents: Long? = null,
         quantity: Int? = null,
+        onSuccess: () -> Unit = {},
     ) {
         viewModelScope.launch {
-            runCatching {
-                repo.review(requestId, approve, comment, unitPriceCents, quantity)
-                syncRequests()
-                loadMonth(_selectedMonth.value)
-            }.onFailure { _statusMessage.value = it.message ?: "审核失败" }
+            track(_busyCount) {
+                runCatching {
+                    repo.review(requestId, approve, comment, unitPriceCents, quantity)
+                    syncRequests()
+                    loadMonth(_selectedMonth.value)
+                }.onSuccess { onSuccess() }
+                    .onFailure { _statusMessage.value = it.message ?: "审核失败" }
+            }
         }
     }
 
-    fun withdrawRequest(requestId: Long) {
+    fun withdrawRequest(requestId: Long, onSuccess: () -> Unit = {}) {
         viewModelScope.launch {
-            runCatching {
-                repo.withdraw(requestId)
-                syncRequests()
-            }.onFailure { _statusMessage.value = it.message ?: "撤回失败" }
+            track(_busyCount) {
+                runCatching {
+                    repo.withdraw(requestId)
+                    syncRequests()
+                }.onSuccess { onSuccess() }
+                    .onFailure { _statusMessage.value = it.message ?: "撤回失败" }
+            }
         }
     }
 
     fun shiftMonth(delta: Long) {
         _selectedMonth.update { it.plusMonths(delta) }
-        viewModelScope.launch { runCatching { loadMonth(_selectedMonth.value) } }
+        viewModelScope.launch {
+            track(_refreshCount) { runCatching { loadMonth(_selectedMonth.value) } }
+        }
     }
 
-    fun setBudget(amountCents: Long) {
+    fun setBudget(amountCents: Long, onSuccess: () -> Unit = {}) {
         viewModelScope.launch {
-            runCatching {
-                _monthBudget.value = repo.setBudget(_selectedMonth.value.toString(), amountCents)
-            }.onFailure { _statusMessage.value = it.message ?: "预算保存失败" }
+            track(_busyCount) {
+                runCatching {
+                    _monthBudget.value = repo.setBudget(_selectedMonth.value.toString(), amountCents)
+                }.onSuccess { onSuccess() }
+                    .onFailure { _statusMessage.value = it.message ?: "预算保存失败" }
+            }
         }
     }
 
@@ -194,6 +237,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             loadMonth(_selectedMonth.value)
             ReviewActivityWorker.schedule(getApplication())
         }.onFailure { _statusMessage.value = it.message ?: "连接失败，请检查服务器地址" }
+        _ready.value = _session.value.joined
     }
 
     /** 拉取申请列表；如果对方有新动作（新申请 / 审核结果），顺手在页面上提示一句。 */
@@ -224,5 +268,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             putString("householdCode", remote.householdCode)
         }
         _session.update { it.copy(householdCode = remote.householdCode) }
+    }
+
+    private suspend fun track(count: MutableStateFlow<Int>, enabled: Boolean = true, block: suspend () -> Unit) {
+        if (!enabled) {
+            block()
+            return
+        }
+        count.update { it + 1 }
+        try {
+            block()
+        } finally {
+            count.update { it - 1 }
+        }
     }
 }
