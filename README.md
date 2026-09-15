@@ -53,9 +53,9 @@ cd backend && docker compose up --build
 | --- | --- | --- |
 | ![审核](docs/screenshots/request_detail_approver.png) | ![部分通过](docs/screenshots/request_detail_partial.png) | ![我们俩](docs/screenshots/profile_partner.png) |
 
-| 审核人收到新申请通知 | 申请人收到审核结果 |
-| --- | --- |
-| ![新申请通知](docs/screenshots/notification_new_request.png) | ![审核结果通知](docs/screenshots/notification_review_result.png) |
+| 小账本 | 审核人收到新申请通知 | 申请人收到审核结果 |
+| --- | --- | --- |
+| ![小账本](docs/screenshots/expenses_summary.png) | ![新申请通知](docs/screenshots/notification_new_request.png) | ![审核结果通知](docs/screenshots/notification_review_result.png) |
 
 ## 技术栈
 
