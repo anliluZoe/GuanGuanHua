@@ -17,6 +17,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,6 +39,9 @@ import com.savemoney.app.ui.theme.Palette
 fun ProfileScreen(viewModel: AppViewModel) {
     val profile by viewModel.profile.collectAsStateWithLifecycle()
     val session by viewModel.session.collectAsStateWithLifecycle()
+    val isBusy by viewModel.isBusy.collectAsStateWithLifecycle()
+    val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
+    val isReady by viewModel.isReady.collectAsStateWithLifecycle()
     var name by rememberSaveable(profile.name) { mutableStateOf(profile.name) }
     val context = LocalContext.current
     var notificationsOn by remember { mutableStateOf(NotificationManagerCompat.from(context).areNotificationsEnabled()) }
@@ -45,15 +49,21 @@ fun ProfileScreen(viewModel: AppViewModel) {
         notificationsOn = NotificationManagerCompat.from(context).areNotificationsEnabled()
         onPauseOrDispose { }
     }
+    LaunchedEffect(Unit) { viewModel.refresh() }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Palette.ScreenGlow)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+            .background(Palette.ScreenGlow),
     ) {
+        RefreshBar(visible = isRefreshing && isReady)
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
         Spacer(Modifier.height(12.dp))
         Mascot(MascotKind.Dog, size = 56.dp)
         PageHeader("我们", "两个人的小金库 · 才不是腻歪呢")
@@ -106,9 +116,11 @@ fun ProfileScreen(viewModel: AppViewModel) {
             Spacer(Modifier.height(12.dp))
             SoftField(value = name, onValueChange = { name = it }, label = "我的名字")
             Spacer(Modifier.height(16.dp))
-            PillButton("保存名字", enabled = name.trim().isNotBlank() && name.trim() != profile.name, onClick = {
-                viewModel.updateName(name)
-            })
+            PillButton(
+                "保存名字",
+                enabled = !isBusy && name.trim().isNotBlank() && name.trim() != profile.name,
+                onClick = { viewModel.updateName(name) },
+            )
         }
         SoftCard(modifier = Modifier.fillMaxWidth()) {
             Text("审核动态提醒", style = MaterialTheme.typography.titleMedium)
@@ -132,7 +144,8 @@ fun ProfileScreen(viewModel: AppViewModel) {
                 })
             }
         }
-        PillButton("退出这个家庭账本", filled = false, onClick = { viewModel.leaveHome() })
+        PillButton("退出这个家庭账本", filled = false, enabled = !isBusy, onClick = { viewModel.leaveHome() })
         Spacer(Modifier.height(96.dp))
+        }
     }
 }

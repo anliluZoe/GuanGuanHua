@@ -14,7 +14,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -40,6 +39,7 @@ fun RequestDetailScreen(viewModel: AppViewModel, requestId: Long, onBack: () -> 
     val requestFlow = remember(requestId) { viewModel.observeRequest(requestId) }
     val request by requestFlow.collectAsStateWithLifecycle(initialValue = null)
     val profile by viewModel.profile.collectAsStateWithLifecycle()
+    val isBusy by viewModel.isBusy.collectAsStateWithLifecycle()
     var comment by rememberSaveable { mutableStateOf("") }
     var confirmWithdraw by rememberSaveable { mutableStateOf(false) }
     var priceText by rememberSaveable { mutableStateOf("") }
@@ -49,7 +49,7 @@ fun RequestDetailScreen(viewModel: AppViewModel, requestId: Long, onBack: () -> 
     val current = request
     if (current == null) {
         Box(modifier = Modifier.fillMaxSize().background(Palette.ScreenGlow), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(color = Palette.Coral)
+            LoadingHint("正在打开申请…")
         }
         return
     }
@@ -213,11 +213,10 @@ fun RequestDetailScreen(viewModel: AppViewModel, requestId: Long, onBack: () -> 
                     )
                     Spacer(Modifier.height(12.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        PillButton("拒绝", filled = false, onClick = {
-                            viewModel.review(current.id, approve = false, comment = comment)
-                            onBack()
+                        PillButton("拒绝", filled = false, enabled = !isBusy, onClick = {
+                            viewModel.review(current.id, approve = false, comment = comment, onSuccess = onBack)
                         }, modifier = Modifier.weight(1f))
-                        PillButton("通过", onClick = {
+                        PillButton("通过", enabled = !isBusy, onClick = {
                             approveAttempted = true
                             if (approveAmountsOk) {
                                 viewModel.review(
@@ -226,8 +225,8 @@ fun RequestDetailScreen(viewModel: AppViewModel, requestId: Long, onBack: () -> 
                                     comment = comment,
                                     unitPriceCents = approvePrice,
                                     quantity = approveQty,
+                                    onSuccess = onBack,
                                 )
-                                onBack()
                             }
                         }, modifier = Modifier.weight(1f))
                     }
@@ -240,7 +239,7 @@ fun RequestDetailScreen(viewModel: AppViewModel, requestId: Long, onBack: () -> 
                 SoftCard(modifier = Modifier.fillMaxWidth()) {
                     Text("正在等 ${profile.partnerName ?: "另一半"} 看一眼…", color = Palette.Muted)
                     Spacer(Modifier.height(12.dp))
-                    PillButton("撤回申请", filled = false, onClick = { confirmWithdraw = true })
+                    PillButton("撤回申请", filled = false, enabled = !isBusy, onClick = { confirmWithdraw = true })
                 }
             }
         }
@@ -253,11 +252,13 @@ fun RequestDetailScreen(viewModel: AppViewModel, requestId: Long, onBack: () -> 
             title = { Text("撤回申请") },
             text = { Text("撤回后这条申请会消失哦，确定吗？") },
             confirmButton = {
-                TextButton(onClick = {
-                    confirmWithdraw = false
-                    viewModel.withdrawRequest(current.id)
-                    onBack()
-                }) { Text("撤回", color = Palette.Coral) }
+                TextButton(
+                    enabled = !isBusy,
+                    onClick = {
+                        confirmWithdraw = false
+                        viewModel.withdrawRequest(current.id, onSuccess = onBack)
+                    },
+                ) { Text("撤回", color = Palette.Coral) }
             },
             dismissButton = {
                 TextButton(onClick = { confirmWithdraw = false }) { Text("再想想") }

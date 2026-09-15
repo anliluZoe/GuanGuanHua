@@ -48,17 +48,22 @@ fun RequestListScreen(
 ) {
     val requests by viewModel.requests.collectAsStateWithLifecycle()
     val profile by viewModel.profile.collectAsStateWithLifecycle()
+    val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
+    val isBusy by viewModel.isBusy.collectAsStateWithLifecycle()
+    val isReady by viewModel.isReady.collectAsStateWithLifecycle()
     var filter by rememberSaveable { mutableStateOf<RequestStatus?>(null) }
     val shown = if (filter == null) requests else requests.filter { it.status == filter }
     val pendingForMe = requests.count { it.status == RequestStatus.PENDING && !it.mine }
+    val waitingForList = !isReady
     LaunchedEffect(Unit) { viewModel.refresh() }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Palette.ScreenGlow)
-            .padding(horizontal = 20.dp),
+            .background(Palette.ScreenGlow),
     ) {
+        RefreshBar(visible = isRefreshing && isReady)
+        Column(modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
         Spacer(Modifier.height(12.dp))
         Mascot(MascotKind.Cat, size = 64.dp)
         Spacer(Modifier.height(8.dp))
@@ -90,7 +95,14 @@ fun RequestListScreen(
             }
         }
         Spacer(Modifier.height(16.dp))
-        if (shown.isEmpty()) {
+        if (waitingForList) {
+            Box(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                contentAlignment = Alignment.Center,
+            ) {
+                LoadingHint("正在同步申请…")
+            }
+        } else if (shown.isEmpty()) {
             Column(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
                 verticalArrangement = Arrangement.Center,
@@ -101,7 +113,7 @@ fun RequestListScreen(
                     subtitle = "想买就提申请，过了我这关再说",
                 )
             }
-            PillButton("新建申请", onClick = onCreate)
+            PillButton("新建申请", enabled = !isBusy, onClick = onCreate)
             Spacer(Modifier.height(12.dp))
         } else {
             LazyColumn(
@@ -114,9 +126,10 @@ fun RequestListScreen(
                 }
                 item {
                     Spacer(Modifier.height(4.dp))
-                    PillButton("＋  新建申请", onClick = onCreate)
+                    PillButton("＋  新建申请", enabled = !isBusy, onClick = onCreate)
                 }
             }
+        }
         }
     }
 }

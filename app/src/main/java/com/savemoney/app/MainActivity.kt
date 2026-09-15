@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -14,9 +15,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
@@ -56,6 +59,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.savemoney.app.ui.ExpensesScreen
+import com.savemoney.app.ui.LoadingScrim
 import com.savemoney.app.ui.NewRequestScreen
 import com.savemoney.app.ui.ProfileScreen
 import com.savemoney.app.ui.RequestDetailScreen
@@ -96,128 +100,133 @@ class MainActivity : ComponentActivity() {
                 val viewModel: AppViewModel = viewModel()
                 val session by viewModel.session.collectAsStateWithLifecycle()
                 val status by viewModel.statusMessage.collectAsStateWithLifecycle()
+                val isBusy by viewModel.isBusy.collectAsStateWithLifecycle()
                 val backStackEntry by navController.currentBackStackEntryAsState()
                 val currentRoute = backStackEntry?.destination?.route
                 val showBottomBar = session.joined && TABS.any { it.route == currentRoute }
                 val snackbar = remember { SnackbarHostState() }
 
-                if (!session.joined) {
-                    SetupScreen(viewModel)
-                    return@SaveMoneyTheme
-                }
+                BackHandler(enabled = isBusy) { }
 
-                val requestNotifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
-                LaunchedEffect(Unit) {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                        ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-                    ) {
-                        requestNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
-                    }
-                }
-
-                val lifecycleOwner = LocalLifecycleOwner.current
-                LaunchedEffect(lifecycleOwner) {
-                    lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-                        while (true) {
-                            delay(FOREGROUND_POLL_MS)
-                            viewModel.refresh()
-                        }
-                    }
-                }
-
-                LaunchedEffect(status) {
-                    if (!status.isNullOrBlank()) {
-                        snackbar.showSnackbar(status!!)
-                        viewModel.consumeStatus()
-                    }
-                }
-
-                val pendingRequestId = openRequestId.longValue
-                LaunchedEffect(pendingRequestId) {
-                    if (pendingRequestId != 0L) {
-                        navController.navigate("requests/$pendingRequestId") { launchSingleTop = true }
-                        openRequestId.longValue = 0L
-                    }
-                }
-
-                Scaffold(
-                    containerColor = Palette.Canvas,
-                    snackbarHost = { SnackbarHost(snackbar) },
-                    bottomBar = {
-                        if (showBottomBar) {
-                            Row(
-                                modifier = Modifier
-                                    .windowInsetsPadding(WindowInsets.navigationBars)
-                                    .padding(horizontal = 20.dp, vertical = 10.dp)
-                                    .clip(RoundedCornerShape(28.dp))
-                                    .background(Color.White)
-                                    .border(1.dp, Palette.Line, RoundedCornerShape(28.dp))
-                                    .padding(horizontal = 8.dp, vertical = 6.dp)
-                                    .fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceEvenly,
+                Box(modifier = Modifier.fillMaxSize()) {
+                    if (!session.joined) {
+                        SetupScreen(viewModel)
+                    } else {
+                        val requestNotifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
+                        LaunchedEffect(Unit) {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                                ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
                             ) {
-                                TABS.forEach { tab ->
-                                    val selected = currentRoute == tab.route
-                                    Column(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(22.dp))
-                                            .background(if (selected) Palette.SkySoft else Color.Transparent)
-                                            .clickable {
-                                                navController.navigate(tab.route) {
-                                                    popUpTo(navController.graph.findStartDestination().id) {
-                                                        saveState = true
-                                                    }
-                                                    launchSingleTop = true
-                                                    restoreState = true
-                                                }
-                                            }
-                                            .padding(horizontal = 22.dp, vertical = 8.dp),
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                    ) {
-                                        Icon(
-                                            tab.icon,
-                                            contentDescription = tab.label,
-                                            tint = if (selected) Palette.Sky else Palette.Muted,
-                                            modifier = Modifier.size(22.dp),
-                                        )
-                                        Text(
-                                            tab.label,
-                                            color = if (selected) Palette.Sky else Palette.Muted,
-                                        )
-                                    }
+                                requestNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            }
+                        }
+
+                        val lifecycleOwner = LocalLifecycleOwner.current
+                        LaunchedEffect(lifecycleOwner) {
+                            lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                                while (true) {
+                                    delay(FOREGROUND_POLL_MS)
+                                    viewModel.refresh(quiet = true)
                                 }
                             }
                         }
-                    },
-                ) { padding ->
-                    NavHost(
-                        navController = navController,
-                        startDestination = "requests",
-                        modifier = Modifier.padding(padding),
-                    ) {
-                        composable("requests") {
-                            RequestListScreen(
-                                viewModel = viewModel,
-                                onCreate = { navController.navigate("requests/new") },
-                                onOpen = { id -> navController.navigate("requests/$id") },
-                            )
+
+                        LaunchedEffect(status) {
+                            if (!status.isNullOrBlank()) {
+                                snackbar.showSnackbar(status!!)
+                                viewModel.consumeStatus()
+                            }
                         }
-                        composable("requests/new") {
-                            NewRequestScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+
+                        val pendingRequestId = openRequestId.longValue
+                        LaunchedEffect(pendingRequestId) {
+                            if (pendingRequestId != 0L) {
+                                navController.navigate("requests/$pendingRequestId") { launchSingleTop = true }
+                                openRequestId.longValue = 0L
+                            }
                         }
-                        composable(
-                            route = "requests/{id}",
-                            arguments = listOf(navArgument("id") { type = NavType.LongType }),
-                        ) { entry ->
-                            RequestDetailScreen(
-                                viewModel = viewModel,
-                                requestId = entry.arguments?.getLong("id") ?: 0L,
-                                onBack = { navController.popBackStack() },
-                            )
+
+                        Scaffold(
+                            containerColor = Palette.Canvas,
+                            snackbarHost = { SnackbarHost(snackbar) },
+                            bottomBar = {
+                                if (showBottomBar) {
+                                    Row(
+                                        modifier = Modifier
+                                            .windowInsetsPadding(WindowInsets.navigationBars)
+                                            .padding(horizontal = 20.dp, vertical = 10.dp)
+                                            .clip(RoundedCornerShape(28.dp))
+                                            .background(Color.White)
+                                            .border(1.dp, Palette.Line, RoundedCornerShape(28.dp))
+                                            .padding(horizontal = 8.dp, vertical = 6.dp)
+                                            .fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceEvenly,
+                                    ) {
+                                        TABS.forEach { tab ->
+                                            val selected = currentRoute == tab.route
+                                            Column(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(22.dp))
+                                                    .background(if (selected) Palette.SkySoft else Color.Transparent)
+                                                    .clickable {
+                                                        navController.navigate(tab.route) {
+                                                            popUpTo(navController.graph.findStartDestination().id) {
+                                                                saveState = true
+                                                            }
+                                                            launchSingleTop = true
+                                                            restoreState = true
+                                                        }
+                                                    }
+                                                    .padding(horizontal = 22.dp, vertical = 8.dp),
+                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                            ) {
+                                                Icon(
+                                                    tab.icon,
+                                                    contentDescription = tab.label,
+                                                    tint = if (selected) Palette.Sky else Palette.Muted,
+                                                    modifier = Modifier.size(22.dp),
+                                                )
+                                                Text(
+                                                    tab.label,
+                                                    color = if (selected) Palette.Sky else Palette.Muted,
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                        ) { padding ->
+                            NavHost(
+                                navController = navController,
+                                startDestination = "requests",
+                                modifier = Modifier.padding(padding),
+                            ) {
+                                composable("requests") {
+                                    RequestListScreen(
+                                        viewModel = viewModel,
+                                        onCreate = { navController.navigate("requests/new") },
+                                        onOpen = { id -> navController.navigate("requests/$id") },
+                                    )
+                                }
+                                composable("requests/new") {
+                                    NewRequestScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+                                }
+                                composable(
+                                    route = "requests/{id}",
+                                    arguments = listOf(navArgument("id") { type = NavType.LongType }),
+                                ) { entry ->
+                                    RequestDetailScreen(
+                                        viewModel = viewModel,
+                                        requestId = entry.arguments?.getLong("id") ?: 0L,
+                                        onBack = { navController.popBackStack() },
+                                    )
+                                }
+                                composable("expenses") { ExpensesScreen(viewModel = viewModel) }
+                                composable("profile") { ProfileScreen(viewModel = viewModel) }
+                            }
                         }
-                        composable("expenses") { ExpensesScreen(viewModel = viewModel) }
-                        composable("profile") { ProfileScreen(viewModel = viewModel) }
                     }
+                    LoadingScrim(visible = isBusy)
                 }
             }
         }

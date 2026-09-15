@@ -30,6 +30,7 @@ fun SetupScreen(viewModel: AppViewModel) {
     val session by viewModel.session.collectAsStateWithLifecycle()
     val profile by viewModel.profile.collectAsStateWithLifecycle()
     val status by viewModel.statusMessage.collectAsStateWithLifecycle()
+    val isBusy by viewModel.isBusy.collectAsStateWithLifecycle()
     var serverUrl by rememberSaveable { mutableStateOf(session.serverUrl) }
     var name by rememberSaveable { mutableStateOf(profile.name.ifBlank { "小明" }) }
     var code by rememberSaveable { mutableStateOf("") }
@@ -60,7 +61,7 @@ fun SetupScreen(viewModel: AppViewModel) {
             style = MaterialTheme.typography.bodySmall,
             color = Palette.Muted,
         )
-        PillButton("创建家庭账本", onClick = {
+        PillButton("创建家庭账本", enabled = !isBusy, onClick = {
             viewModel.consumeStatus()
             viewModel.createHome(serverUrl, name)
         })
@@ -69,7 +70,7 @@ fun SetupScreen(viewModel: AppViewModel) {
             Spacer(Modifier.height(10.dp))
             SoftField(value = code, onValueChange = { code = it }, label = "6 位家庭码")
             Spacer(Modifier.height(12.dp))
-            PillButton("加入", filled = false, onClick = {
+            PillButton("加入", filled = false, enabled = !isBusy, onClick = {
                 viewModel.consumeStatus()
                 viewModel.joinHome(serverUrl, code, name)
             })

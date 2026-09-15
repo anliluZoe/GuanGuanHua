@@ -33,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.savemoney.app.AppViewModel
 import com.savemoney.app.ui.theme.Palette
 
@@ -45,6 +46,7 @@ fun NewRequestScreen(viewModel: AppViewModel, onBack: () -> Unit) {
     var reason by rememberSaveable { mutableStateOf("") }
     var photoUri by rememberSaveable { mutableStateOf<String?>(null) }
     var submitted by rememberSaveable { mutableStateOf(false) }
+    val isBusy by viewModel.isBusy.collectAsStateWithLifecycle()
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         photoUri = uri?.toString()
     }
@@ -154,12 +156,11 @@ fun NewRequestScreen(viewModel: AppViewModel, onBack: () -> Unit) {
         Spacer(Modifier.height(4.dp))
         PillButton(
             text = "提交申请",
-            enabled = true,
+            enabled = !isBusy,
             onClick = {
                 submitted = true
                 if (formValid) {
-                    viewModel.submitRequest(itemName, category, priceCents!!, quantity!!, reason, photoUri)
-                    onBack()
+                    viewModel.submitRequest(itemName, category, priceCents!!, quantity!!, reason, photoUri, onSuccess = onBack)
                 }
             },
         )
