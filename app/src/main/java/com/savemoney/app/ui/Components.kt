@@ -20,12 +20,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.outlined.Checkroom
 import androidx.compose.material.icons.outlined.Devices
 import androidx.compose.material.icons.outlined.DirectionsBus
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.MenuBook
 import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.Restaurant
 import androidx.compose.material.icons.outlined.SportsEsports
@@ -66,7 +66,7 @@ fun categoryLook(name: String): CategoryLook = when (name) {
     "数码" -> CategoryLook(Icons.Outlined.Devices, Color(0xFFD4A84B), Color(0xFFF8EFC8))
     "交通" -> CategoryLook(Icons.Outlined.DirectionsBus, Palette.Mint, Palette.MintSoft)
     "娱乐" -> CategoryLook(Icons.Outlined.SportsEsports, Color(0xFFE89A5C), Color(0xFFFBE6D4))
-    "学习" -> CategoryLook(Icons.Outlined.MenuBook, Color(0xFF7B9FD4), Color(0xFFDCE6F6))
+    "学习" -> CategoryLook(Icons.AutoMirrored.Outlined.MenuBook, Color(0xFF7B9FD4), Color(0xFFDCE6F6))
     "医疗" -> CategoryLook(Icons.Outlined.FavoriteBorder, Color(0xFFD98BA8), Color(0xFFF8DCE6))
     else -> CategoryLook(Icons.Outlined.MoreHoriz, Palette.Muted, Color(0xFFEEF1F5))
 }

@@ -24,8 +24,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Assignment
-import androidx.compose.material.icons.outlined.MenuBook
+import androidx.compose.material.icons.automirrored.outlined.Assignment
+import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.outlined.People
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
@@ -70,8 +70,8 @@ private const val FOREGROUND_POLL_MS = 30_000L
 private data class Tab(val route: String, val label: String, val icon: ImageVector)
 
 private val TABS = listOf(
-    Tab("requests", "申请", Icons.Outlined.Assignment),
-    Tab("expenses", "账本", Icons.Outlined.MenuBook),
+    Tab("requests", "申请", Icons.AutoMirrored.Outlined.Assignment),
+    Tab("expenses", "账本", Icons.AutoMirrored.Outlined.MenuBook),
     Tab("profile", "我们", Icons.Outlined.People),
 )
 
