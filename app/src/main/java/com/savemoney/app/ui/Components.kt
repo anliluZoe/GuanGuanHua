@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -289,26 +288,5 @@ fun EmptyHint(kind: MascotKind, title: String, subtitle: String) {
         Mascot(kind, size = 150.dp)
         Text(title, style = MaterialTheme.typography.titleMedium)
         Text(subtitle, color = Cute.Muted, style = MaterialTheme.typography.bodyMedium)
-    }
-}
-
-@Composable
-fun RowScope.RoleCard(title: String, emoji: String, selected: Boolean, onClick: () -> Unit) {
-    val bg = if (selected) Cute.PeachSoft else MaterialTheme.colorScheme.surface
-    val border = if (selected) Cute.Peach else Color(0xFFE6E8E0)
-    Column(
-        modifier = Modifier
-            .weight(1f)
-            .clip(RoundedCornerShape(24.dp))
-            .border(2.dp, border, RoundedCornerShape(24.dp))
-            .background(bg)
-            .clickable(onClick = onClick)
-            .padding(vertical = 18.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Text(emoji, style = MaterialTheme.typography.headlineSmall)
-        Text(title, style = MaterialTheme.typography.titleMedium, color = if (selected) Color(0xFF5A2A12) else Cute.Ink)
-        if (selected) Text("当前身份", style = MaterialTheme.typography.labelMedium, color = Cute.Peach)
     }
 }

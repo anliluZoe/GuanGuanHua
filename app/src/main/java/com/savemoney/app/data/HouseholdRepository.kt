@@ -21,23 +21,24 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 import java.util.concurrent.TimeUnit
 
+data class MemberDto(val id: Long, val name: String)
+
 data class SessionDto(
     val token: String,
+    val memberId: Long,
     val householdCode: String,
-    val role: String,
-    val requesterName: String,
-    val approverName: String,
+    val name: String,
+    val members: List<MemberDto>,
 )
 
 data class JoinBody(
     val name: String,
-    val role: String,
     val code: String? = null,
 )
 
 data class ReviewBody(val approve: Boolean, val comment: String)
 
-data class ProfileBody(val role: String, val requesterName: String, val approverName: String)
+data class ProfileBody(val name: String)
 
 data class BudgetBody(val amountCents: Long)
 
@@ -119,16 +120,16 @@ class HouseholdRepository(private val app: Application) {
 
     private fun bearer(): String = "Bearer ${prefs.getString("token", "")}"
 
-    suspend fun createHousehold(name: String, role: String): SessionDto =
-        api().createHousehold(JoinBody(name = name, role = role))
+    suspend fun createHousehold(name: String): SessionDto =
+        api().createHousehold(JoinBody(name = name))
 
-    suspend fun joinHousehold(code: String, name: String, role: String): SessionDto =
-        api().joinHousehold(JoinBody(name = name, role = role, code = code.trim()))
+    suspend fun joinHousehold(code: String, name: String): SessionDto =
+        api().joinHousehold(JoinBody(name = name, code = code.trim()))
 
     suspend fun session(): SessionDto = api().session(bearer())
 
-    suspend fun updateSession(role: String, requesterName: String, approverName: String): SessionDto =
-        api().updateSession(bearer(), ProfileBody(role, requesterName, approverName))
+    suspend fun updateName(name: String): SessionDto =
+        api().updateSession(bearer(), ProfileBody(name))
 
     suspend fun listRequests(): List<PurchaseRequest> = api().listRequests(bearer())
 

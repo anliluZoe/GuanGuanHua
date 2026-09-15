@@ -29,7 +29,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.savemoney.app.AppViewModel
-import com.savemoney.app.UserRole
 import com.savemoney.app.data.RequestStatus
 import com.savemoney.app.ui.theme.Cute
 
@@ -86,7 +85,7 @@ fun RequestDetailScreen(viewModel: AppViewModel, requestId: Long, onBack: () -> 
                 "分类" to "${CATEGORY_EMOJI[current.category]} ${current.category}",
                 "单价" to current.unitPriceCents.toYuan(),
                 "数量" to "${current.quantity}",
-                "申请人" to current.requesterName,
+                "申请人" to if (current.mine) "我（${current.requesterName}）" else current.requesterName,
                 "申请时间" to current.createdAt.toDateTimeText(),
             ).forEach { (label, value) ->
                 Row(modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
@@ -122,9 +121,9 @@ fun RequestDetailScreen(viewModel: AppViewModel, requestId: Long, onBack: () -> 
                 }
             }
 
-            profile.role == UserRole.APPROVER -> {
+            !current.mine -> {
                 SoftCard(modifier = Modifier.fillMaxWidth()) {
-                    Text("帮TA把把关", style = MaterialTheme.typography.titleMedium)
+                    Text("帮 ${current.requesterName} 把把关", style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(10.dp))
                     SoftField(
                         value = comment,
@@ -151,7 +150,7 @@ fun RequestDetailScreen(viewModel: AppViewModel, requestId: Long, onBack: () -> 
 
             else -> {
                 SoftCard(modifier = Modifier.fillMaxWidth()) {
-                    Text("正在等 ${profile.approverName} 看一眼…", color = Cute.Muted)
+                    Text("正在等 ${profile.partnerName ?: "另一半"} 看一眼…", color = Cute.Muted)
                     Spacer(Modifier.height(12.dp))
                     CharcoalPillButton("撤回申请", filled = false, onClick = { confirmWithdraw = true })
                 }

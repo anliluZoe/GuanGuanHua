@@ -22,19 +22,11 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.YearMonth
 
-enum class UserRole(val label: String) {
-    REQUESTER("申请人"),
-    APPROVER("审核人"),
-}
-
+/** 我叫什么、另一半叫什么。谁都能发申请，由对方来审。 */
 data class UserProfile(
-    val role: UserRole,
-    val requesterName: String,
-    val approverName: String,
-) {
-    val currentName: String
-        get() = if (role == UserRole.REQUESTER) requesterName else approverName
-}
+    val name: String,
+    val partnerName: String?,
+)
 
 data class HouseholdSession(
     val serverUrl: String,
@@ -60,9 +52,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _profile = MutableStateFlow(
         UserProfile(
-            role = runCatching { UserRole.valueOf(prefs.getString("role", UserRole.REQUESTER.name)!!) }.getOrDefault(UserRole.REQUESTER),
-            requesterName = prefs.getString("requesterName", "申请人")!!,
-            approverName = prefs.getString("approverName", "审核人")!!,
+            name = prefs.getString("name", "")!!,
+            partnerName = prefs.getString("partnerName", null),
         )
     )
     val profile: StateFlow<UserProfile> = _profile.asStateFlow()
@@ -92,20 +83,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun refresh() {
         viewModelScope.launch {
             runCatching {
-                val remote = repo.session()
-                applyRemoteSession(remote.role, remote.requesterName, remote.approverName, remote.householdCode)
+                applyRemoteSession(repo.session())
                 syncRequests()
                 loadMonth(_selectedMonth.value)
             }.onFailure { _statusMessage.value = it.message ?: "同步失败" }
         }
     }
 
-    fun createHome(serverUrl: String, name: String, role: UserRole) {
-        viewModelScope.launch { connect(serverUrl) { repo.createHousehold(name, role.name) } }
+    fun createHome(serverUrl: String, name: String) {
+        viewModelScope.launch { connect(serverUrl) { repo.createHousehold(name.trim()) } }
     }
 
-    fun joinHome(serverUrl: String, code: String, name: String, role: UserRole) {
-        viewModelScope.launch { connect(serverUrl) { repo.joinHousehold(code, name, role.name) } }
+    fun joinHome(serverUrl: String, code: String, name: String) {
+        viewModelScope.launch { connect(serverUrl) { repo.joinHousehold(code, name.trim()) } }
     }
 
     fun leaveHome() {
@@ -121,12 +111,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         _monthBudget.value = null
     }
 
-    fun updateProfile(role: UserRole, requesterName: String, approverName: String) {
-        val next = UserProfile(role, requesterName.trim().ifBlank { "申请人" }, approverName.trim().ifBlank { "审核人" })
-        _profile.value = next
-        persistProfile(next)
+    fun updateName(name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isBlank()) {
+            _statusMessage.value = "名字不能为空"
+            return
+        }
         viewModelScope.launch {
-            runCatching { repo.updateSession(next.role.name, next.requesterName, next.approverName) }
+            runCatching { applyRemoteSession(repo.updateName(trimmed)) }
                 .onFailure { _statusMessage.value = it.message ?: "保存失败" }
         }
     }
@@ -190,7 +182,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         runCatching {
             val remote = action()
             prefs.edit(commit = true) { putString("token", remote.token) }
-            applyRemoteSession(remote.role, remote.requesterName, remote.approverName, remote.householdCode)
+            applyRemoteSession(remote)
             _session.update { it.copy(token = remote.token, householdCode = remote.householdCode) }
             syncRequests()
             loadMonth(_selectedMonth.value)
@@ -203,7 +195,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val list = repo.listRequests()
         val since = prefs.getLong(ReviewActivity.PREF_SINCE, 0L)
         if (since > 0L) {
-            ReviewActivity.newItems(list, _profile.value.role, since).lastOrNull()?.let { _statusMessage.value = it.title }
+            ReviewActivity.newItems(list, since).lastOrNull()?.let { _statusMessage.value = it.title }
         }
         prefs.edit(commit = true) { putLong(ReviewActivity.PREF_SINCE, ReviewActivity.watermark(list, since)) }
         _requests.value = list
@@ -214,23 +206,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         _monthBudget.value = repo.getBudget(month.toString())
     }
 
-    private fun applyRemoteSession(role: String, requester: String, approver: String, code: String) {
-        val next = UserProfile(
-            role = runCatching { UserRole.valueOf(role) }.getOrDefault(UserRole.REQUESTER),
-            requesterName = requester,
-            approverName = approver,
-        )
-        _profile.value = next
-        persistProfile(next)
-        prefs.edit { putString("householdCode", code) }
-        _session.update { it.copy(householdCode = code) }
-    }
-
-    private fun persistProfile(next: UserProfile) {
+    private fun applyRemoteSession(remote: SessionDto) {
+        val partner = remote.members
+            .filter { it.id != remote.memberId }
+            .joinToString("、") { it.name }
+            .ifBlank { null }
+        _profile.value = UserProfile(name = remote.name, partnerName = partner)
         prefs.edit {
-            putString("role", next.role.name)
-            putString("requesterName", next.requesterName)
-            putString("approverName", next.approverName)
+            putString("name", remote.name)
+            putString("partnerName", partner)
+            putString("householdCode", remote.householdCode)
         }
+        _session.update { it.copy(householdCode = remote.householdCode) }
     }
 }

@@ -14,6 +14,8 @@ app.use(express.json());
 function requestJson(row, req) {
   return {
     id: row.id,
+    requesterId: row.requester_id,
+    mine: row.requester_id === req.member.id,
     itemName: row.item_name,
     category: row.category,
     unitPriceCents: row.unit_price_cents,
@@ -44,20 +46,15 @@ app.get("/api/health", (_req, res) => res.json({ ok: true }));
 
 app.post("/api/households", (req, res) => {
   const name = String(req.body?.name || "").trim();
-  const { role } = req.body || {};
-  if (!name || !["REQUESTER", "APPROVER"].includes(role)) {
-    return res.status(400).json({ detail: "角色无效" });
-  }
-  res.json(store.createHousehold(name, role));
+  if (!name) return res.status(400).json({ detail: "先填一下名字" });
+  res.json(store.createHousehold(name));
 });
 
 app.post("/api/households/join", (req, res) => {
   const name = String(req.body?.name || "").trim();
-  const { role, code } = req.body || {};
-  if (!name || !code || !["REQUESTER", "APPROVER"].includes(role)) {
-    return res.status(400).json({ detail: "家庭码或角色无效" });
-  }
-  const session = store.joinHousehold(code, name, role);
+  const code = String(req.body?.code || "").trim();
+  if (!name || !code) return res.status(400).json({ detail: "名字和家庭码都要填" });
+  const session = store.joinHousehold(code, name);
   if (!session) return res.status(404).json({ detail: "找不到这个家庭码" });
   res.json(session);
 });
@@ -67,16 +64,9 @@ app.get("/api/session", requireMember, (req, res) => {
 });
 
 app.put("/api/session", requireMember, (req, res) => {
-  const { role, requesterName, approverName } = req.body || {};
-  if (!["REQUESTER", "APPROVER"].includes(role)) {
-    return res.status(400).json({ detail: "角色无效" });
-  }
-  store.updateNames(
-    req.member.household_id,
-    String(requesterName || "").trim() || "申请人",
-    String(approverName || "").trim() || "审核人"
-  );
-  store.updateRole(req.member.id, role);
+  const name = String(req.body?.name || "").trim();
+  if (!name) return res.status(400).json({ detail: "名字不能为空" });
+  store.updateName(req.member.id, name);
   res.json(store.sessionPayload(req.member.token));
 });
 
@@ -100,15 +90,14 @@ app.post("/api/requests", requireMember, upload.single("image"), (req, res) => {
     const suffix = path.extname(req.file.originalname || "") || ".jpg";
     imageFile = store.savePhoto(req.file.buffer, suffix);
   }
-  const requester =
-    req.member.role === "REQUESTER" ? req.member.requester_name : req.member.name;
   const id = store.insertRequest(req.member.household_id, {
+    requester_id: req.member.id,
     item_name: String(itemName).trim(),
     category,
     unit_price_cents: Number(unitPriceCents),
     quantity: Number(quantity),
     reason: String(reason || "").trim(),
-    requester_name: requester,
+    requester_name: req.member.name,
     created_at: Date.now(),
     image_file: imageFile,
   });
@@ -116,24 +105,23 @@ app.post("/api/requests", requireMember, upload.single("image"), (req, res) => {
 });
 
 app.post("/api/requests/:id/review", requireMember, (req, res) => {
-  const reviewer =
-    req.member.role === "APPROVER" ? req.member.approver_name : req.member.name;
-  const ok = store.review(
+  const outcome = store.review(
     req.member.household_id,
     Number(req.params.id),
+    req.member,
     Boolean(req.body?.approve),
-    reviewer,
     String(req.body?.comment || "").trim(),
     Date.now()
   );
-  if (!ok) return res.status(409).json({ detail: "这条申请不能审核" });
+  if (outcome === "own") return res.status(403).json({ detail: "自己的申请要留给对方审哦" });
+  if (outcome !== "ok") return res.status(409).json({ detail: "这条申请不能审核" });
   res.json(requestJson(store.getRequest(req.member.household_id, Number(req.params.id)), req));
 });
 
 app.delete("/api/requests/:id", requireMember, (req, res) => {
-  if (!store.withdraw(req.member.household_id, Number(req.params.id))) {
-    return res.status(409).json({ detail: "只能撤回待审核的申请" });
-  }
+  const outcome = store.withdraw(req.member.household_id, Number(req.params.id), req.member.id);
+  if (outcome === "not_owner") return res.status(403).json({ detail: "只能撤回自己的申请" });
+  if (outcome !== "ok") return res.status(409).json({ detail: "只能撤回待审核的申请" });
   res.json({ ok: true });
 });
 

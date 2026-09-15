@@ -8,6 +8,9 @@ enum class RequestStatus(val label: String) {
 
 data class PurchaseRequest(
     val id: Long = 0,
+    val requesterId: Long = 0,
+    /** 是不是当前这部手机的人提的；服务器按令牌算好返回。 */
+    val mine: Boolean = false,
     val itemName: String,
     val category: String,
     val unitPriceCents: Long,

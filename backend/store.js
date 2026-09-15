@@ -13,20 +13,18 @@ class Store {
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS households (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        code TEXT UNIQUE NOT NULL,
-        requester_name TEXT NOT NULL DEFAULT '申请人',
-        approver_name TEXT NOT NULL DEFAULT '审核人'
+        code TEXT UNIQUE NOT NULL
       );
       CREATE TABLE IF NOT EXISTS members (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         household_id INTEGER NOT NULL REFERENCES households(id),
         token TEXT UNIQUE NOT NULL,
-        role TEXT NOT NULL,
         name TEXT NOT NULL
       );
       CREATE TABLE IF NOT EXISTS purchase_requests (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         household_id INTEGER NOT NULL REFERENCES households(id),
+        requester_id INTEGER,
         item_name TEXT NOT NULL,
         category TEXT NOT NULL,
         unit_price_cents INTEGER NOT NULL,
@@ -58,6 +56,19 @@ class Store {
         PRIMARY KEY (household_id, year_month)
       );
     `);
+    this.migrateFromFixedRoles();
+  }
+
+  /** 早期版本每个成员有固定的申请人/审核人角色；现在谁都能申请，由对方审核。 */
+  migrateFromFixedRoles() {
+    const columns = (table) => this.db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);
+    if (columns("members").includes("role")) this.db.exec("ALTER TABLE members DROP COLUMN role");
+    for (const column of ["requester_name", "approver_name"]) {
+      if (columns("households").includes(column)) this.db.exec(`ALTER TABLE households DROP COLUMN ${column}`);
+    }
+    if (!columns("purchase_requests").includes("requester_id")) {
+      this.db.exec("ALTER TABLE purchase_requests ADD COLUMN requester_id INTEGER");
+    }
   }
 
   withTransaction(work) {
@@ -72,18 +83,14 @@ class Store {
     }
   }
 
-  createHousehold(name, role) {
+  createHousehold(name) {
     const token = crypto.randomBytes(16).toString("hex");
-    const requester = role === "REQUESTER" ? name : "申请人";
-    const approver = role === "APPROVER" ? name : "审核人";
     this.withTransaction(() => {
       let householdId;
       for (let attempt = 0; attempt < 8; attempt++) {
         const code = String(crypto.randomInt(0, 1_000_000)).padStart(6, "0");
         try {
-          householdId = this.db
-            .prepare("INSERT INTO households(code, requester_name, approver_name) VALUES (?,?,?)")
-            .run(code, requester, approver).lastInsertRowid;
+          householdId = this.db.prepare("INSERT INTO households(code) VALUES (?)").run(code).lastInsertRowid;
           break;
         } catch (error) {
           if (String(error.message).includes("UNIQUE") && attempt < 7) continue;
@@ -91,33 +98,26 @@ class Store {
         }
       }
       this.db
-        .prepare("INSERT INTO members(household_id, token, role, name) VALUES (?,?,?,?)")
-        .run(householdId, token, role, name);
+        .prepare("INSERT INTO members(household_id, token, name) VALUES (?,?,?)")
+        .run(householdId, token, name);
     });
     return this.sessionPayload(token);
   }
 
-  joinHousehold(code, name, role) {
+  joinHousehold(code, name) {
     const house = this.db.prepare("SELECT * FROM households WHERE code = ?").get(String(code).trim());
     if (!house) return null;
     const token = crypto.randomBytes(16).toString("hex");
-    this.withTransaction(() => {
-      if (role === "REQUESTER") {
-        this.db.prepare("UPDATE households SET requester_name = ? WHERE id = ?").run(name, house.id);
-      } else {
-        this.db.prepare("UPDATE households SET approver_name = ? WHERE id = ?").run(name, house.id);
-      }
-      this.db
-        .prepare("INSERT INTO members(household_id, token, role, name) VALUES (?,?,?,?)")
-        .run(house.id, token, role, name);
-    });
+    this.db
+      .prepare("INSERT INTO members(household_id, token, name) VALUES (?,?,?)")
+      .run(house.id, token, name);
     return this.sessionPayload(token);
   }
 
   memberByToken(token) {
     return this.db
       .prepare(
-        `SELECT m.*, h.code, h.requester_name, h.approver_name
+        `SELECT m.*, h.code
          FROM members m JOIN households h ON h.id = m.household_id
          WHERE m.token = ?`
       )
@@ -126,23 +126,20 @@ class Store {
 
   sessionPayload(token) {
     const row = this.memberByToken(token);
+    const members = this.db
+      .prepare("SELECT id, name FROM members WHERE household_id = ? ORDER BY id")
+      .all(row.household_id);
     return {
       token,
+      memberId: row.id,
       householdCode: row.code,
-      role: row.role,
-      requesterName: row.requester_name,
-      approverName: row.approver_name,
+      name: row.name,
+      members,
     };
   }
 
-  updateNames(householdId, requester, approver) {
-    this.db
-      .prepare("UPDATE households SET requester_name = ?, approver_name = ? WHERE id = ?")
-      .run(requester, approver, householdId);
-  }
-
-  updateRole(memberId, role) {
-    this.db.prepare("UPDATE members SET role = ? WHERE id = ?").run(role, memberId);
+  updateName(memberId, name) {
+    this.db.prepare("UPDATE members SET name = ? WHERE id = ?").run(name, memberId);
   }
 
   savePhoto(buffer, suffix = ".jpg") {
@@ -175,12 +172,13 @@ class Store {
       this.db
         .prepare(
           `INSERT INTO purchase_requests(
-             household_id, item_name, category, unit_price_cents, quantity, reason,
+             household_id, requester_id, item_name, category, unit_price_cents, quantity, reason,
              requester_name, status, created_at, image_file
-           ) VALUES (?,?,?,?,?,?,?,?,?,?)`
+           ) VALUES (?,?,?,?,?,?,?,?,?,?,?)`
         )
         .run(
           householdId,
+          fields.requester_id,
           fields.item_name,
           fields.category,
           fields.unit_price_cents,
@@ -194,9 +192,11 @@ class Store {
     );
   }
 
-  review(householdId, requestId, approve, reviewer, comment, now) {
+  /** 返回 "ok" | "not_pending" | "own"：自己的申请要留给对方审。 */
+  review(householdId, requestId, reviewer, approve, comment, now) {
     const row = this.getRequest(householdId, requestId);
-    if (!row || row.status !== "PENDING") return false;
+    if (!row || row.status !== "PENDING") return "not_pending";
+    if (row.requester_id === reviewer.id) return "own";
     this.withTransaction(() => {
       this.db
         .prepare(
@@ -204,7 +204,7 @@ class Store {
            SET status = ?, reviewed_at = ?, reviewer_name = ?, review_comment = ?
            WHERE id = ?`
         )
-        .run(approve ? "APPROVED" : "REJECTED", now, reviewer, comment || null, requestId);
+        .run(approve ? "APPROVED" : "REJECTED", now, reviewer.name, comment || null, requestId);
       if (approve) {
         this.db
           .prepare(
@@ -221,22 +221,24 @@ class Store {
             row.unit_price_cents * row.quantity,
             now,
             row.requester_name,
-            reviewer
+            reviewer.name
           );
       }
     });
-    return true;
+    return "ok";
   }
 
-  withdraw(householdId, requestId) {
+  /** 返回 "ok" | "not_pending" | "not_owner"：只能撤回自己还没被审的申请。 */
+  withdraw(householdId, requestId, memberId) {
     const row = this.getRequest(householdId, requestId);
-    if (!row || row.status !== "PENDING") return false;
+    if (!row || row.status !== "PENDING") return "not_pending";
+    if (row.requester_id !== memberId) return "not_owner";
     if (row.image_file) {
       const filePath = this.photoPath(row.image_file);
       if (filePath) fs.unlinkSync(filePath);
     }
     this.db.prepare("DELETE FROM purchase_requests WHERE household_id = ? AND id = ?").run(householdId, requestId);
-    return true;
+    return "ok";
   }
 
   listExpenses(householdId, startMs, endMs) {

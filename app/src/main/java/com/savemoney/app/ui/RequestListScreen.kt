@@ -29,7 +29,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.savemoney.app.AppViewModel
-import com.savemoney.app.UserRole
 import com.savemoney.app.data.PurchaseRequest
 import com.savemoney.app.data.RequestStatus
 import com.savemoney.app.ui.theme.Cute
@@ -56,7 +55,8 @@ fun RequestListScreen(
         Spacer(Modifier.height(12.dp))
         PageHeader(
             title = "买买申请",
-            subtitle = "${profile.role.label} · ${profile.currentName}，一起把关每一笔开销",
+            subtitle = profile.partnerName?.let { "${profile.name} 和 $it，一起把关每一笔开销" }
+                ?: "${profile.name}，等另一半加入后一起把关每一笔开销",
         )
         Spacer(Modifier.height(16.dp))
         Row(
@@ -78,14 +78,12 @@ fun RequestListScreen(
             ) {
                 EmptyHint(
                     kind = MascotKind.Coin,
-                    title = if (profile.role == UserRole.REQUESTER) "还没有想买的东西" else "暂时没有待看的申请",
-                    subtitle = if (profile.role == UserRole.REQUESTER) "点下面的按钮，发起第一笔申请吧" else "等申请人提交后会出现在这里",
+                    title = "还没有想买的东西",
+                    subtitle = "谁想买都可以发起申请，另一个人来把关",
                 )
             }
-            if (profile.role == UserRole.REQUESTER) {
-                CharcoalPillButton("新建申请", onClick = onCreate)
-                Spacer(Modifier.height(12.dp))
-            }
+            CharcoalPillButton("新建申请", onClick = onCreate)
+            Spacer(Modifier.height(12.dp))
         } else {
             LazyColumn(
                 contentPadding = PaddingValues(bottom = 96.dp),
@@ -95,11 +93,9 @@ fun RequestListScreen(
                 items(shown, key = { it.id }) { request ->
                     RequestCard(request, onClick = { onOpen(request.id) })
                 }
-                if (profile.role == UserRole.REQUESTER) {
-                    item {
-                        Spacer(Modifier.height(4.dp))
-                        CharcoalPillButton("＋  新建申请", onClick = onCreate)
-                    }
+                item {
+                    Spacer(Modifier.height(4.dp))
+                    CharcoalPillButton("＋  新建申请", onClick = onCreate)
                 }
             }
         }
@@ -129,10 +125,18 @@ private fun RequestCard(request: PurchaseRequest, onClick: () -> Unit) {
                     fontWeight = FontWeight.Bold,
                 )
                 Text(
-                    "${request.unitPriceCents.toYuan()} × ${request.quantity} · ${request.requesterName} · ${request.createdAt.toDateTimeText()}",
+                    "${request.unitPriceCents.toYuan()} × ${request.quantity} · ${if (request.mine) "我" else request.requesterName} · ${request.createdAt.toDateTimeText()}",
                     style = MaterialTheme.typography.bodySmall,
                     color = Cute.Muted,
                 )
+                if (request.status == RequestStatus.PENDING) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        if (request.mine) "等 TA 看一眼" else "👀 等你把关",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (request.mine) Cute.Muted else Cute.Peach,
+                    )
+                }
             }
         }
     }

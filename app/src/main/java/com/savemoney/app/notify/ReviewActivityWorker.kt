@@ -17,7 +17,6 @@ import androidx.work.WorkerParameters
 import com.savemoney.app.MainActivity
 import com.savemoney.app.R
 import com.savemoney.app.SaveMoneyApp
-import com.savemoney.app.UserRole
 import java.util.concurrent.TimeUnit
 
 /** 后台定时拉一次申请列表，把对方的新动作变成系统通知。 */
@@ -29,14 +28,12 @@ class ReviewActivityWorker(context: Context, params: WorkerParameters) : Corouti
         val prefs = app.getSharedPreferences("session", Context.MODE_PRIVATE)
         if (prefs.getString("token", "").isNullOrBlank()) return Result.success()
 
-        val role = runCatching { UserRole.valueOf(prefs.getString("role", UserRole.REQUESTER.name)!!) }
-            .getOrDefault(UserRole.REQUESTER)
         val since = prefs.getLong(ReviewActivity.PREF_SINCE, 0L)
         val requests = runCatching { app.repository.listRequests() }.getOrElse { return Result.retry() }
 
         val manager = NotificationManagerCompat.from(app)
         if (since > 0L && manager.areNotificationsEnabled()) {
-            ReviewActivity.newItems(requests, role, since).forEach { item ->
+            ReviewActivity.newItems(requests, since).forEach { item ->
                 val open = Intent(app, MainActivity::class.java)
                     .putExtra(MainActivity.EXTRA_REQUEST_ID, item.requestId)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)

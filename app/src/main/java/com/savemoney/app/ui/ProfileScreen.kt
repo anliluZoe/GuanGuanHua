@@ -5,7 +5,6 @@ import android.provider.Settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -14,36 +13,29 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.savemoney.app.AppViewModel
-import com.savemoney.app.UserRole
 import com.savemoney.app.ui.theme.Cute
-import kotlinx.coroutines.launch
 
 @Composable
 fun ProfileScreen(viewModel: AppViewModel) {
     val profile by viewModel.profile.collectAsStateWithLifecycle()
     val session by viewModel.session.collectAsStateWithLifecycle()
-    var requesterName by rememberSaveable(profile.requesterName) { mutableStateOf(profile.requesterName) }
-    var approverName by rememberSaveable(profile.approverName) { mutableStateOf(profile.approverName) }
-    val snackbar = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
+    var name by rememberSaveable(profile.name) { mutableStateOf(profile.name) }
     val context = LocalContext.current
     var notificationsOn by remember { mutableStateOf(NotificationManagerCompat.from(context).areNotificationsEnabled()) }
     LifecycleResumeEffect(Unit) {
@@ -64,7 +56,6 @@ fun ProfileScreen(viewModel: AppViewModel) {
         Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
             Mascot(MascotKind.Coin, size = 140.dp)
         }
-        SnackbarHost(snackbar)
         SoftCard(modifier = Modifier.fillMaxWidth()) {
             Text("家庭码", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(6.dp))
@@ -79,41 +70,35 @@ fun ProfileScreen(viewModel: AppViewModel) {
             Text(session.serverUrl, color = Cute.Muted, style = MaterialTheme.typography.bodySmall)
         }
         SoftCard(modifier = Modifier.fillMaxWidth()) {
-            Text("今天我是…", style = MaterialTheme.typography.titleMedium)
+            Text("谁来把关", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(6.dp))
             Text(
-                "申请人提交想买的东西；审核人点头或摇头。通过的申请会自动记入当月小账本。",
+                "两个人都可以发起购买申请，每一条都由另一个人来审核。通过的申请会自动记入当月小账本。",
                 style = MaterialTheme.typography.bodySmall,
             )
             Spacer(Modifier.height(14.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                RoleCard("申请人", "✏️", profile.role == UserRole.REQUESTER) {
-                    viewModel.updateProfile(UserRole.REQUESTER, requesterName, approverName)
-                }
-                RoleCard("审核人", "👀", profile.role == UserRole.APPROVER) {
-                    viewModel.updateProfile(UserRole.APPROVER, requesterName, approverName)
-                }
-            }
+            Text("另一半", color = Cute.Muted, style = MaterialTheme.typography.labelMedium)
+            Spacer(Modifier.height(2.dp))
+            Text(
+                profile.partnerName ?: "还没有人加入，把家庭码发给TA吧",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = if (profile.partnerName == null) Cute.Muted else Cute.Ink,
+            )
         }
         SoftCard(modifier = Modifier.fillMaxWidth()) {
-            Text("怎么称呼", style = MaterialTheme.typography.titleMedium)
+            Text("怎么称呼我", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(12.dp))
-            SoftField(value = requesterName, onValueChange = { requesterName = it }, label = "申请人")
-            Spacer(Modifier.height(10.dp))
-            SoftField(value = approverName, onValueChange = { approverName = it }, label = "审核人")
+            SoftField(value = name, onValueChange = { name = it }, label = "我的名字")
             Spacer(Modifier.height(16.dp))
-            CharcoalPillButton("保存名称", onClick = {
-                viewModel.updateProfile(profile.role, requesterName, approverName)
-                scope.launch { snackbar.showSnackbar("记下啦") }
+            CharcoalPillButton("保存名字", enabled = name.trim().isNotBlank() && name.trim() != profile.name, onClick = {
+                viewModel.updateName(name)
             })
         }
         SoftCard(modifier = Modifier.fillMaxWidth()) {
             Text("审核动态提醒", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(6.dp))
-            Text(
-                if (profile.role == UserRole.REQUESTER) "对方审核之后会通知你结果。" else "对方提交新申请时会通知你去看看。",
-                style = MaterialTheme.typography.bodySmall,
-            )
+            Text("对方发起新申请、或审核了你的申请，都会通知你。", style = MaterialTheme.typography.bodySmall)
             Spacer(Modifier.height(4.dp))
             Text(
                 "App 打开时每 30 秒自动刷新；放在后台约每 15 分钟检查一次。",

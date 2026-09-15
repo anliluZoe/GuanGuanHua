@@ -3,7 +3,6 @@ package com.savemoney.app.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -23,7 +22,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.savemoney.app.AppViewModel
-import com.savemoney.app.UserRole
 import com.savemoney.app.ui.theme.Cute
 
 @Composable
@@ -32,9 +30,8 @@ fun SetupScreen(viewModel: AppViewModel) {
     val profile by viewModel.profile.collectAsStateWithLifecycle()
     val status by viewModel.statusMessage.collectAsStateWithLifecycle()
     var serverUrl by rememberSaveable { mutableStateOf(session.serverUrl) }
-    var name by rememberSaveable { mutableStateOf(profile.currentName.ifBlank { "小明" }) }
+    var name by rememberSaveable { mutableStateOf(profile.name.ifBlank { "小明" }) }
     var code by rememberSaveable { mutableStateOf("") }
-    var role by rememberSaveable { mutableStateOf(UserRole.REQUESTER) }
 
     Column(
         modifier = Modifier
@@ -54,13 +51,14 @@ fun SetupScreen(viewModel: AppViewModel) {
             color = Cute.Muted,
         )
         SoftField(value = name, onValueChange = { name = it }, label = "我的名字")
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-            RoleCard("申请人", "✏️", role == UserRole.REQUESTER) { role = UserRole.REQUESTER }
-            RoleCard("审核人", "👀", role == UserRole.APPROVER) { role = UserRole.APPROVER }
-        }
+        Text(
+            "两个人谁都可以发起购买申请，由另一个人来审核。",
+            style = MaterialTheme.typography.bodySmall,
+            color = Cute.Muted,
+        )
         CharcoalPillButton("创建家庭账本", onClick = {
             viewModel.consumeStatus()
-            viewModel.createHome(serverUrl, name, role)
+            viewModel.createHome(serverUrl, name)
         })
         SoftCard(modifier = Modifier.fillMaxWidth()) {
             Text("已经有家庭码？", style = MaterialTheme.typography.titleMedium)
@@ -69,7 +67,7 @@ fun SetupScreen(viewModel: AppViewModel) {
             Spacer(Modifier.height(12.dp))
             CharcoalPillButton("加入", filled = false, onClick = {
                 viewModel.consumeStatus()
-                viewModel.joinHome(serverUrl, code, name, role)
+                viewModel.joinHome(serverUrl, code, name)
             })
         }
         if (!status.isNullOrBlank()) {
