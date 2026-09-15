@@ -20,8 +20,14 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Assignment
+import androidx.compose.material.icons.outlined.MenuBook
+import androidx.compose.material.icons.outlined.People
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -34,6 +40,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
@@ -54,18 +61,18 @@ import com.savemoney.app.ui.ProfileScreen
 import com.savemoney.app.ui.RequestDetailScreen
 import com.savemoney.app.ui.RequestListScreen
 import com.savemoney.app.ui.SetupScreen
-import com.savemoney.app.ui.theme.Cute
+import com.savemoney.app.ui.theme.Palette
 import com.savemoney.app.ui.theme.SaveMoneyTheme
 import kotlinx.coroutines.delay
 
 private const val FOREGROUND_POLL_MS = 30_000L
 
-private data class Tab(val route: String, val label: String, val emoji: String)
+private data class Tab(val route: String, val label: String, val icon: ImageVector)
 
 private val TABS = listOf(
-    Tab("requests", "申请", "📝"),
-    Tab("expenses", "账本", "🐷"),
-    Tab("profile", "我们", "💛"),
+    Tab("requests", "申请", Icons.Outlined.Assignment),
+    Tab("expenses", "账本", Icons.Outlined.MenuBook),
+    Tab("profile", "我们", Icons.Outlined.People),
 )
 
 class MainActivity : ComponentActivity() {
@@ -134,7 +141,7 @@ class MainActivity : ComponentActivity() {
                 }
 
                 Scaffold(
-                    containerColor = Cute.Cream,
+                    containerColor = Palette.Canvas,
                     snackbarHost = { SnackbarHost(snackbar) },
                     bottomBar = {
                         if (showBottomBar) {
@@ -142,10 +149,10 @@ class MainActivity : ComponentActivity() {
                                 modifier = Modifier
                                     .windowInsetsPadding(WindowInsets.navigationBars)
                                     .padding(horizontal = 20.dp, vertical = 10.dp)
-                                    .clip(RoundedCornerShape(32.dp))
+                                    .clip(RoundedCornerShape(28.dp))
                                     .background(Color.White)
-                                    .border(1.dp, Color(0x14000000), RoundedCornerShape(32.dp))
-                                    .padding(horizontal = 8.dp, vertical = 8.dp)
+                                    .border(1.dp, Palette.Line, RoundedCornerShape(28.dp))
+                                    .padding(horizontal = 8.dp, vertical = 6.dp)
                                     .fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceEvenly,
                             ) {
@@ -153,8 +160,8 @@ class MainActivity : ComponentActivity() {
                                     val selected = currentRoute == tab.route
                                     Column(
                                         modifier = Modifier
-                                            .clip(RoundedCornerShape(24.dp))
-                                            .background(if (selected) Cute.PeachSoft else Color.Transparent)
+                                            .clip(RoundedCornerShape(22.dp))
+                                            .background(if (selected) Palette.SkySoft else Color.Transparent)
                                             .clickable {
                                                 navController.navigate(tab.route) {
                                                     popUpTo(navController.graph.findStartDestination().id) {
@@ -167,10 +174,15 @@ class MainActivity : ComponentActivity() {
                                             .padding(horizontal = 22.dp, vertical = 8.dp),
                                         horizontalAlignment = Alignment.CenterHorizontally,
                                     ) {
-                                        Text(tab.emoji)
+                                        Icon(
+                                            tab.icon,
+                                            contentDescription = tab.label,
+                                            tint = if (selected) Palette.Sky else Palette.Muted,
+                                            modifier = Modifier.size(22.dp),
+                                        )
                                         Text(
                                             tab.label,
-                                            color = if (selected) Color(0xFF5A2A12) else Cute.Muted,
+                                            color = if (selected) Palette.Sky else Palette.Muted,
                                         )
                                     }
                                 }

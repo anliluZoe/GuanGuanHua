@@ -8,6 +8,7 @@ import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -15,88 +16,98 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/** 参考图里的奶油底、蜜桃强调色和深色胶囊按钮。 */
-object Cute {
-    val Cream = Color(0xFFF6F8F3)
+/** 清爽 Q 版：冷灰画布、天空、薄荷、 Lavender；珊瑚只给金额和主按钮。 */
+object Palette {
+    val Canvas = Color(0xFFF7F8FB)
+    val Wash = Color(0xFFE7F2F4)
     val Paper = Color(0xFFFFFFFF)
-    val Ink = Color(0xFF2C2C2C)
-    val Muted = Color(0xFF8B9088)
-    val Peach = Color(0xFFFF9A6B)
-    val PeachSoft = Color(0xFFFFE4D2)
-    val Sky = Color(0xFF7ED4F0)
-    val SkySoft = Color(0xFFD7F3FB)
-    val Mint = Color(0xFFB8E8C8)
-    val MintSoft = Color(0xFFE4F7EA)
-    val Gold = Color(0xFFF5D76E)
-    val Blush = Color(0xFFFFC9C0)
-    val Night = Color(0xFF1C2A24)
-    val NightCard = Color(0xFF2A3B33)
+    val Ink = Color(0xFF2A3340)
+    val Muted = Color(0xFF8A93A0)
+    val Line = Color(0xFFE4E9F0)
+    val Sky = Color(0xFF6BA3C4)
+    val SkySoft = Color(0xFFD7EAF3)
+    val Mint = Color(0xFF4DB6A0)
+    val MintSoft = Color(0xFFD6F1EA)
+    val Lavender = Color(0xFFA78BC4)
+    val LavenderSoft = Color(0xFFEDE4F5)
+    val Coral = Color(0xFFF07A5C)
+    val CoralSoft = Color(0xFFFDE4DC)
+    val Cream = Color(0xFFFFF4D8)
+    val Night = Color(0xFF1A222C)
+    val NightCard = Color(0xFF24303C)
+
+    val ScreenGlow = Brush.verticalGradient(
+        colors = listOf(Wash, Canvas, Canvas),
+    )
 }
 
 private val LightColors = lightColorScheme(
-    primary = Cute.Peach,
+    primary = Palette.Coral,
     onPrimary = Color.White,
-    primaryContainer = Cute.PeachSoft,
-    onPrimaryContainer = Color(0xFF5A2A12),
-    secondary = Cute.Sky,
-    onSecondary = Color(0xFF08323E),
-    secondaryContainer = Cute.SkySoft,
-    onSecondaryContainer = Color(0xFF0C3A46),
-    tertiary = Cute.Gold,
-    tertiaryContainer = Color(0xFFFFF3C4),
-    onTertiaryContainer = Color(0xFF4A3A08),
-    error = Color(0xFFE57373),
-    errorContainer = Color(0xFFFFE2E0),
+    primaryContainer = Palette.CoralSoft,
+    onPrimaryContainer = Color(0xFF6B2E1E),
+    secondary = Palette.Sky,
+    onSecondary = Color.White,
+    secondaryContainer = Palette.SkySoft,
+    onSecondaryContainer = Color(0xFF1C4256),
+    tertiary = Palette.Mint,
+    onTertiary = Color.White,
+    tertiaryContainer = Palette.MintSoft,
+    onTertiaryContainer = Color(0xFF145244),
+    error = Color(0xFFD96B6B),
+    errorContainer = Color(0xFFFBE3E3),
     onErrorContainer = Color(0xFF6B1A16),
-    background = Cute.Cream,
-    onBackground = Cute.Ink,
-    surface = Cute.Paper,
-    onSurface = Cute.Ink,
-    surfaceVariant = Color(0xFFEEF2EA),
-    onSurfaceVariant = Cute.Muted,
-    outline = Color(0xFFE2E6DC),
-    outlineVariant = Color(0xFFEDEFE8),
+    background = Palette.Canvas,
+    onBackground = Palette.Ink,
+    surface = Palette.Paper,
+    onSurface = Palette.Ink,
+    surfaceVariant = Palette.SkySoft,
+    onSurfaceVariant = Palette.Muted,
+    outline = Palette.Line,
+    outlineVariant = Color(0xFFF0F3F7),
 )
 
 private val DarkColors = darkColorScheme(
-    primary = Cute.Peach,
+    primary = Palette.Coral,
     onPrimary = Color(0xFF3A1608),
-    primaryContainer = Color(0xFF6B3A22),
-    onPrimaryContainer = Cute.PeachSoft,
-    secondary = Cute.Sky,
+    primaryContainer = Color(0xFF6B3A2A),
+    onPrimaryContainer = Palette.CoralSoft,
+    secondary = Palette.Sky,
     onSecondary = Color(0xFF08323E),
     secondaryContainer = Color(0xFF1E4A56),
-    onSecondaryContainer = Cute.SkySoft,
-    tertiary = Cute.Gold,
-    tertiaryContainer = Color(0xFF5A4A18),
-    onTertiaryContainer = Color(0xFFFFF3C4),
+    onSecondaryContainer = Palette.SkySoft,
+    tertiary = Palette.Mint,
+    onTertiary = Color(0xFF08382E),
+    tertiaryContainer = Color(0xFF1B5A4C),
+    onTertiaryContainer = Palette.MintSoft,
     error = Color(0xFFFFB4AB),
     errorContainer = Color(0xFF6B1A16),
     onErrorContainer = Color(0xFFFFDAD6),
-    background = Cute.Night,
-    onBackground = Color(0xFFF2F5EF),
-    surface = Cute.NightCard,
-    onSurface = Color(0xFFF2F5EF),
-    surfaceVariant = Color(0xFF35463E),
-    onSurfaceVariant = Color(0xFFB8C2B8),
-    outline = Color(0xFF4A5C54),
+    background = Palette.Night,
+    onBackground = Color(0xFFF2F5F8),
+    surface = Palette.NightCard,
+    onSurface = Color(0xFFF2F5F8),
+    surfaceVariant = Color(0xFF314050),
+    onSurfaceVariant = Color(0xFFB8C2CC),
+    outline = Color(0xFF4A5C6A),
 )
 
-private val CuteShapes = Shapes(
-    extraSmall = RoundedCornerShape(14.dp),
-    small = RoundedCornerShape(18.dp),
-    medium = RoundedCornerShape(24.dp),
-    large = RoundedCornerShape(28.dp),
-    extraLarge = RoundedCornerShape(36.dp),
+private val QShapes = Shapes(
+    extraSmall = RoundedCornerShape(12.dp),
+    small = RoundedCornerShape(16.dp),
+    medium = RoundedCornerShape(22.dp),
+    large = RoundedCornerShape(24.dp),
+    extraLarge = RoundedCornerShape(28.dp),
 )
 
-private val CuteTypography = Typography(
+private val QTypography = Typography(
     displaySmall = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Bold,
-        fontSize = 36.sp,
-        lineHeight = 42.sp,
-        letterSpacing = (-0.4).sp,
+        fontSize = 34.sp,
+        lineHeight = 40.sp,
+        letterSpacing = (-0.5).sp,
+        fontFeatureSettings = "tnum",
     ),
     headlineSmall = TextStyle(
         fontFamily = FontFamily.SansSerif,
@@ -110,6 +121,7 @@ private val CuteTypography = Typography(
         fontWeight = FontWeight.Bold,
         fontSize = 22.sp,
         lineHeight = 28.sp,
+        letterSpacing = (-0.2).sp,
     ),
     titleMedium = TextStyle(
         fontFamily = FontFamily.SansSerif,
@@ -132,7 +144,7 @@ private val CuteTypography = Typography(
         fontFamily = FontFamily.SansSerif,
         fontSize = 13.sp,
         lineHeight = 18.sp,
-        color = Cute.Muted,
+        color = Palette.Muted,
     ),
     labelLarge = TextStyle(
         fontFamily = FontFamily.SansSerif,
@@ -152,8 +164,8 @@ private val CuteTypography = Typography(
 fun SaveMoneyTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = if (isSystemInDarkTheme()) DarkColors else LightColors,
-        typography = CuteTypography,
-        shapes = CuteShapes,
+        typography = QTypography,
+        shapes = QShapes,
         content = content,
     )
 }
