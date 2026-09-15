@@ -29,6 +29,8 @@ class Store {
         category TEXT NOT NULL,
         unit_price_cents INTEGER NOT NULL,
         quantity INTEGER NOT NULL,
+        approved_quantity INTEGER,
+        approved_unit_price_cents INTEGER,
         reason TEXT NOT NULL,
         requester_name TEXT NOT NULL,
         status TEXT NOT NULL,
@@ -68,6 +70,10 @@ class Store {
     }
     if (!columns("purchase_requests").includes("requester_id")) {
       this.db.exec("ALTER TABLE purchase_requests ADD COLUMN requester_id INTEGER");
+    }
+    if (!columns("purchase_requests").includes("approved_quantity")) {
+      this.db.exec("ALTER TABLE purchase_requests ADD COLUMN approved_quantity INTEGER");
+      this.db.exec("ALTER TABLE purchase_requests ADD COLUMN approved_unit_price_cents INTEGER");
     }
   }
 
@@ -192,19 +198,39 @@ class Store {
     );
   }
 
-  /** 返回 "ok" | "not_pending" | "own"：自己的申请要留给对方审。 */
-  review(householdId, requestId, reviewer, approve, comment, now) {
+  /**
+   * 返回 "ok" | "not_pending" | "own" | "bad_amount"。
+   * 通过时可以少买或砍价；数量/单价只能比原申请低，不能加码。入账按改过的金额。
+   */
+  review(householdId, requestId, reviewer, approve, comment, now, approvedQuantity, approvedUnitPriceCents) {
     const row = this.getRequest(householdId, requestId);
     if (!row || row.status !== "PENDING") return "not_pending";
     if (row.requester_id === reviewer.id) return "own";
+    let quantity = row.quantity;
+    let unitPrice = row.unit_price_cents;
+    if (approve) {
+      if (approvedQuantity != null) quantity = Number(approvedQuantity);
+      if (approvedUnitPriceCents != null) unitPrice = Number(approvedUnitPriceCents);
+      if (!Number.isInteger(quantity) || quantity < 1 || quantity > row.quantity) return "bad_amount";
+      if (!Number.isInteger(unitPrice) || unitPrice < 1 || unitPrice > row.unit_price_cents) return "bad_amount";
+    }
     this.withTransaction(() => {
       this.db
         .prepare(
           `UPDATE purchase_requests
-           SET status = ?, reviewed_at = ?, reviewer_name = ?, review_comment = ?
+           SET status = ?, reviewed_at = ?, reviewer_name = ?, review_comment = ?,
+               approved_quantity = ?, approved_unit_price_cents = ?
            WHERE id = ?`
         )
-        .run(approve ? "APPROVED" : "REJECTED", now, reviewer.name, comment || null, requestId);
+        .run(
+          approve ? "APPROVED" : "REJECTED",
+          now,
+          reviewer.name,
+          comment || null,
+          approve ? quantity : null,
+          approve ? unitPrice : null,
+          requestId
+        );
       if (approve) {
         this.db
           .prepare(
@@ -218,7 +244,7 @@ class Store {
             requestId,
             row.item_name,
             row.category,
-            row.unit_price_cents * row.quantity,
+            unitPrice * quantity,
             now,
             row.requester_name,
             reviewer.name

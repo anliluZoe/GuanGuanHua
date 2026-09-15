@@ -15,6 +15,9 @@ data class PurchaseRequest(
     val category: String,
     val unitPriceCents: Long,
     val quantity: Int,
+    val approvedUnitPriceCents: Long? = null,
+    val approvedQuantity: Int? = null,
+    val partial: Boolean = false,
     val reason: String,
     val requesterName: String,
     val status: RequestStatus = RequestStatus.PENDING,
@@ -24,7 +27,9 @@ data class PurchaseRequest(
     val reviewComment: String? = null,
     val imagePath: String? = null,
 ) {
-    val totalCents: Long get() = unitPriceCents * quantity
+    val askedCents: Long get() = unitPriceCents * quantity
+    val totalCents: Long
+        get() = (approvedUnitPriceCents ?: unitPriceCents) * (approvedQuantity ?: quantity)
 }
 
 data class ExpenseRecord(

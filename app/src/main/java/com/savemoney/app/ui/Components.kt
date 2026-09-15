@@ -185,14 +185,15 @@ fun ChoiceChip(
 }
 
 @Composable
-fun StatusBadge(status: RequestStatus, modifier: Modifier = Modifier) {
-    val (bg, fg) = when (status) {
-        RequestStatus.PENDING -> Cute.SkySoft to Color(0xFF0C3A46)
-        RequestStatus.APPROVED -> Cute.MintSoft to Color(0xFF1B5A32)
-        RequestStatus.REJECTED -> Color(0xFFFFE2E0) to Color(0xFF6B1A16)
+fun StatusBadge(status: RequestStatus, modifier: Modifier = Modifier, partial: Boolean = false) {
+    val (bg, fg, label) = when {
+        status == RequestStatus.PENDING -> Triple(Cute.SkySoft, Color(0xFF0C3A46), status.label)
+        status == RequestStatus.REJECTED -> Triple(Color(0xFFFFE2E0), Color(0xFF6B1A16), status.label)
+        partial -> Triple(Cute.PeachSoft, Color(0xFF5A2A12), "部分通过")
+        else -> Triple(Cute.MintSoft, Color(0xFF1B5A32), status.label)
     }
     Text(
-        text = status.label,
+        text = label,
         style = MaterialTheme.typography.labelMedium,
         color = fg,
         modifier = modifier

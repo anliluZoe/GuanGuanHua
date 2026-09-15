@@ -139,10 +139,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun review(requestId: Long, approve: Boolean, comment: String) {
+    fun review(
+        requestId: Long,
+        approve: Boolean,
+        comment: String,
+        unitPriceCents: Long? = null,
+        quantity: Int? = null,
+    ) {
         viewModelScope.launch {
             runCatching {
-                repo.review(requestId, approve, comment)
+                repo.review(requestId, approve, comment, unitPriceCents, quantity)
                 syncRequests()
                 loadMonth(_selectedMonth.value)
             }.onFailure { _statusMessage.value = it.message ?: "审核失败" }

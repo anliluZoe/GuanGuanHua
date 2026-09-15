@@ -115,7 +115,7 @@ private fun RequestCard(request: PurchaseRequest, onClick: () -> Unit) {
                         style = MaterialTheme.typography.titleMedium,
                         modifier = Modifier.weight(1f),
                     )
-                    StatusBadge(request.status)
+                    StatusBadge(request.status, partial = request.partial)
                 }
                 Spacer(Modifier.height(4.dp))
                 Text(
@@ -125,7 +125,18 @@ private fun RequestCard(request: PurchaseRequest, onClick: () -> Unit) {
                     fontWeight = FontWeight.Bold,
                 )
                 Text(
-                    "${request.unitPriceCents.toYuan()} × ${request.quantity} · ${if (request.mine) "我" else request.requesterName} · ${request.createdAt.toDateTimeText()}",
+                    buildString {
+                        append((request.approvedUnitPriceCents ?: request.unitPriceCents).toYuan())
+                        append(" × ")
+                        append(request.approvedQuantity ?: request.quantity)
+                        if (request.partial) {
+                            append("（申请 ${request.quantity} 个 ${request.askedCents.toYuan()}）")
+                        }
+                        append(" · ")
+                        append(if (request.mine) "我" else request.requesterName)
+                        append(" · ")
+                        append(request.createdAt.toDateTimeText())
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = Cute.Muted,
                 )

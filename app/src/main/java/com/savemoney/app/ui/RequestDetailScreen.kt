@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -18,6 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -26,6 +28,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.savemoney.app.AppViewModel
@@ -39,6 +42,9 @@ fun RequestDetailScreen(viewModel: AppViewModel, requestId: Long, onBack: () -> 
     val profile by viewModel.profile.collectAsStateWithLifecycle()
     var comment by rememberSaveable { mutableStateOf("") }
     var confirmWithdraw by rememberSaveable { mutableStateOf(false) }
+    var priceText by rememberSaveable { mutableStateOf("") }
+    var quantityText by rememberSaveable { mutableStateOf("") }
+    var approveAttempted by rememberSaveable { mutableStateOf(false) }
 
     val current = request
     if (current == null) {
@@ -47,6 +53,19 @@ fun RequestDetailScreen(viewModel: AppViewModel, requestId: Long, onBack: () -> 
         }
         return
     }
+
+    LaunchedEffect(current.id) {
+        if (priceText.isBlank()) {
+            priceText = current.unitPriceCents.toYuan().removePrefix("¥")
+            quantityText = current.quantity.toString()
+        }
+    }
+
+    val approveQty = quantityText.trim().toIntOrNull()
+    val approvePrice = priceText.yuanToCentsOrNull()
+    val approveAmountsOk =
+        approveQty != null && approveQty in 1..current.quantity &&
+            approvePrice != null && approvePrice in 1..current.unitPriceCents
 
     Column(
         modifier = Modifier
@@ -61,7 +80,7 @@ fun RequestDetailScreen(viewModel: AppViewModel, requestId: Long, onBack: () -> 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 RequestThumb(current.category, current.imagePath)
                 Spacer(Modifier.weight(1f))
-                StatusBadge(current.status)
+                StatusBadge(current.status, partial = current.partial)
             }
             if (!current.imagePath.isNullOrBlank()) {
                 Spacer(Modifier.height(14.dp))
@@ -83,8 +102,16 @@ fun RequestDetailScreen(viewModel: AppViewModel, requestId: Long, onBack: () -> 
             Spacer(Modifier.height(16.dp))
             listOf(
                 "分类" to "${CATEGORY_EMOJI[current.category]} ${current.category}",
-                "单价" to current.unitPriceCents.toYuan(),
-                "数量" to "${current.quantity}",
+                "单价" to if (current.approvedUnitPriceCents != null && current.approvedUnitPriceCents != current.unitPriceCents) {
+                    "${current.approvedUnitPriceCents.toYuan()}（申请 ${current.unitPriceCents.toYuan()}）"
+                } else {
+                    current.unitPriceCents.toYuan()
+                },
+                "数量" to if (current.approvedQuantity != null && current.approvedQuantity != current.quantity) {
+                    "${current.approvedQuantity}（申请 ${current.quantity} 个）"
+                } else {
+                    "${current.quantity}"
+                },
                 "申请人" to if (current.mine) "我（${current.requesterName}）" else current.requesterName,
                 "申请时间" to current.createdAt.toDateTimeText(),
             ).forEach { (label, value) ->
@@ -104,12 +131,25 @@ fun RequestDetailScreen(viewModel: AppViewModel, requestId: Long, onBack: () -> 
         when {
             current.status != RequestStatus.PENDING -> {
                 SoftCard(modifier = Modifier.fillMaxWidth()) {
-                    Text(if (current.status == RequestStatus.APPROVED) "🎉 已通过" else "这次先不买啦", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        when {
+                            current.status == RequestStatus.REJECTED -> "这次先不买啦"
+                            current.partial -> "部分通过"
+                            else -> "🎉 已通过"
+                        },
+                        style = MaterialTheme.typography.titleMedium,
+                    )
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        "${current.reviewerName ?: "-"} 于 ${current.reviewedAt?.toDateTimeText() ?: "-"} ${current.status.label}",
+                        "${current.reviewerName ?: "-"} 于 ${current.reviewedAt?.toDateTimeText() ?: "-"} ${if (current.partial) "部分通过" else current.status.label}",
                         color = Cute.Muted,
                     )
+                    if (current.partial) {
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            "按 ${(current.approvedQuantity ?: current.quantity)} 个、单价 ${(current.approvedUnitPriceCents ?: current.unitPriceCents).toYuan()} 入账 ${current.totalCents.toYuan()}（申请 ${current.askedCents.toYuan()}）",
+                        )
+                    }
                     current.reviewComment?.let {
                         Spacer(Modifier.height(6.dp))
                         Text("意见：$it")
@@ -124,6 +164,46 @@ fun RequestDetailScreen(viewModel: AppViewModel, requestId: Long, onBack: () -> 
             !current.mine -> {
                 SoftCard(modifier = Modifier.fillMaxWidth()) {
                     Text("帮 ${current.requesterName} 把把关", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "可以少买或砍价再通过，入账按你填的数量和单价。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Cute.Muted,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        SoftField(
+                            value = priceText,
+                            onValueChange = { priceText = it },
+                            label = "同意的单价（元）",
+                            prefix = "¥",
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            isError = approveAttempted && (approvePrice == null || approvePrice !in 1..current.unitPriceCents),
+                            supportingText = "最多 ${current.unitPriceCents.toYuan()}",
+                            modifier = Modifier.weight(1.4f),
+                        )
+                        SoftField(
+                            value = quantityText,
+                            onValueChange = { quantityText = it },
+                            label = "同意买几个",
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            isError = approveAttempted && (approveQty == null || approveQty !in 1..current.quantity),
+                            supportingText = "1~${current.quantity}",
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    if (approveAmountsOk) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            if (approveQty != current.quantity || approvePrice != current.unitPriceCents) {
+                                "按这个通过：${(approvePrice!! * approveQty!!).toYuan()}（申请 ${current.askedCents.toYuan()}）"
+                            } else {
+                                "按申请全额通过：${current.askedCents.toYuan()}"
+                            },
+                            color = Cute.Peach,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
                     Spacer(Modifier.height(10.dp))
                     SoftField(
                         value = comment,
@@ -139,8 +219,17 @@ fun RequestDetailScreen(viewModel: AppViewModel, requestId: Long, onBack: () -> 
                             onBack()
                         }, modifier = Modifier.weight(1f))
                         CharcoalPillButton("通过", onClick = {
-                            viewModel.review(current.id, approve = true, comment = comment)
-                            onBack()
+                            approveAttempted = true
+                            if (approveAmountsOk) {
+                                viewModel.review(
+                                    current.id,
+                                    approve = true,
+                                    comment = comment,
+                                    unitPriceCents = approvePrice,
+                                    quantity = approveQty,
+                                )
+                                onBack()
+                            }
                         }, modifier = Modifier.weight(1f))
                     }
                     Spacer(Modifier.height(8.dp))

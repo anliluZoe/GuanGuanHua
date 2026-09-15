@@ -20,6 +20,13 @@ function requestJson(row, req) {
     category: row.category,
     unitPriceCents: row.unit_price_cents,
     quantity: row.quantity,
+    approvedUnitPriceCents: row.approved_unit_price_cents == null ? null : Number(row.approved_unit_price_cents),
+    approvedQuantity: row.approved_quantity == null ? null : Number(row.approved_quantity),
+    partial:
+      row.status === "APPROVED" &&
+      row.approved_quantity != null &&
+      (Number(row.approved_quantity) !== Number(row.quantity) ||
+        Number(row.approved_unit_price_cents) !== Number(row.unit_price_cents)),
     reason: row.reason,
     requesterName: row.requester_name,
     status: row.status,
@@ -105,15 +112,19 @@ app.post("/api/requests", requireMember, upload.single("image"), (req, res) => {
 });
 
 app.post("/api/requests/:id/review", requireMember, (req, res) => {
+  const approve = Boolean(req.body?.approve);
   const outcome = store.review(
     req.member.household_id,
     Number(req.params.id),
     req.member,
-    Boolean(req.body?.approve),
+    approve,
     String(req.body?.comment || "").trim(),
-    Date.now()
+    Date.now(),
+    approve && req.body?.quantity != null ? Number(req.body.quantity) : null,
+    approve && req.body?.unitPriceCents != null ? Number(req.body.unitPriceCents) : null
   );
   if (outcome === "own") return res.status(403).json({ detail: "自己的申请要留给对方审哦" });
+  if (outcome === "bad_amount") return res.status(400).json({ detail: "只能少买或砍价，不能加码" });
   if (outcome !== "ok") return res.status(409).json({ detail: "这条申请不能审核" });
   res.json(requestJson(store.getRequest(req.member.household_id, Number(req.params.id)), req));
 });

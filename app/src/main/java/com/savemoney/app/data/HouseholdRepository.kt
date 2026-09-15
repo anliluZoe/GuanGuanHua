@@ -37,7 +37,12 @@ data class JoinBody(
     val code: String? = null,
 )
 
-data class ReviewBody(val approve: Boolean, val comment: String)
+data class ReviewBody(
+    val approve: Boolean,
+    val comment: String,
+    val unitPriceCents: Long? = null,
+    val quantity: Int? = null,
+)
 
 data class ProfileBody(val name: String)
 
@@ -159,8 +164,14 @@ class HouseholdRepository(private val app: Application) {
         )
     }
 
-    suspend fun review(id: Long, approve: Boolean, comment: String): PurchaseRequest =
-        api().review(bearer(), id, ReviewBody(approve, comment))
+    suspend fun review(
+        id: Long,
+        approve: Boolean,
+        comment: String,
+        unitPriceCents: Long? = null,
+        quantity: Int? = null,
+    ): PurchaseRequest =
+        api().review(bearer(), id, ReviewBody(approve, comment, unitPriceCents, quantity))
 
     suspend fun withdraw(id: Long) {
         api().withdraw(bearer(), id)

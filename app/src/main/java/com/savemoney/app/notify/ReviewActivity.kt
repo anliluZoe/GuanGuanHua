@@ -33,13 +33,18 @@ object ReviewActivity {
         val myResults = requests
             .filter { it.mine && it.status != RequestStatus.PENDING && (it.reviewedAt ?: 0L) > since }
             .map { r ->
-                val verdict = if (r.status == RequestStatus.APPROVED) "同意了" else "没同意"
+                val verdict = when {
+                    r.status == RequestStatus.REJECTED -> "没同意"
+                    r.partial -> "部分同意了"
+                    else -> "同意了"
+                }
                 val comment = r.reviewComment?.takeIf { it.isNotBlank() }?.let { " · 留言：$it" } ?: ""
+                val cut = if (r.partial) "（申请 ${r.askedCents.toYuan()}）" else ""
                 ActivityItem(
                     requestId = r.id,
                     at = r.reviewedAt ?: 0L,
                     title = "${r.reviewerName ?: "对方"}$verdict「${r.itemName}」",
-                    text = "${r.totalCents.toYuan()}$comment",
+                    text = "${r.totalCents.toYuan()}$cut$comment",
                 )
             }
         return (waitingForMe + myResults).sortedBy { it.at }
