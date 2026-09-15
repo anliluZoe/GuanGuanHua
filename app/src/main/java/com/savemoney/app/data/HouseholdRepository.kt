@@ -7,6 +7,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.RequestBody.Companion.toRequestBody
+import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.Body
@@ -86,11 +87,12 @@ interface SaveMoneyApi {
         @Query("yearMonth") yearMonth: String,
     ): List<ExpenseRecord>
 
+    /** 没设预算时服务器返回 JSON null，用 Response 包一层才能拿到空 body。 */
     @GET("api/budget")
     suspend fun getBudget(
         @Header("Authorization") authorization: String,
         @Query("yearMonth") yearMonth: String,
-    ): MonthlyBudget?
+    ): Response<MonthlyBudget>
 
     @PUT("api/budget")
     suspend fun setBudget(
@@ -166,7 +168,11 @@ class HouseholdRepository(private val app: Application) {
 
     suspend fun listExpenses(yearMonth: String): List<ExpenseRecord> = api().listExpenses(bearer(), yearMonth)
 
-    suspend fun getBudget(yearMonth: String): MonthlyBudget? = api().getBudget(bearer(), yearMonth)
+    suspend fun getBudget(yearMonth: String): MonthlyBudget? {
+        val response = api().getBudget(bearer(), yearMonth)
+        if (!response.isSuccessful) throw retrofit2.HttpException(response)
+        return response.body()
+    }
 
     suspend fun setBudget(yearMonth: String, amountCents: Long): MonthlyBudget =
         api().setBudget(bearer(), yearMonth, BudgetBody(amountCents))
