@@ -4,19 +4,23 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -26,13 +30,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.savemoney.app.AppViewModel
-import com.savemoney.app.ui.theme.Cute
+import com.savemoney.app.ui.theme.Palette
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun NewRequestScreen(viewModel: AppViewModel, onBack: () -> Unit) {
     var itemName by rememberSaveable { mutableStateOf("") }
@@ -54,12 +57,12 @@ fun NewRequestScreen(viewModel: AppViewModel, onBack: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(Palette.ScreenGlow)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        PageHeader("想买点什么？", "填好物品和小金额，交给另一半把关", onBack = onBack)
+        PageHeader("又想买什么？", "填清楚哦，可别指望糊弄过去~", onBack = onBack)
         SoftField(
             value = itemName,
             onValueChange = { itemName = it },
@@ -68,13 +71,36 @@ fun NewRequestScreen(viewModel: AppViewModel, onBack: () -> Unit) {
             supportingText = if (submitted && !nameValid) "给它起个名字吧" else null,
         )
         Text("分类", style = MaterialTheme.typography.labelLarge)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            CATEGORIES.forEach { option ->
-                ChoiceChip(
-                    label = "${CATEGORY_EMOJI[option]} $option",
-                    selected = category == option,
-                    onClick = { category = option },
-                )
+        CATEGORIES.chunked(3).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                row.forEach { option ->
+                    val selected = category == option
+                    val look = categoryLook(option)
+                    val shape = RoundedCornerShape(20.dp)
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(shape)
+                            .border(1.5.dp, if (selected) Palette.Sky else Palette.Line, shape)
+                            .background(if (selected) Palette.SkySoft else MaterialTheme.colorScheme.surface)
+                            .clickable { category = option }
+                            .padding(vertical = 14.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(look.wash),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(look.icon, contentDescription = option, tint = look.accent, modifier = Modifier.size(20.dp))
+                        }
+                        Text(option, style = MaterialTheme.typography.labelMedium, color = Palette.Ink)
+                    }
+                }
+                repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -106,12 +132,7 @@ fun NewRequestScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text("合计", style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        (priceCents * quantity).toYuan(),
-                        style = MaterialTheme.typography.headlineSmall,
-                        color = Cute.Peach,
-                        fontWeight = FontWeight.Bold,
-                    )
+                    MoneyText((priceCents * quantity), style = MaterialTheme.typography.headlineSmall)
                 }
             }
         }
@@ -131,7 +152,7 @@ fun NewRequestScreen(viewModel: AppViewModel, onBack: () -> Unit) {
             onClear = photoUri?.let { { photoUri = null } },
         )
         Spacer(Modifier.height(4.dp))
-        CharcoalPillButton(
+        PillButton(
             text = "提交申请",
             enabled = true,
             onClick = {

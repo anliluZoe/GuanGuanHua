@@ -20,6 +20,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.MenuBook
+import androidx.compose.material.icons.outlined.Checkroom
+import androidx.compose.material.icons.outlined.Devices
+import androidx.compose.material.icons.outlined.DirectionsBus
+import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.MoreHoriz
+import androidx.compose.material.icons.outlined.Restaurant
+import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -32,25 +41,35 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.savemoney.app.data.RequestStatus
-import com.savemoney.app.ui.theme.Cute
+import com.savemoney.app.ui.theme.Palette
 import java.io.File
 
-val CATEGORY_EMOJI = mapOf(
-    "餐饮" to "🍜",
-    "日用品" to "🧴",
-    "服饰" to "👕",
-    "数码" to "💻",
-    "交通" to "🚌",
-    "娱乐" to "🎮",
-    "学习" to "📚",
-    "医疗" to "💊",
-    "其他" to "✨",
+data class CategoryLook(
+    val icon: ImageVector,
+    val accent: Color,
+    val wash: Color,
 )
+
+fun categoryLook(name: String): CategoryLook = when (name) {
+    "餐饮" -> CategoryLook(Icons.Outlined.Restaurant, Palette.Coral, Palette.CoralSoft)
+    "日用品" -> CategoryLook(Icons.Outlined.Home, Palette.Sky, Palette.SkySoft)
+    "服饰" -> CategoryLook(Icons.Outlined.Checkroom, Palette.Lavender, Palette.LavenderSoft)
+    "数码" -> CategoryLook(Icons.Outlined.Devices, Color(0xFFD4A84B), Color(0xFFF8EFC8))
+    "交通" -> CategoryLook(Icons.Outlined.DirectionsBus, Palette.Mint, Palette.MintSoft)
+    "娱乐" -> CategoryLook(Icons.Outlined.SportsEsports, Color(0xFFE89A5C), Color(0xFFFBE6D4))
+    "学习" -> CategoryLook(Icons.AutoMirrored.Outlined.MenuBook, Color(0xFF7B9FD4), Color(0xFFDCE6F6))
+    "医疗" -> CategoryLook(Icons.Outlined.FavoriteBorder, Color(0xFFD98BA8), Color(0xFFF8DCE6))
+    else -> CategoryLook(Icons.Outlined.MoreHoriz, Palette.Muted, Color(0xFFEEF1F5))
+}
 
 @Composable
 fun SoftCard(
@@ -58,13 +77,14 @@ fun SoftCard(
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    val shape = RoundedCornerShape(22.dp)
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(28.dp))
+            .clip(shape)
             .background(MaterialTheme.colorScheme.surface)
-            .border(1.dp, Color(0x14000000), RoundedCornerShape(28.dp))
+            .border(1.dp, Palette.Line, shape)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(20.dp),
+            .padding(18.dp),
         content = content,
     )
 }
@@ -75,28 +95,29 @@ fun PageHeader(
     subtitle: String,
     onBack: (() -> Unit)? = null,
 ) {
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)) {
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp)) {
         if (onBack != null) {
             Box(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(CircleShape)
                     .clickable(onClick = onBack)
-                    .background(MaterialTheme.colorScheme.surface),
+                    .background(MaterialTheme.colorScheme.surface)
+                    .border(1.dp, Palette.Line, CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回", tint = Cute.Ink)
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回", tint = Palette.Ink)
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(14.dp))
         }
         Text(title, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onBackground)
         Spacer(Modifier.height(4.dp))
-        Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = Cute.Muted)
+        Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = Palette.Muted)
     }
 }
 
 @Composable
-fun CharcoalPillButton(
+fun PillButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -106,20 +127,20 @@ fun CharcoalPillButton(
     Button(
         onClick = onClick,
         enabled = enabled,
-        modifier = modifier.fillMaxWidth().height(56.dp),
+        modifier = modifier.fillMaxWidth().height(54.dp),
         shape = RoundedCornerShape(28.dp),
         colors = if (filled) ButtonDefaults.buttonColors(
-            containerColor = Cute.Ink,
-            contentColor = Cute.Gold,
-            disabledContainerColor = Color(0xFFE6E8E2),
-            disabledContentColor = Color(0xFFB0B4AA),
+            containerColor = Palette.Coral,
+            contentColor = Color.White,
+            disabledContainerColor = Color(0xFFE6EAF0),
+            disabledContentColor = Color(0xFFB0B7C2),
         ) else ButtonDefaults.buttonColors(
             containerColor = Color.Transparent,
-            contentColor = Color(0xFF6B1A16),
+            contentColor = Palette.Ink,
             disabledContainerColor = Color.Transparent,
-            disabledContentColor = Color(0xFFB0B4AA),
+            disabledContentColor = Color(0xFFB0B7C2),
         ),
-        border = if (filled) null else BorderStroke(1.5.dp, Color(0xFFE6E8E0)),
+        border = if (filled) null else BorderStroke(1.5.dp, Palette.Line),
         elevation = ButtonDefaults.buttonElevation(0.dp),
     ) {
         Text(text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
@@ -139,7 +160,7 @@ fun SoftField(
     prefix: String? = null,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
 ) {
-    val shape = RoundedCornerShape(22.dp)
+    val shape = RoundedCornerShape(18.dp)
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
@@ -153,10 +174,11 @@ fun SoftField(
         modifier = modifier.fillMaxWidth(),
         shape = shape,
         colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = Cute.Peach,
-            unfocusedBorderColor = Color(0xFFE6E8E0),
+            focusedBorderColor = Palette.Sky,
+            unfocusedBorderColor = Palette.Line,
             focusedContainerColor = MaterialTheme.colorScheme.surface,
             unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+            cursorColor = Palette.Sky,
         ),
     )
 }
@@ -168,29 +190,30 @@ fun ChoiceChip(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val bg = if (selected) Cute.PeachSoft else MaterialTheme.colorScheme.surface
-    val border = if (selected) Cute.Peach else Color(0xFFE6E8E0)
-    val fg = if (selected) Color(0xFF5A2A12) else Cute.Ink
+    val shape = RoundedCornerShape(22.dp)
+    val bg = if (selected) Palette.Sky else MaterialTheme.colorScheme.surface
+    val border = if (selected) Palette.Sky else Palette.Line
+    val fg = if (selected) Color.White else Palette.Ink
     Text(
         text = label,
         color = fg,
         style = MaterialTheme.typography.labelLarge,
         modifier = modifier
-            .clip(RoundedCornerShape(22.dp))
-            .border(1.5.dp, border, RoundedCornerShape(22.dp))
+            .clip(shape)
+            .border(1.dp, border, shape)
             .background(bg)
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .padding(horizontal = 16.dp, vertical = 9.dp),
     )
 }
 
 @Composable
 fun StatusBadge(status: RequestStatus, modifier: Modifier = Modifier, partial: Boolean = false) {
     val (bg, fg, label) = when {
-        status == RequestStatus.PENDING -> Triple(Cute.SkySoft, Color(0xFF0C3A46), status.label)
-        status == RequestStatus.REJECTED -> Triple(Color(0xFFFFE2E0), Color(0xFF6B1A16), status.label)
-        partial -> Triple(Cute.PeachSoft, Color(0xFF5A2A12), "部分通过")
-        else -> Triple(Cute.MintSoft, Color(0xFF1B5A32), status.label)
+        status == RequestStatus.PENDING -> Triple(Palette.Cream, Color(0xFF8A6A20), status.label)
+        status == RequestStatus.REJECTED -> Triple(Color(0xFFFBE3E3), Color(0xFF8A2E2E), status.label)
+        partial -> Triple(Palette.CoralSoft, Color(0xFF8A3A24), "部分通过")
+        else -> Triple(Palette.MintSoft, Color(0xFF1B5A48), status.label)
     }
     Text(
         text = label,
@@ -204,15 +227,37 @@ fun StatusBadge(status: RequestStatus, modifier: Modifier = Modifier, partial: B
 }
 
 @Composable
-fun CategoryBubble(category: String, modifier: Modifier = Modifier) {
+fun CategoryChip(category: String, modifier: Modifier = Modifier) {
+    val look = categoryLook(category)
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(look.wash)
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(6.dp)
+                .clip(CircleShape)
+                .background(look.accent),
+        )
+        Text(category, style = MaterialTheme.typography.labelMedium, color = Palette.Ink)
+    }
+}
+
+@Composable
+fun CategoryBubble(category: String, modifier: Modifier = Modifier, size: Dp = 48.dp) {
+    val look = categoryLook(category)
     Box(
         modifier = modifier
-            .size(48.dp)
+            .size(size)
             .clip(RoundedCornerShape(16.dp))
-            .background(Cute.PeachSoft),
+            .background(look.wash),
         contentAlignment = Alignment.Center,
     ) {
-        Text(CATEGORY_EMOJI[category] ?: "✨", style = MaterialTheme.typography.titleLarge)
+        Icon(look.icon, contentDescription = category, tint = look.accent, modifier = Modifier.size(size * 0.46f))
     }
 }
 
@@ -241,8 +286,8 @@ fun PhotoSlot(
     }
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(22.dp))
-            .background(Cute.PeachSoft)
+            .clip(RoundedCornerShape(20.dp))
+            .background(Palette.SkySoft)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
     ) {
         if (imageModel != null) {
@@ -255,7 +300,7 @@ fun PhotoSlot(
             if (onClear != null) {
                 Text(
                     "✕",
-                    color = Cute.Ink,
+                    color = Palette.Ink,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(8.dp)
@@ -273,7 +318,7 @@ fun PhotoSlot(
             ) {
                 Text("📷", style = MaterialTheme.typography.headlineSmall)
                 Spacer(Modifier.height(6.dp))
-                Text(emptyLabel, color = Color(0xFF5A2A12), style = MaterialTheme.typography.bodyMedium)
+                Text(emptyLabel, color = Palette.Ink, style = MaterialTheme.typography.bodyMedium)
             }
         }
     }
@@ -286,8 +331,42 @@ fun EmptyHint(kind: MascotKind, title: String, subtitle: String) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Mascot(kind, size = 150.dp)
+        Mascot(kind, size = 128.dp)
         Text(title, style = MaterialTheme.typography.titleMedium)
-        Text(subtitle, color = Cute.Muted, style = MaterialTheme.typography.bodyMedium)
+        Text(subtitle, color = Palette.Muted, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+@Composable
+fun MoneyText(
+    cents: Long,
+    modifier: Modifier = Modifier,
+    style: TextStyle = MaterialTheme.typography.titleLarge,
+    color: Color = Palette.Coral,
+) {
+    Text(
+        text = cents.toYuan(),
+        modifier = modifier,
+        style = style.copy(fontFeatureSettings = "tnum", fontWeight = FontWeight.Bold),
+        color = color,
+    )
+}
+
+@Composable
+fun NameDot(name: String, fill: Color, modifier: Modifier = Modifier, size: Dp = 36.dp) {
+    Box(
+        modifier = modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(fill)
+            .border(2.dp, Color.White, CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = name.take(1),
+            color = Color.White,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = (size.value * 0.38f).sp,
+        )
     }
 }

@@ -3,6 +3,7 @@ package com.savemoney.app.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,7 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.savemoney.app.AppViewModel
-import com.savemoney.app.ui.theme.Cute
+import com.savemoney.app.ui.theme.Palette
 
 @Composable
 fun SetupScreen(viewModel: AppViewModel) {
@@ -36,27 +37,30 @@ fun SetupScreen(viewModel: AppViewModel) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(Palette.ScreenGlow)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp, vertical = 24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Mascot(MascotKind.Coin, size = 140.dp)
-        PageHeader("两个人的小账本", "先连上同一台服务器，再用家庭码把两部手机绑在一起")
+        Row(horizontalArrangement = Arrangement.spacedBy((-8).dp), verticalAlignment = Alignment.CenterVertically) {
+            Mascot(MascotKind.Cat, size = 92.dp)
+            Mascot(MascotKind.Dog, size = 92.dp)
+        }
+        PageHeader("省钱助手", "两个人的小金库 · 才不是随便花的")
         SoftField(value = serverUrl, onValueChange = { serverUrl = it }, label = "服务器地址")
         Text(
             "电脑上运行后端后，填 http://电脑局域网IP:8080。模拟器用 http://10.0.2.2:8080。",
             style = MaterialTheme.typography.bodySmall,
-            color = Cute.Muted,
+            color = Palette.Muted,
         )
         SoftField(value = name, onValueChange = { name = it }, label = "我的名字")
         Text(
-            "两个人谁都可以发起购买申请，由另一个人来审核。",
+            "谁想买都行，另一半说了算哼。先连上同一台服务器，再用家庭码把两部手机绑在一起。",
             style = MaterialTheme.typography.bodySmall,
-            color = Cute.Muted,
+            color = Palette.Muted,
         )
-        CharcoalPillButton("创建家庭账本", onClick = {
+        PillButton("创建家庭账本", onClick = {
             viewModel.consumeStatus()
             viewModel.createHome(serverUrl, name)
         })
@@ -65,13 +69,13 @@ fun SetupScreen(viewModel: AppViewModel) {
             Spacer(Modifier.height(10.dp))
             SoftField(value = code, onValueChange = { code = it }, label = "6 位家庭码")
             Spacer(Modifier.height(12.dp))
-            CharcoalPillButton("加入", filled = false, onClick = {
+            PillButton("加入", filled = false, onClick = {
                 viewModel.consumeStatus()
                 viewModel.joinHome(serverUrl, code, name)
             })
         }
         if (!status.isNullOrBlank()) {
-            Text(status!!, color = Cute.Peach, style = MaterialTheme.typography.bodyMedium)
+            Text(status!!, color = Palette.Coral, style = MaterialTheme.typography.bodyMedium)
         }
     }
 }

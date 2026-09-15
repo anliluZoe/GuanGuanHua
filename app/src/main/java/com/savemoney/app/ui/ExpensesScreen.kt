@@ -1,7 +1,9 @@
 package com.savemoney.app.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -10,9 +12,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -34,12 +38,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.savemoney.app.AppViewModel
-import com.savemoney.app.ui.theme.Cute
+import com.savemoney.app.ui.theme.Palette
 import java.time.YearMonth
 
 @Composable
@@ -61,53 +65,79 @@ fun ExpensesScreen(viewModel: AppViewModel) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(Palette.ScreenGlow)
             .padding(horizontal = 20.dp),
     ) {
         Spacer(Modifier.height(12.dp))
-        PageHeader("小账本", "看看这个月花到哪里去了")
+        Mascot(MascotKind.Dog, size = 56.dp)
+        Spacer(Modifier.height(8.dp))
+        PageHeader("小账本", "才、才不是在盯你花了多少")
         LazyColumn(
             contentPadding = PaddingValues(bottom = 96.dp, top = 8.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             item {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(MaterialTheme.colorScheme.surface)
+                        .border(1.dp, Palette.Line, RoundedCornerShape(22.dp))
+                        .padding(horizontal = 4.dp, vertical = 2.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     IconButton(onClick = { viewModel.shiftMonth(-1) }) {
-                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "上个月", tint = Cute.Ink)
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "上个月", tint = Palette.Ink)
                     }
                     Text(
                         "${month.year}年${month.monthValue}月",
                         style = MaterialTheme.typography.titleLarge,
                     )
                     IconButton(onClick = { viewModel.shiftMonth(1) }, enabled = month < YearMonth.now()) {
-                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "下个月", tint = Cute.Ink)
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "下个月", tint = Palette.Ink)
                     }
                 }
             }
 
             item {
-                SoftCard(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(
+                            Brush.linearGradient(listOf(Palette.SkySoft, Palette.MintSoft)),
+                        )
+                        .padding(18.dp),
+                ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Mascot(MascotKind.Piggy, size = 88.dp)
-                        Spacer(Modifier.width(8.dp))
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("本月已消费", color = Cute.Muted, style = MaterialTheme.typography.bodyMedium)
-                            Text(
-                                totalCents.toYuan(),
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("本月已消费", color = Palette.Muted, style = MaterialTheme.typography.bodyMedium)
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    "盯~",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = Palette.Mint,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f))
+                                        .padding(horizontal = 8.dp, vertical = 2.dp),
+                                )
+                            }
+                            MoneyText(
+                                totalCents,
                                 style = MaterialTheme.typography.displaySmall,
-                                color = if (overBudget) MaterialTheme.colorScheme.error else Cute.Ink,
+                                color = if (overBudget) MaterialTheme.colorScheme.error else Palette.Coral,
                             )
                         }
+                        Mascot(MascotKind.Dog, size = 64.dp)
                     }
                     Spacer(Modifier.height(12.dp))
                     Text(
                         text = if (budgetCents == null) "还没设预算，点下面设一个小目标"
                         else "预算 ${budgetCents.toYuan()}  ·  剩余 ${(budgetCents - totalCents).toYuan()}",
-                        color = if (overBudget) MaterialTheme.colorScheme.error else Cute.Muted,
+                        color = if (overBudget) MaterialTheme.colorScheme.error else Palette.Muted,
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     if (budgetCents != null && budgetCents > 0) {
@@ -115,8 +145,8 @@ fun ExpensesScreen(viewModel: AppViewModel) {
                         LinearProgressIndicator(
                             progress = { (totalCents.toFloat() / budgetCents).coerceIn(0f, 1f) },
                             modifier = Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(20.dp)),
-                            color = if (overBudget) MaterialTheme.colorScheme.error else Cute.Peach,
-                            trackColor = Cute.PeachSoft,
+                            color = if (overBudget) MaterialTheme.colorScheme.error else Palette.Mint,
+                            trackColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.55f),
                         )
                     }
                     Spacer(Modifier.height(12.dp))
@@ -129,27 +159,37 @@ fun ExpensesScreen(viewModel: AppViewModel) {
                         },
                     )
                     Spacer(Modifier.height(6.dp))
-                    Text("共 ${expenses.size} 笔已通过的购买", color = Cute.Muted, style = MaterialTheme.typography.bodySmall)
+                    Text("共 ${expenses.size} 笔已通过的购买", color = Palette.Muted, style = MaterialTheme.typography.bodySmall)
                 }
             }
 
             if (byCategory.isNotEmpty()) {
                 item {
                     SoftCard(modifier = Modifier.fillMaxWidth()) {
-                        Text("花在哪儿", style = MaterialTheme.typography.titleMedium)
+                        Text("分类占比", style = MaterialTheme.typography.titleMedium)
                         Spacer(Modifier.height(12.dp))
                         byCategory.forEach { (category, cents) ->
+                            val look = categoryLook(category)
                             Column(modifier = Modifier.padding(bottom = 10.dp)) {
                                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                    Text("${CATEGORY_EMOJI[category]}  $category", modifier = Modifier.weight(1f))
-                                    Text(cents.toYuan(), fontWeight = FontWeight.Medium)
+                                    Box(
+                                        modifier = Modifier
+                                            .padding(end = 8.dp)
+                                            .clip(CircleShape)
+                                            .background(look.wash)
+                                            .padding(6.dp),
+                                    ) {
+                                        Icon(look.icon, contentDescription = null, tint = look.accent, modifier = Modifier.size(14.dp))
+                                    }
+                                    Text(category, modifier = Modifier.weight(1f))
+                                    MoneyText(cents, style = MaterialTheme.typography.titleMedium, color = Palette.Ink)
                                 }
                                 Spacer(Modifier.height(6.dp))
                                 LinearProgressIndicator(
                                     progress = { if (totalCents == 0L) 0f else cents.toFloat() / totalCents },
                                     modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(20.dp)),
-                                    color = Cute.Sky,
-                                    trackColor = Cute.SkySoft,
+                                    color = look.accent,
+                                    trackColor = look.wash,
                                 )
                             }
                         }
@@ -161,7 +201,7 @@ fun ExpensesScreen(viewModel: AppViewModel) {
 
             if (expenses.isEmpty()) {
                 item {
-                    EmptyHint(MascotKind.Wallet, "本月还是空空的", "申请通过后，会自动出现在这里")
+                    EmptyHint(MascotKind.Dog, "哼，这个月还没花过？", "申请通过后，会自动出现在这里")
                 }
             } else {
                 items(expenses, key = { it.id }) { record ->
@@ -173,11 +213,11 @@ fun ExpensesScreen(viewModel: AppViewModel) {
                                 Text(record.itemName, style = MaterialTheme.typography.titleMedium)
                                 Text(
                                     "${record.requesterName} 申请 · ${record.reviewerName} 审核 · ${record.spentAt.toDateTimeText()}",
-                                    color = Cute.Muted,
+                                    color = Palette.Muted,
                                     style = MaterialTheme.typography.bodySmall,
                                 )
                             }
-                            Text(record.amountCents.toYuan(), fontWeight = FontWeight.Bold, color = Cute.Peach)
+                            MoneyText(record.amountCents, style = MaterialTheme.typography.titleMedium)
                         }
                     }
                 }
@@ -204,7 +244,7 @@ fun ExpensesScreen(viewModel: AppViewModel) {
                 TextButton(enabled = parsed != null, onClick = {
                     viewModel.setBudget(parsed!!)
                     editingBudget = false
-                }) { Text("保存", color = Cute.Peach) }
+                }) { Text("保存", color = Palette.Coral) }
             },
             dismissButton = {
                 TextButton(onClick = { editingBudget = false }) { Text("取消") }
