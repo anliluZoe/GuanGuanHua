@@ -33,6 +33,7 @@ import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.outlined.People
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -68,6 +69,8 @@ import com.savemoney.app.ui.RequestListScreen
 import com.savemoney.app.ui.SetupScreen
 import com.savemoney.app.ui.theme.QTheme
 import com.savemoney.app.ui.theme.SaveMoneyTheme
+import com.savemoney.app.update.AppUpdates
+import com.savemoney.app.update.UpdateCheckResult
 import kotlinx.coroutines.delay
 
 private const val FOREGROUND_POLL_MS = 30_000L
@@ -137,6 +140,16 @@ class MainActivity : ComponentActivity() {
                             if (!status.isNullOrBlank()) {
                                 snackbar.showSnackbar(status!!)
                                 viewModel.consumeStatus()
+                            }
+                        }
+
+                        LaunchedEffect(Unit) {
+                            val result = AppUpdates.maybeCheckDaily(this@MainActivity)
+                            if (result is UpdateCheckResult.Available) {
+                                snackbar.showSnackbar(
+                                    message = "发现新版本 ${result.update.versionName}，去「我们」页更新",
+                                    duration = SnackbarDuration.Long,
+                                )
                             }
                         }
 

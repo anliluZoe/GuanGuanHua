@@ -43,6 +43,37 @@ cd backend && docker compose up --build
 
 需要 JDK 17+ 与 Android SDK（compileSdk 35）。未用 Android Studio 时，在根目录 `local.properties` 写入 `sdk.dir=/path/to/android-sdk`。
 
+调试包默认输出：`app/build/outputs/apk/debug/app-debug.apk`。
+
+## 版本号与覆盖安装
+
+每次给已经装过的手机再装一包，**`appVersionCode` 必须比手机上的大**，否则系统会拒绝覆盖。数字写在根目录 `gradle.properties`：
+
+```
+appVersionCode=2
+appVersionName=1.1.0
+```
+
+改完再 `./gradlew assembleDebug`。也可以临时覆盖，不必改文件：
+
+```bash
+./gradlew assembleDebug -PappVersionCode=3 -PappVersionName=1.1.1
+```
+
+## GitHub Releases（应用内检查更新）
+
+App 在「我们」页可以「检查更新」；进家庭账本后每天最多自动查一次，有新版本才提醒。它请求：
+
+`GET https://api.github.com/repos/anliluZoe/saveMoney/releases/latest`
+
+发版时请同时：
+
+1. 把 `gradle.properties` 里的 `appVersionCode` / `appVersionName` 调高，再打包。
+2. 创建 GitHub Release，**tag（或标题）写成** `v{versionName}+{versionCode}`，例如 `v1.1.0+2`。内部号只认 `+` 后面的整数，用来和手机上的 `versionCode` 比较。
+3. 把 APK 挂到这次 Release 的 Assets。文件名优先 `saveMoney.apk`，其次 `app-debug.apk` / `app-release.apk`；都不匹配时会用第一个 `.apk`。
+
+手机上点「下载并安装」后，如系统要求，需要允许「省钱助手」安装未知应用，再走系统安装界面。
+
 ## 界面截图
 
 | 申请列表 | 新建申请 | 加点照片 |
