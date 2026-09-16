@@ -83,7 +83,7 @@ fun NewRequestScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                         modifier = Modifier
                             .weight(1f)
                             .clip(shape)
-                            .border(1.5.dp, if (selected) QTheme.colors.sky else QTheme.colors.line, shape)
+                            .border(1.5.dp, if (selected) QTheme.colors.sky else QTheme.colors.lineStrong, shape)
                             .background(if (selected) QTheme.colors.skySoft else MaterialTheme.colorScheme.surface)
                             .clickable { category = option }
                             .padding(vertical = 14.dp),

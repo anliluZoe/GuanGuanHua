@@ -69,7 +69,11 @@ data class CategoryLook(
 fun categoryLook(name: String): CategoryLook {
     val colors = QTheme.colors
     return when (name) {
-        "餐饮" -> CategoryLook(Icons.Outlined.Restaurant, colors.coral, colors.coralSoft)
+        "餐饮" -> if (colors.isDark) {
+            CategoryLook(Icons.Outlined.Restaurant, colors.peach, colors.peachSoft)
+        } else {
+            CategoryLook(Icons.Outlined.Restaurant, colors.coral, colors.coralSoft)
+        }
         "日用品" -> CategoryLook(Icons.Outlined.Home, colors.sky, colors.skySoft)
         "服饰" -> CategoryLook(Icons.Outlined.Checkroom, colors.lavender, colors.lavenderSoft)
         "数码" -> CategoryLook(Icons.Outlined.Devices, colors.gold, colors.goldSoft)
@@ -113,7 +117,7 @@ fun PageHeader(
                     .clip(CircleShape)
                     .clickable(onClick = onBack)
                     .background(MaterialTheme.colorScheme.surface)
-                    .border(1.dp, QTheme.colors.line, CircleShape),
+                    .border(1.dp, QTheme.colors.lineStrong, CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回", tint = QTheme.colors.ink)
@@ -151,7 +155,7 @@ fun PillButton(
             disabledContainerColor = Color.Transparent,
             disabledContentColor = colors.disabledInk,
         ),
-        border = if (filled) null else BorderStroke(1.5.dp, colors.line),
+        border = if (filled) null else BorderStroke(1.5.dp, colors.lineStrong),
         elevation = ButtonDefaults.buttonElevation(0.dp),
     ) {
         Text(text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
@@ -187,7 +191,7 @@ fun SoftField(
         shape = shape,
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = colors.sky,
-            unfocusedBorderColor = colors.line,
+            unfocusedBorderColor = colors.lineStrong,
             focusedContainerColor = MaterialTheme.colorScheme.surface,
             unfocusedContainerColor = MaterialTheme.colorScheme.surface,
             focusedTextColor = colors.ink,
@@ -209,7 +213,7 @@ fun ChoiceChip(
     val colors = QTheme.colors
     val shape = RoundedCornerShape(22.dp)
     val bg = if (selected) colors.sky else MaterialTheme.colorScheme.surface
-    val border = if (selected) colors.sky else colors.line
+    val border = if (selected) colors.sky else colors.lineStrong
     val fg = if (selected) Color.White else colors.ink
     Text(
         text = label,

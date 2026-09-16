@@ -193,7 +193,13 @@ private fun RequestCard(request: PurchaseRequest, onClick: () -> Unit) {
                 Text(
                     if (request.mine) "等 TA 看一眼" else "等你把关哼",
                     style = MaterialTheme.typography.labelMedium,
-                    color = if (request.mine) QTheme.colors.muted else QTheme.colors.coral,
+                    color = if (request.mine) {
+                        QTheme.colors.muted
+                    } else if (QTheme.colors.isDark) {
+                        QTheme.colors.pendingInk
+                    } else {
+                        QTheme.colors.coral
+                    },
                 )
             }
         }

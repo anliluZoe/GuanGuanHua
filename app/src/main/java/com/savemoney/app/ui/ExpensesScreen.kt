@@ -86,7 +86,7 @@ fun ExpensesScreen(viewModel: AppViewModel) {
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(22.dp))
                         .background(MaterialTheme.colorScheme.surface)
-                        .border(1.dp, QTheme.colors.line, RoundedCornerShape(22.dp))
+                        .border(1.dp, QTheme.colors.lineStrong, RoundedCornerShape(22.dp))
                         .padding(horizontal = 4.dp, vertical = 2.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -111,7 +111,9 @@ fun ExpensesScreen(viewModel: AppViewModel) {
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(24.dp))
                         .background(
-                            Brush.linearGradient(listOf(q.skySoft, q.mintSoft)),
+                            Brush.linearGradient(
+                                if (q.isDark) listOf(q.wash, q.sandDeep) else listOf(q.skySoft, q.mintSoft),
+                            ),
                         )
                         .padding(18.dp),
                 ) {

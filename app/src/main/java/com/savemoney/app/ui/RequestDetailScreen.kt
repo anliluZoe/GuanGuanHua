@@ -155,7 +155,11 @@ fun RequestDetailScreen(viewModel: AppViewModel, requestId: Long, onBack: () -> 
                     }
                     if (current.status == RequestStatus.APPROVED) {
                         Spacer(Modifier.height(6.dp))
-                        Text("已自动记入当月消费小账本", color = QTheme.colors.coral, style = MaterialTheme.typography.bodySmall)
+                        Text(
+                            "已自动记入当月消费小账本",
+                            color = if (QTheme.colors.isDark) QTheme.colors.mint else QTheme.colors.coral,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
                     }
                 }
             }

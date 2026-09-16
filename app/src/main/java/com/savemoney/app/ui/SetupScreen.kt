@@ -78,7 +78,11 @@ fun SetupScreen(viewModel: AppViewModel) {
         }
         AppearancePicker(value = appearance, onChange = viewModel::setAppearance)
         if (!status.isNullOrBlank()) {
-            Text(status!!, color = QTheme.colors.coral, style = MaterialTheme.typography.bodyMedium)
+            Text(
+                status!!,
+                color = if (QTheme.colors.isDark) QTheme.colors.rose else QTheme.colors.coral,
+                style = MaterialTheme.typography.bodyMedium,
+            )
         }
     }
 }

@@ -160,7 +160,7 @@ class MainActivity : ComponentActivity() {
                                             .padding(horizontal = 20.dp, vertical = 10.dp)
                                             .clip(RoundedCornerShape(28.dp))
                                             .background(q.paper)
-                                            .border(1.dp, q.line, RoundedCornerShape(28.dp))
+                                            .border(1.dp, q.lineStrong, RoundedCornerShape(28.dp))
                                             .padding(horizontal = 8.dp, vertical = 6.dp)
                                             .fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceEvenly,

@@ -3,6 +3,7 @@ package com.savemoney.app.ui.theme
 import androidx.compose.ui.graphics.Color
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -12,6 +13,7 @@ class ThemeColorsTest {
     fun lightCanvasAndPaperStayCoolQ() {
         assertEquals(Color(0xFFF7F8FB), LightQColors.canvas)
         assertEquals(Color(0xFFFFFFFF), LightQColors.paper)
+        assertEquals(Color(0xFFF07A5C), LightQColors.coral)
         assertFalse(LightQColors.isDark)
     }
 
@@ -19,20 +21,29 @@ class ThemeColorsTest {
     fun darkCanvasAndPaperMatchPrototype() {
         assertEquals(Color(0xFF12151C), DarkQColors.canvas)
         assertEquals(Color(0xFF1C212B), DarkQColors.paper)
+        assertEquals(Color(0xFF161A22), DarkQColors.wash)
+        assertEquals(Color(0xFF1A1F29), DarkQColors.sandDeep)
         assertTrue(DarkQColors.isDark)
     }
 
     @Test
-    fun coralIsSharedAcrossThemes() {
-        assertEquals(Color(0xFFF07A5C), LightQColors.coral)
-        assertEquals(LightQColors.coral, DarkQColors.coral)
+    fun darkCoralDeepIsReservedForAmountsAndButtons() {
+        assertEquals(Color(0xFFF07858), DarkQColors.coral)
+        assertEquals(Color(0xFFFF8F70), DarkQColors.coralBright)
+        assertNotEquals(LightQColors.coral, DarkQColors.coral)
     }
 
     @Test
     fun darkAccentsMatchApprovedTokens() {
-        assertEquals(Color(0xFF85BAD8), DarkQColors.sky)
-        assertEquals(Color(0xFF63CDB8), DarkQColors.mint)
-        assertEquals(Color(0xFFBBA0D8), DarkQColors.lavender)
+        assertEquals(Color(0xFF7EB8D8), DarkQColors.sky)
+        assertEquals(Color(0xFF5ECFB8), DarkQColors.mint)
+        assertEquals(Color(0xFFB89AD8), DarkQColors.lavender)
+        assertEquals(Color(0xFFE8ECF2), DarkQColors.ink)
+        assertEquals(Color(0xFFB8C0CE), DarkQColors.inkSoft)
+        assertEquals(Color(0xFF8B95A8), DarkQColors.muted)
+        assertEquals(Color(0xFF6A7488), DarkQColors.muted2)
+        assertEquals(Color(0xFFEFB86A), DarkQColors.pendingInk)
+        assertEquals(Color(0xFFF0909C), DarkQColors.rose)
     }
 
     @Test

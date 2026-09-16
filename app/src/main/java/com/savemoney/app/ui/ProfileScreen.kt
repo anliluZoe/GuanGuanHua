@@ -136,7 +136,11 @@ fun ProfileScreen(viewModel: AppViewModel) {
             )
             if (!notificationsOn) {
                 Spacer(Modifier.height(14.dp))
-                Text("系统通知现在是关着的，打开后才能收到提醒。", color = QTheme.colors.coral, style = MaterialTheme.typography.bodySmall)
+                Text(
+                    "系统通知现在是关着的，打开后才能收到提醒。",
+                    color = if (QTheme.colors.isDark) QTheme.colors.rose else QTheme.colors.coral,
+                    style = MaterialTheme.typography.bodySmall,
+                )
                 Spacer(Modifier.height(10.dp))
                 PillButton("去开启通知", filled = false, onClick = {
                     context.startActivity(
