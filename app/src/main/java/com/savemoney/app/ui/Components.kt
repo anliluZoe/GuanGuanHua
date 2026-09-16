@@ -126,7 +126,7 @@ fun PageHeader(
         }
         Text(title, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onBackground)
         Spacer(Modifier.height(4.dp))
-        Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = QTheme.colors.muted)
+        Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = QTheme.colors.secondary)
     }
 }
 
@@ -197,7 +197,7 @@ fun SoftField(
             focusedTextColor = colors.ink,
             unfocusedTextColor = colors.ink,
             focusedLabelColor = colors.sky,
-            unfocusedLabelColor = colors.muted,
+            unfocusedLabelColor = colors.secondary,
             cursorColor = colors.sky,
         ),
     )
@@ -378,7 +378,7 @@ fun LoadingHint(title: String = "稍等一下哦…") {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         CoralProgress()
-        Text(title, color = QTheme.colors.muted, style = MaterialTheme.typography.bodyMedium)
+        Text(title, color = QTheme.colors.secondary, style = MaterialTheme.typography.bodyMedium)
     }
 }
 
@@ -406,7 +406,7 @@ fun LoadingScrim(visible: Boolean, hint: String = "稍等一下哦…") {
             ) {
                 Mascot(MascotKind.Cat, size = 72.dp)
                 CoralProgress()
-                Text(hint, color = QTheme.colors.muted, style = MaterialTheme.typography.bodyMedium)
+                Text(hint, color = QTheme.colors.secondary, style = MaterialTheme.typography.bodyMedium)
             }
         }
     }
@@ -421,7 +421,7 @@ fun EmptyHint(kind: MascotKind, title: String, subtitle: String) {
     ) {
         Mascot(kind, size = 128.dp)
         Text(title, style = MaterialTheme.typography.titleMedium)
-        Text(subtitle, color = QTheme.colors.muted, style = MaterialTheme.typography.bodyMedium)
+        Text(subtitle, color = QTheme.colors.secondary, style = MaterialTheme.typography.bodyMedium)
     }
 }
 
@@ -471,7 +471,7 @@ fun AppearancePicker(
         Text(
             "浅色是现在的清爽 Q 版；深色用深夜画布，珊瑚只留给金额和主按钮。",
             style = MaterialTheme.typography.bodySmall,
-            color = QTheme.colors.muted,
+            color = QTheme.colors.secondary,
         )
         Spacer(Modifier.height(12.dp))
         Row(

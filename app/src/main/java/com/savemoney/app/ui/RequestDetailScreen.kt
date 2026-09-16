@@ -111,7 +111,7 @@ fun RequestDetailScreen(viewModel: AppViewModel, requestId: Long, onBack: () -> 
                 "申请时间" to current.createdAt.toDateTimeText(),
             ).forEach { (label, value) ->
                 Row(modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
-                    Text(label, color = QTheme.colors.muted, modifier = Modifier.weight(1f))
+                    Text(label, color = QTheme.colors.secondary, modifier = Modifier.weight(1f))
                     if (label == "分类") {
                         CategoryChip(current.category)
                     } else {
@@ -241,7 +241,7 @@ fun RequestDetailScreen(viewModel: AppViewModel, requestId: Long, onBack: () -> 
 
             else -> {
                 SoftCard(modifier = Modifier.fillMaxWidth()) {
-                    Text("正在等 ${profile.partnerName ?: "另一半"} 看一眼…", color = QTheme.colors.muted)
+                    Text("正在等 ${profile.partnerName ?: "另一半"} 看一眼…", color = QTheme.colors.secondary)
                     Spacer(Modifier.height(12.dp))
                     PillButton("撤回申请", filled = false, enabled = !isBusy, onClick = { confirmWithdraw = true })
                 }

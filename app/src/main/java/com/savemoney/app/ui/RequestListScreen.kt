@@ -80,7 +80,7 @@ fun RequestListScreen(
                 Text(
                     if (pendingForMe > 0) "$pendingForMe 笔在等你批哦" else "暂时没人闯关，哼",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = QTheme.colors.muted,
+                    color = QTheme.colors.secondary,
                 )
             }
         }

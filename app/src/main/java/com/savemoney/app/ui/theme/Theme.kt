@@ -82,7 +82,10 @@ data class QColors(
     val overlay: Color,
     val screenGlow: Brush,
     val isDark: Boolean,
-)
+) {
+    /** 深色用 ink-soft，浅色仍用原来的 muted，避免浅色回归。 */
+    val secondary: Color get() = if (isDark) inkSoft else muted
+}
 
 private fun Color.softWash(): Color = copy(alpha = 0.16f)
 

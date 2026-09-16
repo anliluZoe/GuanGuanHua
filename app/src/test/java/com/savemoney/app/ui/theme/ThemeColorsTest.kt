@@ -44,6 +44,11 @@ class ThemeColorsTest {
         assertEquals(Color(0xFF6A7488), DarkQColors.muted2)
         assertEquals(Color(0xFFEFB86A), DarkQColors.pendingInk)
         assertEquals(Color(0xFFF0909C), DarkQColors.rose)
+        assertEquals(Color.White.copy(alpha = 0.06f), DarkQColors.line)
+        assertEquals(Color.White.copy(alpha = 0.10f), DarkQColors.lineStrong)
+        assertEquals(Color(0xFFB89AD8).copy(alpha = 0.16f), DarkQColors.lavenderSoft)
+        assertEquals(DarkQColors.inkSoft, DarkQColors.secondary)
+        assertEquals(LightQColors.muted, LightQColors.secondary)
     }
 
     @Test
