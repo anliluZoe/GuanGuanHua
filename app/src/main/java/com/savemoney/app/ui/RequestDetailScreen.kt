@@ -63,9 +63,14 @@ fun RequestDetailScreen(viewModel: AppViewModel, requestId: Long, onBack: () -> 
 
     val approveQty = quantityText.trim().toIntOrNull()
     val approvePrice = priceText.yuanToCentsOrNull()
-    val approveAmountsOk =
-        approveQty != null && approveQty in 1..current.quantity &&
-            approvePrice != null && approvePrice in 1..current.unitPriceCents
+    val priceOk = approvePrice != null && approvePrice >= 1
+    val qtyOk = approveQty != null && approveQty >= 1
+    val approveAmountsOk = approvedAmountsOk(
+        current.unitPriceCents,
+        current.quantity,
+        approvePrice,
+        approveQty,
+    )
 
     Column(
         modifier = Modifier
@@ -196,7 +201,7 @@ fun RequestDetailScreen(viewModel: AppViewModel, requestId: Long, onBack: () -> 
                     Text("帮 ${current.requesterName} 把把关", style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        "可以少买或砍价再通过。过了关的钱才会乖乖进账本。",
+                        "可以改数量或单价再通过，但总额不能超过申请 ${current.askedCents.toYuan()}。过了关的钱才会乖乖进账本。",
                         style = MaterialTheme.typography.bodySmall,
                         color = QTheme.colors.muted,
                     )
@@ -208,8 +213,8 @@ fun RequestDetailScreen(viewModel: AppViewModel, requestId: Long, onBack: () -> 
                             label = "同意的单价（元）",
                             prefix = "¥",
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            isError = approveAttempted && (approvePrice == null || approvePrice !in 1..current.unitPriceCents),
-                            supportingText = "最多 ${current.unitPriceCents.toYuan()}",
+                            isError = approveAttempted && !priceOk,
+                            supportingText = if (approveAttempted && !priceOk) "须大于 0" else "可改单价",
                             modifier = Modifier.weight(1.4f),
                         )
                         SoftField(
@@ -217,8 +222,8 @@ fun RequestDetailScreen(viewModel: AppViewModel, requestId: Long, onBack: () -> 
                             onValueChange = { quantityText = it },
                             label = "同意买几个",
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            isError = approveAttempted && (approveQty == null || approveQty !in 1..current.quantity),
-                            supportingText = "1~${current.quantity}",
+                            isError = approveAttempted && !qtyOk,
+                            supportingText = if (approveAttempted && !qtyOk) "须大于 0" else "可改数量",
                             modifier = Modifier.weight(1f),
                         )
                     }
@@ -231,6 +236,13 @@ fun RequestDetailScreen(viewModel: AppViewModel, requestId: Long, onBack: () -> 
                                 "按申请全额通过：${current.askedCents.toYuan()}"
                             },
                             color = QTheme.colors.coral,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    } else if (priceOk && qtyOk) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "批准总额 ${(approvePrice!! * approveQty!!).toYuan()} 超过了申请 ${current.askedCents.toYuan()}",
+                            color = QTheme.colors.rose,
                             fontWeight = FontWeight.SemiBold,
                         )
                     }
