@@ -4,6 +4,9 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+val appVersionCode = providers.gradleProperty("appVersionCode").get().toInt()
+val appVersionName = providers.gradleProperty("appVersionName").get()
+
 android {
     namespace = "com.savemoney.app"
     compileSdk = 35
@@ -12,8 +15,8 @@ android {
         applicationId = "com.savemoney.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = appVersionCode
+        versionName = appVersionName
         vectorDrawables {
             useSupportLibrary = true
         }
@@ -57,6 +60,7 @@ dependencies {
     implementation(libs.retrofit)
     implementation(libs.retrofit.gson)
     implementation(libs.okhttp)
+    implementation(libs.gson)
     implementation(libs.androidx.work.runtime.ktx)
     testImplementation(libs.junit)
     debugImplementation(libs.androidx.compose.ui.tooling)
