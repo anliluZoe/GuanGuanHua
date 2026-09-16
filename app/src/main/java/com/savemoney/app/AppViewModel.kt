@@ -13,6 +13,7 @@ import com.savemoney.app.data.PurchaseRequest
 import com.savemoney.app.data.SessionDto
 import com.savemoney.app.notify.ReviewActivity
 import com.savemoney.app.notify.ReviewActivityWorker
+import com.savemoney.app.ui.theme.Appearance
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -89,6 +90,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _ready = MutableStateFlow(false)
     val isReady: StateFlow<Boolean> = _ready.asStateFlow()
+
+    private val _appearance = MutableStateFlow(Appearance.fromPref(prefs.getString(PREF_APPEARANCE, null)))
+    val appearance: StateFlow<Appearance> = _appearance.asStateFlow()
 
     init {
         if (_session.value.joined) refresh()
@@ -224,6 +228,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         _statusMessage.value = null
     }
 
+    fun setAppearance(value: Appearance) {
+        prefs.edit { putString(PREF_APPEARANCE, value.prefValue) }
+        _appearance.value = value
+    }
+
     private suspend fun connect(serverUrl: String, action: suspend () -> SessionDto) {
         val url = serverUrl.trim().trimEnd('/')
         prefs.edit(commit = true) { putString("serverUrl", url) }
@@ -281,5 +290,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         } finally {
             count.update { it - 1 }
         }
+    }
+
+    companion object {
+        private const val PREF_APPEARANCE = "appearance"
     }
 }

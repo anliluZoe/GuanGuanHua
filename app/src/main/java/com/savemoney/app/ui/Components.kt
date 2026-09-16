@@ -4,17 +4,22 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -53,7 +58,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.savemoney.app.data.RequestStatus
-import com.savemoney.app.ui.theme.Palette
+import com.savemoney.app.ui.theme.Appearance
+import com.savemoney.app.ui.theme.QTheme
 import java.io.File
 
 data class CategoryLook(
@@ -62,21 +68,30 @@ data class CategoryLook(
     val wash: Color,
 )
 
-fun categoryLook(name: String): CategoryLook = when (name) {
-    "餐饮" -> CategoryLook(Icons.Outlined.Restaurant, Palette.Coral, Palette.CoralSoft)
-    "日用品" -> CategoryLook(Icons.Outlined.Home, Palette.Sky, Palette.SkySoft)
-    "服饰" -> CategoryLook(Icons.Outlined.Checkroom, Palette.Lavender, Palette.LavenderSoft)
-    "数码" -> CategoryLook(Icons.Outlined.Devices, Color(0xFFD4A84B), Color(0xFFF8EFC8))
-    "交通" -> CategoryLook(Icons.Outlined.DirectionsBus, Palette.Mint, Palette.MintSoft)
-    "娱乐" -> CategoryLook(Icons.Outlined.SportsEsports, Color(0xFFE89A5C), Color(0xFFFBE6D4))
-    "学习" -> CategoryLook(Icons.AutoMirrored.Outlined.MenuBook, Color(0xFF7B9FD4), Color(0xFFDCE6F6))
-    "医疗" -> CategoryLook(Icons.Outlined.FavoriteBorder, Color(0xFFD98BA8), Color(0xFFF8DCE6))
-    else -> CategoryLook(Icons.Outlined.MoreHoriz, Palette.Muted, Color(0xFFEEF1F5))
+@Composable
+fun categoryLook(name: String): CategoryLook {
+    val colors = QTheme.colors
+    return when (name) {
+        "餐饮" -> if (colors.isDark) {
+            CategoryLook(Icons.Outlined.Restaurant, colors.peach, colors.peachSoft)
+        } else {
+            CategoryLook(Icons.Outlined.Restaurant, colors.coral, colors.coralSoft)
+        }
+        "日用品" -> CategoryLook(Icons.Outlined.Home, colors.sky, colors.skySoft)
+        "服饰" -> CategoryLook(Icons.Outlined.Checkroom, colors.lavender, colors.lavenderSoft)
+        "数码" -> CategoryLook(Icons.Outlined.Devices, colors.gold, colors.goldSoft)
+        "交通" -> CategoryLook(Icons.Outlined.DirectionsBus, colors.mint, colors.mintSoft)
+        "娱乐" -> CategoryLook(Icons.Outlined.SportsEsports, colors.peach, colors.peachSoft)
+        "学习" -> CategoryLook(Icons.AutoMirrored.Outlined.MenuBook, colors.denim, colors.denimSoft)
+        "医疗" -> CategoryLook(Icons.Outlined.FavoriteBorder, colors.rose, colors.roseSoft)
+        else -> CategoryLook(Icons.Outlined.MoreHoriz, colors.muted, colors.chipWash)
+    }
 }
 
 @Composable
 fun SoftCard(
     modifier: Modifier = Modifier,
+    accent: Color? = null,
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
@@ -85,11 +100,30 @@ fun SoftCard(
         modifier = modifier
             .clip(shape)
             .background(MaterialTheme.colorScheme.surface)
-            .border(1.dp, Palette.Line, shape)
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(18.dp),
-        content = content,
-    )
+            .border(1.dp, QTheme.colors.line, shape)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(IntrinsicSize.Min),
+        ) {
+            if (accent != null) {
+                Box(
+                    modifier = Modifier
+                        .width(5.dp)
+                        .fillMaxHeight()
+                        .background(accent),
+                )
+            }
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(18.dp),
+                content = content,
+            )
+        }
+    }
 }
 
 @Composable
@@ -98,24 +132,43 @@ fun PageHeader(
     subtitle: String,
     onBack: (() -> Unit)? = null,
 ) {
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp)) {
-        if (onBack != null) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .clickable(onClick = onBack)
-                    .background(MaterialTheme.colorScheme.surface)
-                    .border(1.dp, Palette.Line, CircleShape),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回", tint = Palette.Ink)
-            }
-            Spacer(Modifier.height(14.dp))
+    val colors = QTheme.colors
+    val backButton: @Composable () -> Unit = {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .clickable(onClick = onBack ?: {})
+                .background(MaterialTheme.colorScheme.surface)
+                .border(1.dp, colors.lineStrong, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回", tint = colors.ink)
         }
-        Text(title, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onBackground)
-        Spacer(Modifier.height(4.dp))
-        Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = Palette.Muted)
+    }
+    if (onBack != null && colors.isDark) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            backButton()
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onBackground)
+                Spacer(Modifier.height(4.dp))
+                Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = colors.secondary)
+            }
+        }
+    } else {
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp)) {
+            if (onBack != null) {
+                backButton()
+                Spacer(Modifier.height(14.dp))
+            }
+            Text(title, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onBackground)
+            Spacer(Modifier.height(4.dp))
+            Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = colors.secondary)
+        }
     }
 }
 
@@ -127,23 +180,24 @@ fun PillButton(
     enabled: Boolean = true,
     filled: Boolean = true,
 ) {
+    val colors = QTheme.colors
     Button(
         onClick = onClick,
         enabled = enabled,
         modifier = modifier.fillMaxWidth().height(54.dp),
         shape = RoundedCornerShape(28.dp),
         colors = if (filled) ButtonDefaults.buttonColors(
-            containerColor = Palette.Coral,
+            containerColor = colors.coral,
             contentColor = Color.White,
-            disabledContainerColor = Color(0xFFE6EAF0),
-            disabledContentColor = Color(0xFFB0B7C2),
+            disabledContainerColor = colors.disabledFill,
+            disabledContentColor = colors.disabledInk,
         ) else ButtonDefaults.buttonColors(
             containerColor = Color.Transparent,
-            contentColor = Palette.Ink,
+            contentColor = colors.ink,
             disabledContainerColor = Color.Transparent,
-            disabledContentColor = Color(0xFFB0B7C2),
+            disabledContentColor = colors.disabledInk,
         ),
-        border = if (filled) null else BorderStroke(1.5.dp, Palette.Line),
+        border = if (filled) null else BorderStroke(1.5.dp, colors.lineStrong),
         elevation = ButtonDefaults.buttonElevation(0.dp),
     ) {
         Text(text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
@@ -163,6 +217,7 @@ fun SoftField(
     prefix: String? = null,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
 ) {
+    val colors = QTheme.colors
     val shape = RoundedCornerShape(18.dp)
     OutlinedTextField(
         value = value,
@@ -177,11 +232,15 @@ fun SoftField(
         modifier = modifier.fillMaxWidth(),
         shape = shape,
         colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = Palette.Sky,
-            unfocusedBorderColor = Palette.Line,
-            focusedContainerColor = MaterialTheme.colorScheme.surface,
-            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-            cursorColor = Palette.Sky,
+            focusedBorderColor = colors.sky,
+            unfocusedBorderColor = if (colors.isDark) Color.Transparent else colors.lineStrong,
+            focusedContainerColor = if (colors.isDark) colors.sandDeep else MaterialTheme.colorScheme.surface,
+            unfocusedContainerColor = if (colors.isDark) colors.sandDeep else MaterialTheme.colorScheme.surface,
+            focusedTextColor = colors.ink,
+            unfocusedTextColor = colors.ink,
+            focusedLabelColor = colors.sky,
+            unfocusedLabelColor = colors.secondary,
+            cursorColor = colors.sky,
         ),
     )
 }
@@ -193,10 +252,19 @@ fun ChoiceChip(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val colors = QTheme.colors
     val shape = RoundedCornerShape(22.dp)
-    val bg = if (selected) Palette.Sky else MaterialTheme.colorScheme.surface
-    val border = if (selected) Palette.Sky else Palette.Line
-    val fg = if (selected) Color.White else Palette.Ink
+    val bg = when {
+        selected -> colors.sky
+        colors.isDark -> colors.sandDeep
+        else -> MaterialTheme.colorScheme.surface
+    }
+    val border = when {
+        selected -> colors.sky
+        colors.isDark -> Color.Transparent
+        else -> colors.lineStrong
+    }
+    val fg = if (selected) Color.White else colors.ink
     Text(
         text = label,
         color = fg,
@@ -212,11 +280,12 @@ fun ChoiceChip(
 
 @Composable
 fun StatusBadge(status: RequestStatus, modifier: Modifier = Modifier, partial: Boolean = false) {
+    val colors = QTheme.colors
     val (bg, fg, label) = when {
-        status == RequestStatus.PENDING -> Triple(Palette.Cream, Color(0xFF8A6A20), status.label)
-        status == RequestStatus.REJECTED -> Triple(Color(0xFFFBE3E3), Color(0xFF8A2E2E), status.label)
-        partial -> Triple(Palette.CoralSoft, Color(0xFF8A3A24), "部分通过")
-        else -> Triple(Palette.MintSoft, Color(0xFF1B5A48), status.label)
+        status == RequestStatus.PENDING -> Triple(colors.cream, colors.pendingInk, status.label)
+        status == RequestStatus.REJECTED -> Triple(colors.rejectedWash, colors.rejectedInk, status.label)
+        partial -> Triple(colors.coralSoft, colors.partialInk, "部分通过")
+        else -> Triple(colors.mintSoft, colors.approvedInk, status.label)
     }
     Text(
         text = label,
@@ -246,7 +315,7 @@ fun CategoryChip(category: String, modifier: Modifier = Modifier) {
                 .clip(CircleShape)
                 .background(look.accent),
         )
-        Text(category, style = MaterialTheme.typography.labelMedium, color = Palette.Ink)
+        Text(category, style = MaterialTheme.typography.labelMedium, color = QTheme.colors.ink)
     }
 }
 
@@ -282,6 +351,7 @@ fun PhotoSlot(
     onClick: (() -> Unit)? = null,
     onClear: (() -> Unit)? = null,
 ) {
+    val colors = QTheme.colors
     val imageModel: Any? = when {
         model.isNullOrBlank() -> null
         model.startsWith("/") -> File(model)
@@ -290,7 +360,7 @@ fun PhotoSlot(
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(20.dp))
-            .background(Palette.SkySoft)
+            .background(colors.skySoft)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
     ) {
         if (imageModel != null) {
@@ -303,12 +373,12 @@ fun PhotoSlot(
             if (onClear != null) {
                 Text(
                     "✕",
-                    color = Palette.Ink,
+                    color = colors.ink,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(8.dp)
                         .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.92f))
+                        .background(colors.overlay)
                         .clickable(onClick = onClear)
                         .padding(horizontal = 10.dp, vertical = 4.dp),
                 )
@@ -321,7 +391,7 @@ fun PhotoSlot(
             ) {
                 Text("📷", style = MaterialTheme.typography.headlineSmall)
                 Spacer(Modifier.height(6.dp))
-                Text(emptyLabel, color = Palette.Ink, style = MaterialTheme.typography.bodyMedium)
+                Text(emptyLabel, color = colors.ink, style = MaterialTheme.typography.bodyMedium)
             }
         }
     }
@@ -329,21 +399,23 @@ fun PhotoSlot(
 
 @Composable
 fun CoralProgress(modifier: Modifier = Modifier) {
+    val colors = QTheme.colors
     CircularProgressIndicator(
         modifier = modifier.size(36.dp),
-        color = Palette.Coral,
+        color = colors.coral,
         strokeWidth = 3.dp,
-        trackColor = Palette.CoralSoft,
+        trackColor = colors.coralSoft,
     )
 }
 
 @Composable
 fun RefreshBar(visible: Boolean, modifier: Modifier = Modifier) {
     if (visible) {
+        val colors = QTheme.colors
         LinearProgressIndicator(
             modifier = modifier.fillMaxWidth().height(3.dp),
-            color = Palette.Coral,
-            trackColor = Palette.CoralSoft,
+            color = colors.coral,
+            trackColor = colors.coralSoft,
         )
     }
 }
@@ -356,7 +428,7 @@ fun LoadingHint(title: String = "稍等一下哦…") {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         CoralProgress()
-        Text(title, color = Palette.Muted, style = MaterialTheme.typography.bodyMedium)
+        Text(title, color = QTheme.colors.secondary, style = MaterialTheme.typography.bodyMedium)
     }
 }
 
@@ -384,7 +456,7 @@ fun LoadingScrim(visible: Boolean, hint: String = "稍等一下哦…") {
             ) {
                 Mascot(MascotKind.Cat, size = 72.dp)
                 CoralProgress()
-                Text(hint, color = Palette.Muted, style = MaterialTheme.typography.bodyMedium)
+                Text(hint, color = QTheme.colors.secondary, style = MaterialTheme.typography.bodyMedium)
             }
         }
     }
@@ -399,7 +471,7 @@ fun EmptyHint(kind: MascotKind, title: String, subtitle: String) {
     ) {
         Mascot(kind, size = 128.dp)
         Text(title, style = MaterialTheme.typography.titleMedium)
-        Text(subtitle, color = Palette.Muted, style = MaterialTheme.typography.bodyMedium)
+        Text(subtitle, color = QTheme.colors.secondary, style = MaterialTheme.typography.bodyMedium)
     }
 }
 
@@ -408,13 +480,13 @@ fun MoneyText(
     cents: Long,
     modifier: Modifier = Modifier,
     style: TextStyle = MaterialTheme.typography.titleLarge,
-    color: Color = Palette.Coral,
+    color: Color? = null,
 ) {
     Text(
         text = cents.toYuan(),
         modifier = modifier,
         style = style.copy(fontFeatureSettings = "tnum", fontWeight = FontWeight.Bold),
-        color = color,
+        color = color ?: QTheme.colors.coral,
     )
 }
 
@@ -425,7 +497,7 @@ fun NameDot(name: String, fill: Color, modifier: Modifier = Modifier, size: Dp =
             .size(size)
             .clip(CircleShape)
             .background(fill)
-            .border(2.dp, Color.White, CircleShape),
+            .border(2.dp, QTheme.colors.canvas, CircleShape),
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -434,5 +506,31 @@ fun NameDot(name: String, fill: Color, modifier: Modifier = Modifier, size: Dp =
             fontWeight = FontWeight.SemiBold,
             fontSize = (size.value * 0.38f).sp,
         )
+    }
+}
+
+@Composable
+fun AppearancePicker(
+    value: Appearance,
+    onChange: (Appearance) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    SoftCard(modifier = modifier.fillMaxWidth()) {
+        Text("外观", style = MaterialTheme.typography.titleMedium)
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "浅色是现在的清爽 Q 版；深色用深夜画布，珊瑚只留给金额和主按钮。",
+            style = MaterialTheme.typography.bodySmall,
+            color = QTheme.colors.secondary,
+        )
+        Spacer(Modifier.height(12.dp))
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            ChoiceChip("跟随系统", value == Appearance.System, onClick = { onChange(Appearance.System) })
+            ChoiceChip("浅色", value == Appearance.Light, onClick = { onChange(Appearance.Light) })
+            ChoiceChip("深色", value == Appearance.Dark, onClick = { onChange(Appearance.Dark) })
+        }
     }
 }

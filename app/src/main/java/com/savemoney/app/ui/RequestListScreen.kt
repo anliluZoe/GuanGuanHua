@@ -38,7 +38,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.savemoney.app.AppViewModel
 import com.savemoney.app.data.PurchaseRequest
 import com.savemoney.app.data.RequestStatus
-import com.savemoney.app.ui.theme.Palette
+import com.savemoney.app.ui.theme.QTheme
 
 @Composable
 fun RequestListScreen(
@@ -60,7 +60,7 @@ fun RequestListScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Palette.ScreenGlow),
+            .background(QTheme.colors.screenGlow),
     ) {
         RefreshBar(visible = isRefreshing && isReady)
         Column(modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
@@ -75,12 +75,12 @@ fun RequestListScreen(
         if (profile.partnerName != null) {
             Spacer(Modifier.height(12.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                NameDot(profile.name, Palette.Sky)
-                NameDot(profile.partnerName!!, Palette.Mint, modifier = Modifier.offset(x = (-8).dp))
+                NameDot(profile.name, QTheme.colors.sky)
+                NameDot(profile.partnerName!!, QTheme.colors.mint, modifier = Modifier.offset(x = (-8).dp))
                 Text(
                     if (pendingForMe > 0) "$pendingForMe 笔在等你批哦" else "暂时没人闯关，哼",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = Palette.Muted,
+                    color = QTheme.colors.secondary,
                 )
             }
         }
@@ -144,7 +144,7 @@ private fun RequestCard(request: PurchaseRequest, onClick: () -> Unit) {
             .height(IntrinsicSize.Min)
             .clip(shape)
             .background(MaterialTheme.colorScheme.surface)
-            .border(1.dp, Palette.Line, shape)
+            .border(1.dp, QTheme.colors.line, shape)
             .clickable(onClick = onClick),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -186,14 +186,20 @@ private fun RequestCard(request: PurchaseRequest, onClick: () -> Unit) {
                     append(request.createdAt.toDateTimeText())
                 },
                 style = MaterialTheme.typography.bodySmall,
-                color = Palette.Muted,
+                color = QTheme.colors.muted,
             )
             if (request.status == RequestStatus.PENDING) {
                 Spacer(Modifier.height(6.dp))
                 Text(
                     if (request.mine) "等 TA 看一眼" else "等你把关哼",
                     style = MaterialTheme.typography.labelMedium,
-                    color = if (request.mine) Palette.Muted else Palette.Coral,
+                    color = if (request.mine) {
+                        QTheme.colors.muted
+                    } else if (QTheme.colors.isDark) {
+                        QTheme.colors.pendingInk
+                    } else {
+                        QTheme.colors.coral
+                    },
                 )
             }
         }
