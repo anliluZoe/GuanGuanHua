@@ -7,7 +7,6 @@ import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
@@ -59,6 +58,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.savemoney.app.notify.ReviewActivityWorker
 import com.savemoney.app.ui.ExpensesScreen
 import com.savemoney.app.ui.LoadingScrim
 import com.savemoney.app.ui.NewRequestScreen
@@ -69,6 +69,7 @@ import com.savemoney.app.ui.SetupScreen
 import com.savemoney.app.ui.theme.QTheme
 import com.savemoney.app.ui.theme.SaveMoneyTheme
 import kotlinx.coroutines.delay
+import java.util.concurrent.TimeUnit
 
 private const val FOREGROUND_POLL_MS = 30_000L
 
@@ -85,6 +86,10 @@ class MainActivity : ComponentActivity() {
     /** 从通知点进来要打开的申请 id；0 表示没有。 */
     private val openRequestId = mutableLongStateOf(0L)
 
+    private val requestNotifications = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) ReviewActivityWorker.enqueueSoon(this)
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
@@ -95,6 +100,11 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         openRequestId.longValue = intent.getLongExtra(EXTRA_REQUEST_ID, 0L)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            requestNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
         setContent {
             val viewModel: AppViewModel = viewModel()
             val appearance by viewModel.appearance.collectAsStateWithLifecycle()
@@ -114,15 +124,6 @@ class MainActivity : ComponentActivity() {
                     if (!session.joined) {
                         SetupScreen(viewModel)
                     } else {
-                        val requestNotifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
-                        LaunchedEffect(Unit) {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                                ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-                            ) {
-                                requestNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
-                            }
-                        }
-
                         val lifecycleOwner = LocalLifecycleOwner.current
                         LaunchedEffect(lifecycleOwner) {
                             lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
@@ -232,6 +233,23 @@ class MainActivity : ComponentActivity() {
                     LoadingScrim(visible = isBusy)
                 }
             }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        (application as SaveMoneyApp).inForeground = true
+    }
+
+    override fun onPause() {
+        (application as SaveMoneyApp).inForeground = false
+        super.onPause()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        if (!isChangingConfigurations) {
+            ReviewActivityWorker.enqueueSoon(this, delay = 20, unit = TimeUnit.SECONDS)
         }
     }
 
