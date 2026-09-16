@@ -1,7 +1,13 @@
 package com.savemoney.app.ui
 
+import android.Manifest
+import android.app.Activity
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -29,10 +35,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.savemoney.app.AppViewModel
+import com.savemoney.app.notify.ReviewActivityWorker
 import com.savemoney.app.ui.theme.QTheme
 
 @Composable
@@ -45,9 +52,22 @@ fun ProfileScreen(viewModel: AppViewModel) {
     val appearance by viewModel.appearance.collectAsStateWithLifecycle()
     var name by rememberSaveable(profile.name) { mutableStateOf(profile.name) }
     val context = LocalContext.current
-    var notificationsOn by remember { mutableStateOf(NotificationManagerCompat.from(context).areNotificationsEnabled()) }
+    var notificationsOn by remember { mutableStateOf(ReviewActivityWorker.notificationsAllowed(context)) }
+    val notificationSettings = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+        .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+    val askNotifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        notificationsOn = ReviewActivityWorker.notificationsAllowed(context)
+        if (granted) {
+            ReviewActivityWorker.enqueueSoon(context)
+        } else {
+            val activity = context as? Activity
+            if (activity != null && !activity.shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS)) {
+                context.startActivity(notificationSettings)
+            }
+        }
+    }
     LifecycleResumeEffect(Unit) {
-        notificationsOn = NotificationManagerCompat.from(context).areNotificationsEnabled()
+        notificationsOn = ReviewActivityWorker.notificationsAllowed(context)
         onPauseOrDispose { }
     }
     LaunchedEffect(Unit) { viewModel.refresh() }
@@ -129,7 +149,13 @@ fun ProfileScreen(viewModel: AppViewModel) {
             Text("对方发起新申请、或审核了你的申请，都会通知你。", style = MaterialTheme.typography.bodySmall)
             Spacer(Modifier.height(4.dp))
             Text(
-                "App 打开时每 30 秒自动刷新；放在后台约每 15 分钟检查一次。",
+                "App 打开时每 30 秒自动刷新；放到后台后大约 20 秒会检查一次，之后约每 15 分钟再查。不依赖 Google 推送。",
+                color = QTheme.colors.muted,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "部分手机厂商会限制后台任务，若迟迟收不到，请在系统设置里允许本应用自启动/后台运行，并关掉电池优化。",
                 color = QTheme.colors.muted,
                 style = MaterialTheme.typography.bodySmall,
             )
@@ -142,10 +168,13 @@ fun ProfileScreen(viewModel: AppViewModel) {
                 )
                 Spacer(Modifier.height(10.dp))
                 PillButton("去开启通知", filled = false, onClick = {
-                    context.startActivity(
-                        Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
-                            .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-                    )
+                    val needsRuntime = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                    if (needsRuntime) {
+                        askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    } else {
+                        context.startActivity(notificationSettings)
+                    }
                 })
             }
         }
