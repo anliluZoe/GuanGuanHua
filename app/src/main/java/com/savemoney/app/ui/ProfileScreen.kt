@@ -81,12 +81,13 @@ fun ProfileScreen(viewModel: AppViewModel) {
     }
     LaunchedEffect(Unit) { viewModel.refresh() }
 
-    Column(
+    PullRefreshBox(
+        isRefreshing = isRefreshing && isReady,
+        onRefresh = { viewModel.refresh() },
         modifier = Modifier
             .fillMaxSize()
             .background(QTheme.colors.screenGlow),
     ) {
-        RefreshBar(visible = isRefreshing && isReady)
         Column(
             modifier = Modifier
                 .fillMaxSize()

@@ -68,18 +68,23 @@ fun ExpensesScreen(viewModel: AppViewModel) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(QTheme.colors.screenGlow),
+            .background(QTheme.colors.screenGlow)
+            .padding(horizontal = 20.dp),
     ) {
-        RefreshBar(visible = isRefreshing && isReady)
-        Column(modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
         Spacer(Modifier.height(12.dp))
         Mascot(MascotKind.Dog, size = 56.dp)
         Spacer(Modifier.height(8.dp))
         PageHeader("小账本", "才、才不是在盯你花了多少")
-        LazyColumn(
-            contentPadding = PaddingValues(bottom = 96.dp, top = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+        PullRefreshBox(
+            isRefreshing = isRefreshing && isReady,
+            onRefresh = { viewModel.refresh() },
+            modifier = Modifier.weight(1f).fillMaxWidth(),
         ) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = 96.dp, top = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
             item {
                 Row(
                     modifier = Modifier
