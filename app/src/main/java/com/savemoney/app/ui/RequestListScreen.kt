@@ -60,10 +60,9 @@ fun RequestListScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(QTheme.colors.screenGlow),
+            .background(QTheme.colors.screenGlow)
+            .padding(horizontal = 20.dp),
     ) {
-        RefreshBar(visible = isRefreshing && isReady)
-        Column(modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
         Spacer(Modifier.height(12.dp))
         Mascot(MascotKind.Cat, size = 64.dp)
         Spacer(Modifier.height(8.dp))
@@ -94,41 +93,39 @@ fun RequestListScreen(
             }
         }
         Spacer(Modifier.height(16.dp))
-        if (waitingForList) {
-            Box(
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-                contentAlignment = Alignment.Center,
-            ) {
-                LoadingHint("正在同步申请…")
-            }
-        } else if (shown.isEmpty()) {
-            Column(
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-                verticalArrangement = Arrangement.Center,
-            ) {
-                EmptyHint(
-                    kind = MascotKind.Cat,
-                    title = filter.emptyTitle,
-                    subtitle = filter.emptySubtitle,
-                )
-            }
-            PillButton("新建申请", enabled = !isBusy, onClick = onCreate)
-            Spacer(Modifier.height(12.dp))
-        } else {
+        PullRefreshBox(
+            isRefreshing = isRefreshing && isReady,
+            onRefresh = { viewModel.refresh() },
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+        ) {
             LazyColumn(
                 contentPadding = PaddingValues(bottom = 96.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.fillMaxSize(),
             ) {
-                items(shown, key = { it.id }) { request ->
-                    RequestCard(request, onClick = { onOpen(request.id) })
-                }
-                item {
-                    Spacer(Modifier.height(4.dp))
-                    PillButton("＋  新建申请", enabled = !isBusy, onClick = onCreate)
+                if (waitingForList) {
+                    item { LoadingHint("正在同步申请…") }
+                } else if (shown.isEmpty()) {
+                    item {
+                        EmptyHint(
+                            kind = MascotKind.Cat,
+                            title = filter.emptyTitle,
+                            subtitle = filter.emptySubtitle,
+                        )
+                    }
+                    item {
+                        PillButton("新建申请", enabled = !isBusy, onClick = onCreate)
+                    }
+                } else {
+                    items(shown, key = { it.id }) { request ->
+                        RequestCard(request, onClick = { onOpen(request.id) })
+                    }
+                    item {
+                        Spacer(Modifier.height(4.dp))
+                        PillButton("＋  新建申请", enabled = !isBusy, onClick = onCreate)
+                    }
                 }
             }
-        }
         }
     }
 }

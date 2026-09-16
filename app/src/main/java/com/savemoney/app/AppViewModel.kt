@@ -82,7 +82,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     private val _refreshCount = MutableStateFlow(0)
-    /** 拉列表/账本/资料。首次居中转圈，之后顶栏细进度；后台 30 秒轮询走 quiet。 */
+    /** 拉列表/账本/资料。首次居中转圈，之后由下拉刷新指示器表示；后台 30 秒轮询走 quiet。 */
     val isRefreshing: StateFlow<Boolean> = _refreshCount
         .map { it > 0 }
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
