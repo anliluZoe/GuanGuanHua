@@ -124,7 +124,7 @@ app.post("/api/requests/:id/review", requireMember, (req, res) => {
     approve && req.body?.unitPriceCents != null ? Number(req.body.unitPriceCents) : null
   );
   if (outcome === "own") return res.status(403).json({ detail: "自己的申请要留给对方审哦" });
-  if (outcome === "bad_amount") return res.status(400).json({ detail: "只能少买或砍价，不能加码" });
+  if (outcome === "bad_amount") return res.status(400).json({ detail: "批准总额不能超过申请总额" });
   if (outcome !== "ok") return res.status(409).json({ detail: "这条申请不能审核" });
   res.json(requestJson(store.getRequest(req.member.household_id, Number(req.params.id)), req));
 });

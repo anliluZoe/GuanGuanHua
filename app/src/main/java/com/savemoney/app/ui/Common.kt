@@ -21,3 +21,18 @@ fun String.yuanToCentsOrNull(): Long? {
     if (value.signum() <= 0 || value.scale() > 2) return null
     return value.movePointRight(2).longValueExact()
 }
+
+/**
+ * 审核通过金额：数量和单价须为正，且批准总额不得超过申请总额。
+ * 允许提高数量或单价，只要总价不超（例如 3×10=30 允许 2×15=30，不允许总额 31）。
+ */
+fun approvedAmountsOk(
+    requestedUnitPriceCents: Long,
+    requestedQuantity: Int,
+    approvedUnitPriceCents: Long?,
+    approvedQuantity: Int?,
+): Boolean {
+    if (approvedUnitPriceCents == null || approvedQuantity == null) return false
+    if (approvedUnitPriceCents < 1L || approvedQuantity < 1) return false
+    return approvedUnitPriceCents * approvedQuantity <= requestedUnitPriceCents * requestedQuantity
+}

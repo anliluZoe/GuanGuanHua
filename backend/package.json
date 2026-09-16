@@ -5,7 +5,8 @@
   "description": "省钱助手家庭账本 API",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --test"
   },
   "engines": {
     "node": ">=22"

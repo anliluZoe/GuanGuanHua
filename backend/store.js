@@ -200,7 +200,7 @@ class Store {
 
   /**
    * 返回 "ok" | "not_pending" | "own" | "bad_amount"。
-   * 通过时可以少买或砍价；数量/单价只能比原申请低，不能加码。入账按改过的金额。
+   * 通过时数量/单价可自由改，但批准总额不得超过申请总额。入账按改过的金额。
    */
   review(householdId, requestId, reviewer, approve, comment, now, approvedQuantity, approvedUnitPriceCents) {
     const row = this.getRequest(householdId, requestId);
@@ -211,8 +211,7 @@ class Store {
     if (approve) {
       if (approvedQuantity != null) quantity = Number(approvedQuantity);
       if (approvedUnitPriceCents != null) unitPrice = Number(approvedUnitPriceCents);
-      if (!Number.isInteger(quantity) || quantity < 1 || quantity > row.quantity) return "bad_amount";
-      if (!Number.isInteger(unitPrice) || unitPrice < 1 || unitPrice > row.unit_price_cents) return "bad_amount";
+      if (!approvedAmountsOk(row.quantity, row.unit_price_cents, quantity, unitPrice)) return "bad_amount";
     }
     this.withTransaction(() => {
       this.db
@@ -293,4 +292,17 @@ class Store {
   }
 }
 
-module.exports = { Store };
+/**
+ * 审核通过金额：数量和单价须为正整数，且批准总额不得超过申请总额。
+ * 允许提高数量或单价，只要总价不超（例如 3×10=30 允许 2×15=30，不允许总额 31）。
+ */
+function approvedAmountsOk(requestedQuantity, requestedUnitPriceCents, approvedQuantity, approvedUnitPriceCents) {
+  if (!Number.isSafeInteger(approvedQuantity) || approvedQuantity < 1) return false;
+  if (!Number.isSafeInteger(approvedUnitPriceCents) || approvedUnitPriceCents < 1) return false;
+  const askedTotal = Number(requestedQuantity) * Number(requestedUnitPriceCents);
+  const approvedTotal = approvedQuantity * approvedUnitPriceCents;
+  if (!Number.isSafeInteger(askedTotal) || !Number.isSafeInteger(approvedTotal)) return false;
+  return approvedTotal <= askedTotal;
+}
+
+module.exports = { Store, approvedAmountsOk };
