@@ -23,7 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.savemoney.app.AppViewModel
-import com.savemoney.app.ui.theme.Palette
+import com.savemoney.app.ui.theme.QTheme
 
 @Composable
 fun SetupScreen(viewModel: AppViewModel) {
@@ -31,6 +31,7 @@ fun SetupScreen(viewModel: AppViewModel) {
     val profile by viewModel.profile.collectAsStateWithLifecycle()
     val status by viewModel.statusMessage.collectAsStateWithLifecycle()
     val isBusy by viewModel.isBusy.collectAsStateWithLifecycle()
+    val appearance by viewModel.appearance.collectAsStateWithLifecycle()
     var serverUrl by rememberSaveable { mutableStateOf(session.serverUrl) }
     var name by rememberSaveable { mutableStateOf(profile.name.ifBlank { "小明" }) }
     var code by rememberSaveable { mutableStateOf("") }
@@ -38,7 +39,7 @@ fun SetupScreen(viewModel: AppViewModel) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Palette.ScreenGlow)
+            .background(QTheme.colors.screenGlow)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp, vertical = 24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -53,13 +54,13 @@ fun SetupScreen(viewModel: AppViewModel) {
         Text(
             "电脑上运行后端后，填 http://电脑局域网IP:8080。模拟器用 http://10.0.2.2:8080。",
             style = MaterialTheme.typography.bodySmall,
-            color = Palette.Muted,
+            color = QTheme.colors.muted,
         )
         SoftField(value = name, onValueChange = { name = it }, label = "我的名字")
         Text(
             "谁想买都行，另一半说了算哼。先连上同一台服务器，再用家庭码把两部手机绑在一起。",
             style = MaterialTheme.typography.bodySmall,
-            color = Palette.Muted,
+            color = QTheme.colors.muted,
         )
         PillButton("创建家庭账本", enabled = !isBusy, onClick = {
             viewModel.consumeStatus()
@@ -75,8 +76,9 @@ fun SetupScreen(viewModel: AppViewModel) {
                 viewModel.joinHome(serverUrl, code, name)
             })
         }
+        AppearancePicker(value = appearance, onChange = viewModel::setAppearance)
         if (!status.isNullOrBlank()) {
-            Text(status!!, color = Palette.Coral, style = MaterialTheme.typography.bodyMedium)
+            Text(status!!, color = QTheme.colors.coral, style = MaterialTheme.typography.bodyMedium)
         }
     }
 }

@@ -33,7 +33,7 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.savemoney.app.AppViewModel
-import com.savemoney.app.ui.theme.Palette
+import com.savemoney.app.ui.theme.QTheme
 
 @Composable
 fun ProfileScreen(viewModel: AppViewModel) {
@@ -42,6 +42,7 @@ fun ProfileScreen(viewModel: AppViewModel) {
     val isBusy by viewModel.isBusy.collectAsStateWithLifecycle()
     val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
     val isReady by viewModel.isReady.collectAsStateWithLifecycle()
+    val appearance by viewModel.appearance.collectAsStateWithLifecycle()
     var name by rememberSaveable(profile.name) { mutableStateOf(profile.name) }
     val context = LocalContext.current
     var notificationsOn by remember { mutableStateOf(NotificationManagerCompat.from(context).areNotificationsEnabled()) }
@@ -54,7 +55,7 @@ fun ProfileScreen(viewModel: AppViewModel) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Palette.ScreenGlow),
+            .background(QTheme.colors.screenGlow),
     ) {
         RefreshBar(visible = isRefreshing && isReady)
         Column(
@@ -67,8 +68,9 @@ fun ProfileScreen(viewModel: AppViewModel) {
         Spacer(Modifier.height(12.dp))
         Mascot(MascotKind.Dog, size = 56.dp)
         PageHeader("我们", "两个人的小金库 · 才不是腻歪呢")
+        AppearancePicker(value = appearance, onChange = viewModel::setAppearance)
         SoftCard(modifier = Modifier.fillMaxWidth()) {
-            Text("家庭码", style = MaterialTheme.typography.titleMedium, color = Palette.Muted)
+            Text("家庭码", style = MaterialTheme.typography.titleMedium, color = QTheme.colors.muted)
             Spacer(Modifier.height(6.dp))
             Text(
                 session.householdCode.ifBlank { "还未加入" },
@@ -77,16 +79,16 @@ fun ProfileScreen(viewModel: AppViewModel) {
                     letterSpacing = 6.sp,
                     fontWeight = FontWeight.Medium,
                 ),
-                color = Palette.Sky,
+                color = QTheme.colors.sky,
             )
             Spacer(Modifier.height(8.dp))
             Text(
                 "把码塞给另一部手机，启动页点「加入」——别搞丢了哦。",
-                color = Palette.Muted,
+                color = QTheme.colors.muted,
                 style = MaterialTheme.typography.bodySmall,
             )
             Spacer(Modifier.height(4.dp))
-            Text(session.serverUrl, color = Palette.Muted, style = MaterialTheme.typography.bodySmall)
+            Text(session.serverUrl, color = QTheme.colors.muted, style = MaterialTheme.typography.bodySmall)
         }
         SoftCard(modifier = Modifier.fillMaxWidth()) {
             Text("谁来把关", style = MaterialTheme.typography.titleMedium)
@@ -94,19 +96,19 @@ fun ProfileScreen(viewModel: AppViewModel) {
             Text(
                 "谁想买都行，但另一半说了算哼。过了关的钱才会乖乖进账本。",
                 style = MaterialTheme.typography.bodySmall,
-                color = Palette.Muted,
+                color = QTheme.colors.muted,
             )
             Spacer(Modifier.height(16.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                NameDot(profile.partnerName ?: "？", Palette.Mint, size = 44.dp)
+                NameDot(profile.partnerName ?: "？", QTheme.colors.mint, size = 44.dp)
                 Spacer(Modifier.width(12.dp))
                 Column {
-                    Text("另一半", color = Palette.Muted, style = MaterialTheme.typography.labelMedium)
+                    Text("另一半", color = QTheme.colors.muted, style = MaterialTheme.typography.labelMedium)
                     Text(
                         profile.partnerName ?: "还没有人加入，把家庭码发给TA吧",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
-                        color = if (profile.partnerName == null) Palette.Muted else Palette.Ink,
+                        color = if (profile.partnerName == null) QTheme.colors.muted else QTheme.colors.ink,
                     )
                 }
             }
@@ -129,12 +131,12 @@ fun ProfileScreen(viewModel: AppViewModel) {
             Spacer(Modifier.height(4.dp))
             Text(
                 "App 打开时每 30 秒自动刷新；放在后台约每 15 分钟检查一次。",
-                color = Palette.Muted,
+                color = QTheme.colors.muted,
                 style = MaterialTheme.typography.bodySmall,
             )
             if (!notificationsOn) {
                 Spacer(Modifier.height(14.dp))
-                Text("系统通知现在是关着的，打开后才能收到提醒。", color = Palette.Coral, style = MaterialTheme.typography.bodySmall)
+                Text("系统通知现在是关着的，打开后才能收到提醒。", color = QTheme.colors.coral, style = MaterialTheme.typography.bodySmall)
                 Spacer(Modifier.height(10.dp))
                 PillButton("去开启通知", filled = false, onClick = {
                     context.startActivity(

@@ -32,7 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.savemoney.app.AppViewModel
 import com.savemoney.app.data.RequestStatus
-import com.savemoney.app.ui.theme.Palette
+import com.savemoney.app.ui.theme.QTheme
 
 @Composable
 fun RequestDetailScreen(viewModel: AppViewModel, requestId: Long, onBack: () -> Unit) {
@@ -48,7 +48,7 @@ fun RequestDetailScreen(viewModel: AppViewModel, requestId: Long, onBack: () -> 
 
     val current = request
     if (current == null) {
-        Box(modifier = Modifier.fillMaxSize().background(Palette.ScreenGlow), contentAlignment = Alignment.Center) {
+        Box(modifier = Modifier.fillMaxSize().background(QTheme.colors.screenGlow), contentAlignment = Alignment.Center) {
             LoadingHint("正在打开申请…")
         }
         return
@@ -70,7 +70,7 @@ fun RequestDetailScreen(viewModel: AppViewModel, requestId: Long, onBack: () -> 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Palette.ScreenGlow)
+            .background(QTheme.colors.screenGlow)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -111,7 +111,7 @@ fun RequestDetailScreen(viewModel: AppViewModel, requestId: Long, onBack: () -> 
                 "申请时间" to current.createdAt.toDateTimeText(),
             ).forEach { (label, value) ->
                 Row(modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
-                    Text(label, color = Palette.Muted, modifier = Modifier.weight(1f))
+                    Text(label, color = QTheme.colors.muted, modifier = Modifier.weight(1f))
                     if (label == "分类") {
                         CategoryChip(current.category)
                     } else {
@@ -121,7 +121,7 @@ fun RequestDetailScreen(viewModel: AppViewModel, requestId: Long, onBack: () -> 
             }
             if (current.reason.isNotBlank()) {
                 Spacer(Modifier.height(8.dp))
-                Text("购买理由", color = Palette.Muted)
+                Text("购买理由", color = QTheme.colors.muted)
                 Spacer(Modifier.height(4.dp))
                 Text(current.reason)
             }
@@ -141,7 +141,7 @@ fun RequestDetailScreen(viewModel: AppViewModel, requestId: Long, onBack: () -> 
                     Spacer(Modifier.height(6.dp))
                     Text(
                         "${current.reviewerName ?: "-"} 于 ${current.reviewedAt?.toDateTimeText() ?: "-"} ${if (current.partial) "部分通过" else current.status.label}",
-                        color = Palette.Muted,
+                        color = QTheme.colors.muted,
                     )
                     if (current.partial) {
                         Spacer(Modifier.height(6.dp))
@@ -155,7 +155,7 @@ fun RequestDetailScreen(viewModel: AppViewModel, requestId: Long, onBack: () -> 
                     }
                     if (current.status == RequestStatus.APPROVED) {
                         Spacer(Modifier.height(6.dp))
-                        Text("已自动记入当月消费小账本", color = Palette.Coral, style = MaterialTheme.typography.bodySmall)
+                        Text("已自动记入当月消费小账本", color = QTheme.colors.coral, style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }
@@ -167,7 +167,7 @@ fun RequestDetailScreen(viewModel: AppViewModel, requestId: Long, onBack: () -> 
                     Text(
                         "可以少买或砍价再通过。过了关的钱才会乖乖进账本。",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Palette.Muted,
+                        color = QTheme.colors.muted,
                     )
                     Spacer(Modifier.height(12.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -199,7 +199,7 @@ fun RequestDetailScreen(viewModel: AppViewModel, requestId: Long, onBack: () -> 
                             } else {
                                 "按申请全额通过：${current.askedCents.toYuan()}"
                             },
-                            color = Palette.Coral,
+                            color = QTheme.colors.coral,
                             fontWeight = FontWeight.SemiBold,
                         )
                     }
@@ -231,13 +231,13 @@ fun RequestDetailScreen(viewModel: AppViewModel, requestId: Long, onBack: () -> 
                         }, modifier = Modifier.weight(1f))
                     }
                     Spacer(Modifier.height(8.dp))
-                    Text("通过后会自动记入当月消费。", color = Palette.Muted, style = MaterialTheme.typography.bodySmall)
+                    Text("通过后会自动记入当月消费。", color = QTheme.colors.muted, style = MaterialTheme.typography.bodySmall)
                 }
             }
 
             else -> {
                 SoftCard(modifier = Modifier.fillMaxWidth()) {
-                    Text("正在等 ${profile.partnerName ?: "另一半"} 看一眼…", color = Palette.Muted)
+                    Text("正在等 ${profile.partnerName ?: "另一半"} 看一眼…", color = QTheme.colors.muted)
                     Spacer(Modifier.height(12.dp))
                     PillButton("撤回申请", filled = false, enabled = !isBusy, onClick = { confirmWithdraw = true })
                 }
@@ -258,7 +258,7 @@ fun RequestDetailScreen(viewModel: AppViewModel, requestId: Long, onBack: () -> 
                         confirmWithdraw = false
                         viewModel.withdrawRequest(current.id, onSuccess = onBack)
                     },
-                ) { Text("撤回", color = Palette.Coral) }
+                ) { Text("撤回", color = QTheme.colors.coral) }
             },
             dismissButton = {
                 TextButton(onClick = { confirmWithdraw = false }) { Text("再想想") }

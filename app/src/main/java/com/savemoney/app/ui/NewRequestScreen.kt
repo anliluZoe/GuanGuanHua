@@ -35,7 +35,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.savemoney.app.AppViewModel
-import com.savemoney.app.ui.theme.Palette
+import com.savemoney.app.ui.theme.QTheme
 
 @Composable
 fun NewRequestScreen(viewModel: AppViewModel, onBack: () -> Unit) {
@@ -59,7 +59,7 @@ fun NewRequestScreen(viewModel: AppViewModel, onBack: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Palette.ScreenGlow)
+            .background(QTheme.colors.screenGlow)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -83,8 +83,8 @@ fun NewRequestScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                         modifier = Modifier
                             .weight(1f)
                             .clip(shape)
-                            .border(1.5.dp, if (selected) Palette.Sky else Palette.Line, shape)
-                            .background(if (selected) Palette.SkySoft else MaterialTheme.colorScheme.surface)
+                            .border(1.5.dp, if (selected) QTheme.colors.sky else QTheme.colors.line, shape)
+                            .background(if (selected) QTheme.colors.skySoft else MaterialTheme.colorScheme.surface)
                             .clickable { category = option }
                             .padding(vertical = 14.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -99,7 +99,7 @@ fun NewRequestScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                         ) {
                             Icon(look.icon, contentDescription = option, tint = look.accent, modifier = Modifier.size(20.dp))
                         }
-                        Text(option, style = MaterialTheme.typography.labelMedium, color = Palette.Ink)
+                        Text(option, style = MaterialTheme.typography.labelMedium, color = QTheme.colors.ink)
                     }
                 }
                 repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }

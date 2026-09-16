@@ -14,6 +14,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -65,7 +66,7 @@ import com.savemoney.app.ui.ProfileScreen
 import com.savemoney.app.ui.RequestDetailScreen
 import com.savemoney.app.ui.RequestListScreen
 import com.savemoney.app.ui.SetupScreen
-import com.savemoney.app.ui.theme.Palette
+import com.savemoney.app.ui.theme.QTheme
 import com.savemoney.app.ui.theme.SaveMoneyTheme
 import kotlinx.coroutines.delay
 
@@ -95,9 +96,10 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         openRequestId.longValue = intent.getLongExtra(EXTRA_REQUEST_ID, 0L)
         setContent {
-            SaveMoneyTheme {
+            val viewModel: AppViewModel = viewModel()
+            val appearance by viewModel.appearance.collectAsStateWithLifecycle()
+            SaveMoneyTheme(darkTheme = appearance.isDark(isSystemInDarkTheme())) {
                 val navController = rememberNavController()
-                val viewModel: AppViewModel = viewModel()
                 val session by viewModel.session.collectAsStateWithLifecycle()
                 val status by viewModel.statusMessage.collectAsStateWithLifecycle()
                 val isBusy by viewModel.isBusy.collectAsStateWithLifecycle()
@@ -147,17 +149,18 @@ class MainActivity : ComponentActivity() {
                         }
 
                         Scaffold(
-                            containerColor = Palette.Canvas,
+                            containerColor = QTheme.colors.canvas,
                             snackbarHost = { SnackbarHost(snackbar) },
                             bottomBar = {
                                 if (showBottomBar) {
+                                    val q = QTheme.colors
                                     Row(
                                         modifier = Modifier
                                             .windowInsetsPadding(WindowInsets.navigationBars)
                                             .padding(horizontal = 20.dp, vertical = 10.dp)
                                             .clip(RoundedCornerShape(28.dp))
-                                            .background(Color.White)
-                                            .border(1.dp, Palette.Line, RoundedCornerShape(28.dp))
+                                            .background(q.paper)
+                                            .border(1.dp, q.line, RoundedCornerShape(28.dp))
                                             .padding(horizontal = 8.dp, vertical = 6.dp)
                                             .fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceEvenly,
@@ -167,7 +170,7 @@ class MainActivity : ComponentActivity() {
                                             Column(
                                                 modifier = Modifier
                                                     .clip(RoundedCornerShape(22.dp))
-                                                    .background(if (selected) Palette.SkySoft else Color.Transparent)
+                                                    .background(if (selected) q.skySoft else Color.Transparent)
                                                     .clickable {
                                                         navController.navigate(tab.route) {
                                                             popUpTo(navController.graph.findStartDestination().id) {
@@ -183,12 +186,12 @@ class MainActivity : ComponentActivity() {
                                                 Icon(
                                                     tab.icon,
                                                     contentDescription = tab.label,
-                                                    tint = if (selected) Palette.Sky else Palette.Muted,
+                                                    tint = if (selected) q.sky else q.muted,
                                                     modifier = Modifier.size(22.dp),
                                                 )
                                                 Text(
                                                     tab.label,
-                                                    color = if (selected) Palette.Sky else Palette.Muted,
+                                                    color = if (selected) q.sky else q.muted,
                                                 )
                                             }
                                         }

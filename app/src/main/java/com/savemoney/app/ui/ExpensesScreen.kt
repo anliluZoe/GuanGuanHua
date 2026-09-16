@@ -43,7 +43,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.savemoney.app.AppViewModel
-import com.savemoney.app.ui.theme.Palette
+import com.savemoney.app.ui.theme.QTheme
 import java.time.YearMonth
 
 @Composable
@@ -68,7 +68,7 @@ fun ExpensesScreen(viewModel: AppViewModel) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Palette.ScreenGlow),
+            .background(QTheme.colors.screenGlow),
     ) {
         RefreshBar(visible = isRefreshing && isReady)
         Column(modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
@@ -86,43 +86,44 @@ fun ExpensesScreen(viewModel: AppViewModel) {
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(22.dp))
                         .background(MaterialTheme.colorScheme.surface)
-                        .border(1.dp, Palette.Line, RoundedCornerShape(22.dp))
+                        .border(1.dp, QTheme.colors.line, RoundedCornerShape(22.dp))
                         .padding(horizontal = 4.dp, vertical = 2.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     IconButton(onClick = { viewModel.shiftMonth(-1) }, enabled = !isRefreshing && !isBusy) {
-                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "上个月", tint = Palette.Ink)
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "上个月", tint = QTheme.colors.ink)
                     }
                     Text(
                         "${month.year}年${month.monthValue}月",
                         style = MaterialTheme.typography.titleLarge,
                     )
                     IconButton(onClick = { viewModel.shiftMonth(1) }, enabled = month < YearMonth.now() && !isRefreshing && !isBusy) {
-                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "下个月", tint = Palette.Ink)
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "下个月", tint = QTheme.colors.ink)
                     }
                 }
             }
 
             item {
+                val q = QTheme.colors
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(24.dp))
                         .background(
-                            Brush.linearGradient(listOf(Palette.SkySoft, Palette.MintSoft)),
+                            Brush.linearGradient(listOf(q.skySoft, q.mintSoft)),
                         )
                         .padding(18.dp),
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("本月已消费", color = Palette.Muted, style = MaterialTheme.typography.bodyMedium)
+                                Text("本月已消费", color = q.muted, style = MaterialTheme.typography.bodyMedium)
                                 Spacer(Modifier.width(8.dp))
                                 Text(
                                     "盯~",
                                     style = MaterialTheme.typography.labelMedium,
-                                    color = Palette.Mint,
+                                    color = q.mint,
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(10.dp))
                                         .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f))
@@ -132,7 +133,7 @@ fun ExpensesScreen(viewModel: AppViewModel) {
                             MoneyText(
                                 totalCents,
                                 style = MaterialTheme.typography.displaySmall,
-                                color = if (overBudget) MaterialTheme.colorScheme.error else Palette.Coral,
+                                color = if (overBudget) MaterialTheme.colorScheme.error else q.coral,
                             )
                         }
                         Mascot(MascotKind.Dog, size = 64.dp)
@@ -141,7 +142,7 @@ fun ExpensesScreen(viewModel: AppViewModel) {
                     Text(
                         text = if (budgetCents == null) "还没设预算，点下面设一个小目标"
                         else "预算 ${budgetCents.toYuan()}  ·  剩余 ${(budgetCents - totalCents).toYuan()}",
-                        color = if (overBudget) MaterialTheme.colorScheme.error else Palette.Muted,
+                        color = if (overBudget) MaterialTheme.colorScheme.error else q.muted,
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     if (budgetCents != null && budgetCents > 0) {
@@ -149,7 +150,7 @@ fun ExpensesScreen(viewModel: AppViewModel) {
                         LinearProgressIndicator(
                             progress = { (totalCents.toFloat() / budgetCents).coerceIn(0f, 1f) },
                             modifier = Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(20.dp)),
-                            color = if (overBudget) MaterialTheme.colorScheme.error else Palette.Mint,
+                            color = if (overBudget) MaterialTheme.colorScheme.error else q.mint,
                             trackColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.55f),
                         )
                     }
@@ -163,7 +164,7 @@ fun ExpensesScreen(viewModel: AppViewModel) {
                         },
                     )
                     Spacer(Modifier.height(6.dp))
-                    Text("共 ${expenses.size} 笔已通过的购买", color = Palette.Muted, style = MaterialTheme.typography.bodySmall)
+                    Text("共 ${expenses.size} 笔已通过的购买", color = q.muted, style = MaterialTheme.typography.bodySmall)
                 }
             }
 
@@ -186,7 +187,7 @@ fun ExpensesScreen(viewModel: AppViewModel) {
                                         Icon(look.icon, contentDescription = null, tint = look.accent, modifier = Modifier.size(14.dp))
                                     }
                                     Text(category, modifier = Modifier.weight(1f))
-                                    MoneyText(cents, style = MaterialTheme.typography.titleMedium, color = Palette.Ink)
+                                    MoneyText(cents, style = MaterialTheme.typography.titleMedium, color = QTheme.colors.ink)
                                 }
                                 Spacer(Modifier.height(6.dp))
                                 LinearProgressIndicator(
@@ -219,7 +220,7 @@ fun ExpensesScreen(viewModel: AppViewModel) {
                                 Text(record.itemName, style = MaterialTheme.typography.titleMedium)
                                 Text(
                                     "${record.requesterName} 申请 · ${record.reviewerName} 审核 · ${record.spentAt.toDateTimeText()}",
-                                    color = Palette.Muted,
+                                    color = QTheme.colors.muted,
                                     style = MaterialTheme.typography.bodySmall,
                                 )
                             }
@@ -250,7 +251,7 @@ fun ExpensesScreen(viewModel: AppViewModel) {
             confirmButton = {
                 TextButton(enabled = parsed != null && !isBusy, onClick = {
                     viewModel.setBudget(parsed!!) { editingBudget = false }
-                }) { Text("保存", color = Palette.Coral) }
+                }) { Text("保存", color = QTheme.colors.coral) }
             },
             dismissButton = {
                 TextButton(enabled = !isBusy, onClick = { editingBudget = false }) { Text("取消") }
