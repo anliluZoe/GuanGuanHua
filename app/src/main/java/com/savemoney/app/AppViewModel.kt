@@ -6,7 +6,6 @@ import android.net.Uri
 import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.work.WorkManager
 import com.savemoney.app.data.ExpenseRecord
 import com.savemoney.app.data.MonthlyBudget
 import com.savemoney.app.data.PurchaseRequest
@@ -127,7 +126,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun leaveHome() {
-        WorkManager.getInstance(getApplication()).cancelUniqueWork(ReviewActivityWorker.WORK_NAME)
+        ReviewActivityWorker.cancel(getApplication())
         prefs.edit {
             remove("token")
             remove("householdCode")
@@ -245,18 +244,29 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             syncRequests()
             loadMonth(_selectedMonth.value)
             ReviewActivityWorker.schedule(getApplication())
+            ReviewActivityWorker.enqueueSoon(getApplication())
         }.onFailure { _statusMessage.value = it.message ?: "连接失败，请检查服务器地址" }
         _ready.value = _session.value.joined
     }
 
-    /** 拉取申请列表；如果对方有新动作（新申请 / 审核结果），顺手在页面上提示一句。 */
+    /**
+     * 拉取申请列表。前台只弹页内提示；若请求在退到后台之后才返回，改走系统通知，避免水位线被吃掉却没有状态栏提醒。
+     */
     private suspend fun syncRequests() {
         val list = repo.listRequests()
         val since = prefs.getLong(ReviewActivity.PREF_SINCE, 0L)
-        if (since > 0L) {
-            ReviewActivity.newItems(list, since).lastOrNull()?.let { _statusMessage.value = it.title }
+        val items = if (since > 0L) ReviewActivity.newItems(list, since) else emptyList()
+        val consume = when {
+            since <= 0L || items.isEmpty() -> true
+            (getApplication() as SaveMoneyApp).inForeground -> {
+                _statusMessage.value = items.last().title
+                true
+            }
+            else -> ReviewActivityWorker.notifyItems(getApplication(), items)
         }
-        prefs.edit(commit = true) { putLong(ReviewActivity.PREF_SINCE, ReviewActivity.watermark(list, since)) }
+        if (consume) {
+            prefs.edit(commit = true) { putLong(ReviewActivity.PREF_SINCE, ReviewActivity.watermark(list, since)) }
+        }
         _requests.value = list
     }
 

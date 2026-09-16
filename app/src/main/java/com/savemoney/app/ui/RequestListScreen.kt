@@ -51,9 +51,9 @@ fun RequestListScreen(
     val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
     val isBusy by viewModel.isBusy.collectAsStateWithLifecycle()
     val isReady by viewModel.isReady.collectAsStateWithLifecycle()
-    var filter by rememberSaveable { mutableStateOf<RequestStatus?>(null) }
-    val shown = if (filter == null) requests else requests.filter { it.status == filter }
-    val pendingForMe = requests.count { it.status == RequestStatus.PENDING && !it.mine }
+    var filter by rememberSaveable { mutableStateOf(RequestListFilter.ALL) }
+    val shown = requests.filter { filter.matches(it) }
+    val pendingForMe = requests.count { RequestListFilter.PENDING_FOR_ME.matches(it) }
     val waitingForList = !isReady
     LaunchedEffect(Unit) { viewModel.refresh() }
 
@@ -89,9 +89,8 @@ fun RequestListScreen(
             modifier = Modifier.horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            ChoiceChip("全部", filter == null, onClick = { filter = null })
-            RequestStatus.entries.forEach { status ->
-                ChoiceChip(status.label, filter == status, onClick = { filter = status })
+            RequestListFilter.entries.forEach { option ->
+                ChoiceChip(option.label, filter == option, onClick = { filter = option })
             }
         }
         Spacer(Modifier.height(16.dp))
@@ -109,8 +108,8 @@ fun RequestListScreen(
             ) {
                 EmptyHint(
                     kind = MascotKind.Cat,
-                    title = "还没有人来闯关",
-                    subtitle = "想买就提申请，过了我这关再说",
+                    title = filter.emptyTitle,
+                    subtitle = filter.emptySubtitle,
                 )
             }
             PillButton("新建申请", enabled = !isBusy, onClick = onCreate)
@@ -210,5 +209,26 @@ private fun RequestCard(request: PurchaseRequest, onClick: () -> Unit) {
                 modifier = Modifier.padding(end = 12.dp),
             )
         }
+    }
+}
+
+/** 申请列表顶部芯片：待审核只展示「待我审」，自己发出去的待审进「等对方」。 */
+enum class RequestListFilter(
+    val label: String,
+    val emptyTitle: String,
+    val emptySubtitle: String,
+) {
+    ALL("全部", "还没有人来闯关", "想买就提申请，过了我这关再说"),
+    PENDING_FOR_ME("待我审", "暂时没人闯关", "对方提交、等你把关的申请会出现在这里"),
+    WAITING_FOR_PARTNER("等对方", "没有在等对方的申请", "你提交后、还在等 TA 审核的会出现在这里"),
+    APPROVED("已通过", "还没有过关的申请", "通过的购买会出现在这里"),
+    REJECTED("已拒绝", "还没有被拒绝的申请", "被拒的申请会出现在这里");
+
+    fun matches(request: PurchaseRequest): Boolean = when (this) {
+        ALL -> true
+        PENDING_FOR_ME -> request.status == RequestStatus.PENDING && !request.mine
+        WAITING_FOR_PARTNER -> request.status == RequestStatus.PENDING && request.mine
+        APPROVED -> request.status == RequestStatus.APPROVED
+        REJECTED -> request.status == RequestStatus.REJECTED
     }
 }

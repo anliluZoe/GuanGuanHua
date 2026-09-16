@@ -68,7 +68,7 @@ fun SetupScreen(viewModel: AppViewModel) {
                 Mascot(MascotKind.Dog, size = 92.dp)
             }
         }
-        PageHeader("省钱助手", "两个人的小金库 · 才不是随便花的")
+        PageHeader("管管花", "两个人的小金库 · 才不是随便花的")
         if (colors.isDark) {
             SoftCard(modifier = Modifier.fillMaxWidth()) {
                 SoftField(value = serverUrl, onValueChange = { serverUrl = it }, label = "服务器地址")
