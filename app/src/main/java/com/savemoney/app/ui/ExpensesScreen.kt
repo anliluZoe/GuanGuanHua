@@ -111,9 +111,7 @@ fun ExpensesScreen(viewModel: AppViewModel) {
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(24.dp))
                         .background(
-                            Brush.linearGradient(
-                                if (q.isDark) listOf(q.wash, q.sandDeep) else listOf(q.skySoft, q.mintSoft),
-                            ),
+                            Brush.linearGradient(listOf(q.skySoft, q.mintSoft)),
                         )
                         .padding(18.dp),
                 ) {

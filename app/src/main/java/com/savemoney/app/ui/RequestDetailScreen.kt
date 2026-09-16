@@ -78,7 +78,11 @@ fun RequestDetailScreen(viewModel: AppViewModel, requestId: Long, onBack: () -> 
         PageHeader("申请详情", current.itemName, onBack = onBack)
         SoftCard(modifier = Modifier.fillMaxWidth()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                RequestThumb(current.category, current.imagePath)
+                if (QTheme.colors.isDark) {
+                    CategoryChip(current.category)
+                } else {
+                    RequestThumb(current.category, current.imagePath)
+                }
                 Spacer(Modifier.weight(1f))
                 StatusBadge(current.status, partial = current.partial)
             }
@@ -98,18 +102,35 @@ fun RequestDetailScreen(viewModel: AppViewModel, requestId: Long, onBack: () -> 
             listOf(
                 "分类" to current.category,
                 "单价" to if (current.approvedUnitPriceCents != null && current.approvedUnitPriceCents != current.unitPriceCents) {
-                    "${current.approvedUnitPriceCents.toYuan()}（申请 ${current.unitPriceCents.toYuan()}）"
+                    if (QTheme.colors.isDark) {
+                        "${current.unitPriceCents.toYuan()} → ${current.approvedUnitPriceCents.toYuan()}"
+                    } else {
+                        "${current.approvedUnitPriceCents.toYuan()}（申请 ${current.unitPriceCents.toYuan()}）"
+                    }
                 } else {
                     current.unitPriceCents.toYuan()
                 },
                 "数量" to if (current.approvedQuantity != null && current.approvedQuantity != current.quantity) {
-                    "${current.approvedQuantity}（申请 ${current.quantity} 个）"
+                    if (QTheme.colors.isDark) {
+                        "${current.quantity} → ${current.approvedQuantity}"
+                    } else {
+                        "${current.approvedQuantity}（申请 ${current.quantity} 个）"
+                    }
                 } else {
                     "${current.quantity}"
                 },
                 "申请人" to if (current.mine) "我（${current.requesterName}）" else current.requesterName,
                 "申请时间" to current.createdAt.toDateTimeText(),
-            ).forEach { (label, value) ->
+            ).forEachIndexed { index, (label, value) ->
+                if (QTheme.colors.isDark && index > 0) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 2.dp)
+                            .height(1.dp)
+                            .background(QTheme.colors.line),
+                    )
+                }
                 Row(modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
                     Text(label, color = QTheme.colors.secondary, modifier = Modifier.weight(1f))
                     if (label == "分类") {
@@ -129,7 +150,13 @@ fun RequestDetailScreen(viewModel: AppViewModel, requestId: Long, onBack: () -> 
 
         when {
             current.status != RequestStatus.PENDING -> {
-                SoftCard(modifier = Modifier.fillMaxWidth()) {
+                val accent = when {
+                    !QTheme.colors.isDark -> null
+                    current.status == RequestStatus.REJECTED -> QTheme.colors.rose
+                    current.partial -> QTheme.colors.coral
+                    else -> QTheme.colors.mint
+                }
+                SoftCard(modifier = Modifier.fillMaxWidth(), accent = accent) {
                     Text(
                         when {
                             current.status == RequestStatus.REJECTED -> "这次先不买啦"
@@ -157,7 +184,7 @@ fun RequestDetailScreen(viewModel: AppViewModel, requestId: Long, onBack: () -> 
                         Spacer(Modifier.height(6.dp))
                         Text(
                             "已自动记入当月消费小账本",
-                            color = if (QTheme.colors.isDark) QTheme.colors.mint else QTheme.colors.coral,
+                            color = QTheme.colors.coral,
                             style = MaterialTheme.typography.bodySmall,
                         )
                     }

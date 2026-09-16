@@ -9,13 +9,16 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -88,6 +91,7 @@ fun categoryLook(name: String): CategoryLook {
 @Composable
 fun SoftCard(
     modifier: Modifier = Modifier,
+    accent: Color? = null,
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
@@ -97,10 +101,29 @@ fun SoftCard(
             .clip(shape)
             .background(MaterialTheme.colorScheme.surface)
             .border(1.dp, QTheme.colors.line, shape)
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(18.dp),
-        content = content,
-    )
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(IntrinsicSize.Min),
+        ) {
+            if (accent != null) {
+                Box(
+                    modifier = Modifier
+                        .width(5.dp)
+                        .fillMaxHeight()
+                        .background(accent),
+                )
+            }
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(18.dp),
+                content = content,
+            )
+        }
+    }
 }
 
 @Composable
@@ -109,24 +132,43 @@ fun PageHeader(
     subtitle: String,
     onBack: (() -> Unit)? = null,
 ) {
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp)) {
-        if (onBack != null) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .clickable(onClick = onBack)
-                    .background(MaterialTheme.colorScheme.surface)
-                    .border(1.dp, QTheme.colors.lineStrong, CircleShape),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回", tint = QTheme.colors.ink)
-            }
-            Spacer(Modifier.height(14.dp))
+    val colors = QTheme.colors
+    val backButton: @Composable () -> Unit = {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .clickable(onClick = onBack ?: {})
+                .background(MaterialTheme.colorScheme.surface)
+                .border(1.dp, colors.lineStrong, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回", tint = colors.ink)
         }
-        Text(title, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onBackground)
-        Spacer(Modifier.height(4.dp))
-        Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = QTheme.colors.secondary)
+    }
+    if (onBack != null && colors.isDark) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            backButton()
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onBackground)
+                Spacer(Modifier.height(4.dp))
+                Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = colors.secondary)
+            }
+        }
+    } else {
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp)) {
+            if (onBack != null) {
+                backButton()
+                Spacer(Modifier.height(14.dp))
+            }
+            Text(title, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onBackground)
+            Spacer(Modifier.height(4.dp))
+            Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = colors.secondary)
+        }
     }
 }
 
@@ -191,9 +233,9 @@ fun SoftField(
         shape = shape,
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = colors.sky,
-            unfocusedBorderColor = colors.lineStrong,
-            focusedContainerColor = MaterialTheme.colorScheme.surface,
-            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+            unfocusedBorderColor = if (colors.isDark) Color.Transparent else colors.lineStrong,
+            focusedContainerColor = if (colors.isDark) colors.sandDeep else MaterialTheme.colorScheme.surface,
+            unfocusedContainerColor = if (colors.isDark) colors.sandDeep else MaterialTheme.colorScheme.surface,
             focusedTextColor = colors.ink,
             unfocusedTextColor = colors.ink,
             focusedLabelColor = colors.sky,
@@ -212,8 +254,16 @@ fun ChoiceChip(
 ) {
     val colors = QTheme.colors
     val shape = RoundedCornerShape(22.dp)
-    val bg = if (selected) colors.sky else MaterialTheme.colorScheme.surface
-    val border = if (selected) colors.sky else colors.lineStrong
+    val bg = when {
+        selected -> colors.sky
+        colors.isDark -> colors.sandDeep
+        else -> MaterialTheme.colorScheme.surface
+    }
+    val border = when {
+        selected -> colors.sky
+        colors.isDark -> Color.Transparent
+        else -> colors.lineStrong
+    }
     val fg = if (selected) Color.White else colors.ink
     Text(
         text = label,

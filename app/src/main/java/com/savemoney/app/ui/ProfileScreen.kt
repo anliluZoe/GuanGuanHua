@@ -68,7 +68,6 @@ fun ProfileScreen(viewModel: AppViewModel) {
         Spacer(Modifier.height(12.dp))
         Mascot(MascotKind.Dog, size = 56.dp)
         PageHeader("我们", "两个人的小金库 · 才不是腻歪呢")
-        AppearancePicker(value = appearance, onChange = viewModel::setAppearance)
         SoftCard(modifier = Modifier.fillMaxWidth()) {
             Text("家庭码", style = MaterialTheme.typography.titleMedium, color = QTheme.colors.muted)
             Spacer(Modifier.height(6.dp))
@@ -150,6 +149,7 @@ fun ProfileScreen(viewModel: AppViewModel) {
                 })
             }
         }
+        AppearancePicker(value = appearance, onChange = viewModel::setAppearance)
         PillButton("退出这个家庭账本", filled = false, enabled = !isBusy, onClick = { viewModel.leaveHome() })
         Spacer(Modifier.height(96.dp))
         }
