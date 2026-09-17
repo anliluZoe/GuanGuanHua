@@ -3,7 +3,7 @@
 推送到 `main`（或在 Actions 里手动 **Run workflow**）后，GitHub Actions 会：
 
 1. SSH 到阿里云：`git pull`（没有仓库则 clone）→ 构建并重启 `savemoney-api` 容器 → 检查 `http://127.0.0.1:8080/api/health`
-2. 用 JDK 21 + Android SDK 打 debug APK，`versionCode = 1000 + github.run_number`，`versionName = 1.2.{run_number}`，输出改名为 `saveMoney.apk`
+2. 用 JDK 21 + Android SDK 打 debug APK（`setup-android` 只装 `platform-tools`、`build-tools;35.0.0`、`platforms;android-35`，**不装**已下线的 `tools` 包，并用 `yes | sdkmanager --licenses` 非交互接受许可），`versionCode = 1000 + github.run_number`，`versionName = 1.2.{run_number}`，输出改名为 `saveMoney.apk`
 3. `scp` 到服务器，再 `docker cp` 进容器，执行 `/app/scripts/publish-update.sh`，核对 `http://127.0.0.1:8080/api/update/latest` 已是新版本
 
 `applicationId` 保持 `com.savemoney.app`，不要改，否则无法覆盖安装。
@@ -152,3 +152,4 @@ curl -sS http://8.153.195.112:8080/api/update/latest
 - **8080 占用**：停掉旧的 compose/进程，不要删数据目录。
 - **git pull 失败**（私有仓库）：给服务器配 Deploy key。
 - **健康检查失败**：看 Actions 日志里的 `docker logs savemoney-api`。
+- **`Failed to find package 'tools'`**：Google 已移除旧 SDK 包 `tools`。`build-apk` 必须显式指定 `platform-tools` / `build-tools;35.0.0` / `platforms;android-35`，不要再装 `tools`。

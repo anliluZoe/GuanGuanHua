@@ -100,6 +100,13 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # Google 已下线旧 SDK `tools` 包；不要用 action 默认值 `tools platform-tools`。
+          packages: "platform-tools build-tools;35.0.0 platforms;android-35"
+          accept-android-sdk-licenses: true
+          log-accepted-android-sdk-licenses: false
+      - name: 非交互接受 Android SDK 许可
+        run: yes | sdkmanager --licenses >/dev/null || true
       - name: assembleDebug 并重命名为 saveMoney.apk
         env:
           VERSION_CODE: ${{ needs.check-secrets.outputs.version_code }}
