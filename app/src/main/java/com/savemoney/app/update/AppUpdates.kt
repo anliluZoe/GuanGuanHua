@@ -60,7 +60,7 @@ sealed class UpdateCheckResult {
 
 object AppUpdates {
     const val GITHUB_OWNER = "anliluZoe"
-    const val GITHUB_REPO = "saveMoney"
+    const val GITHUB_REPO = "watchMoney"
     const val LATEST_RELEASE_URL =
         "https://api.github.com/repos/$GITHUB_OWNER/$GITHUB_REPO/releases/latest"
 
@@ -72,7 +72,7 @@ object AppUpdates {
     private const val KEY_CACHE_APK = "cache_apk"
     private const val KEY_CACHE_NOTES = "cache_notes"
     private const val DAY_MS = 24 * 60 * 60 * 1000L
-    private const val USER_AGENT = "saveMoney-android"
+    private const val USER_AGENT = "watchMoney-android"
     private val preferredApkNames = listOf("savemoney.apk", "app-debug.apk", "app-release.apk")
     private val versionInText = Regex("""v?(\d+[0-9A-Za-z.\-]*)\+(\d+)""")
 

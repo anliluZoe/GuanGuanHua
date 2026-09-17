@@ -27,9 +27,14 @@ class ThemeColorsTest {
     }
 
     @Test
-    fun darkCoralDeepIsReservedForAmountsAndButtons() {
+    fun darkPrimaryButtonIsSkyApproveIsMintCoralStaysForAmounts() {
         assertEquals(Color(0xFFF07858), DarkQColors.coral)
         assertEquals(Color(0xFFFF8F70), DarkQColors.coralBright)
+        assertEquals(DarkQColors.sky, DarkQColors.primaryButton)
+        assertEquals(DarkQColors.mint, DarkQColors.approveButton)
+        assertEquals(DarkQColors.sky, DarkQColors.secondaryStroke)
+        assertEquals(LightQColors.coral, LightQColors.primaryButton)
+        assertEquals(LightQColors.lineStrong, LightQColors.secondaryStroke)
         assertNotEquals(LightQColors.coral, DarkQColors.coral)
     }
 

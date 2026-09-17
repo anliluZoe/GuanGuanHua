@@ -63,6 +63,7 @@ fun ExpensesScreen(viewModel: AppViewModel) {
         .map { (category, list) -> category to list.sumOf { it.amountCents } }
         .sortedByDescending { it.second }
     val overBudget = budgetCents != null && totalCents > budgetCents
+    val profile by viewModel.profile.collectAsStateWithLifecycle()
     LaunchedEffect(Unit) { viewModel.refresh() }
 
     Column(
@@ -72,9 +73,20 @@ fun ExpensesScreen(viewModel: AppViewModel) {
             .padding(horizontal = 20.dp),
     ) {
         Spacer(Modifier.height(12.dp))
-        Mascot(MascotKind.Dog, size = 56.dp)
-        Spacer(Modifier.height(8.dp))
-        PageHeader("小账本", "才、才不是在盯你花了多少")
+        PageHeader(
+            title = "小账本",
+            subtitle = "才、才不是在盯你花了多少",
+            leading = {
+                StackedAvatars(
+                    meName = profile.name,
+                    mePreset = profile.avatarPreset,
+                    mePhotoUrl = profile.avatarUrl,
+                    partnerName = profile.partnerName,
+                    partnerPreset = profile.partnerAvatarPreset,
+                    partnerPhotoUrl = profile.partnerAvatarUrl,
+                )
+            },
+        )
         PullRefreshBox(
             isRefreshing = isRefreshing && isReady,
             onRefresh = { viewModel.refresh() },
@@ -141,7 +153,12 @@ fun ExpensesScreen(viewModel: AppViewModel) {
                                 color = if (overBudget) MaterialTheme.colorScheme.error else q.coral,
                             )
                         }
-                        Mascot(MascotKind.Dog, size = 64.dp)
+                        MemberAvatar(
+                            name = profile.name,
+                            presetId = profile.avatarPreset,
+                            photoUrl = profile.avatarUrl,
+                            size = 64.dp,
+                        )
                     }
                     Spacer(Modifier.height(12.dp))
                     Text(

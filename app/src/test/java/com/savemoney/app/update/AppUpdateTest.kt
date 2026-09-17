@@ -8,6 +8,15 @@ import org.junit.Test
 class AppUpdateTest {
 
     @Test
+    fun latestReleaseUsesWatchMoneyRepo() {
+        assertEquals("watchMoney", AppUpdates.GITHUB_REPO)
+        assertEquals(
+            "https://api.github.com/repos/anliluZoe/watchMoney/releases/latest",
+            AppUpdates.LATEST_RELEASE_URL,
+        )
+    }
+
+    @Test
     fun parsesTagWithVPrefix() {
         val version = AppUpdates.parseReleaseVersion("v1.1.0+2")
         assertEquals("1.1.0", version?.versionName)

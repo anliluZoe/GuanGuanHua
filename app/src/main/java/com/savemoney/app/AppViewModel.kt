@@ -24,10 +24,14 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.YearMonth
 
-/** 我叫什么、另一半叫什么。谁都能发申请，由对方来审。 */
+/** 我叫什么、另一半叫什么。谁都能发申请，由对方来审。头像跟「我的头像」同步。 */
 data class UserProfile(
     val name: String,
     val partnerName: String?,
+    val avatarPreset: String? = null,
+    val avatarUrl: String? = null,
+    val partnerAvatarPreset: String? = null,
+    val partnerAvatarUrl: String? = null,
 )
 
 data class HouseholdSession(
@@ -56,6 +60,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         UserProfile(
             name = prefs.getString("name", "")!!,
             partnerName = prefs.getString("partnerName", null),
+            avatarPreset = prefs.getString("avatarPreset", null),
+            avatarUrl = prefs.getString("avatarUrl", null),
+            partnerAvatarPreset = prefs.getString("partnerAvatarPreset", null),
+            partnerAvatarUrl = prefs.getString("partnerAvatarUrl", null),
         )
     )
     val profile: StateFlow<UserProfile> = _profile.asStateFlow()
@@ -149,6 +157,24 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             track(_busyCount) {
                 runCatching { applyRemoteSession(repo.updateName(trimmed)) }
                     .onFailure { _statusMessage.value = it.message ?: "保存失败" }
+            }
+        }
+    }
+
+    fun updateAvatarPreset(presetId: String) {
+        viewModelScope.launch {
+            track(_busyCount) {
+                runCatching { applyRemoteSession(repo.updateAvatarPreset(_profile.value.name, presetId)) }
+                    .onFailure { _statusMessage.value = it.message ?: "头像保存失败" }
+            }
+        }
+    }
+
+    fun updateAvatarPhoto(uri: Uri) {
+        viewModelScope.launch {
+            track(_busyCount) {
+                runCatching { applyRemoteSession(repo.uploadAvatar(uri)) }
+                    .onFailure { _statusMessage.value = it.message ?: "头像上传失败" }
             }
         }
     }
@@ -276,15 +302,26 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun applyRemoteSession(remote: SessionDto) {
-        val partner = remote.members
-            .filter { it.id != remote.memberId }
-            .joinToString("、") { it.name }
-            .ifBlank { null }
-        _profile.value = UserProfile(name = remote.name, partnerName = partner)
+        val others = remote.members.filter { it.id != remote.memberId }
+        val me = remote.members.firstOrNull { it.id == remote.memberId }
+        val partner = others.firstOrNull()
+        val partnerName = others.joinToString("、") { it.name }.ifBlank { null }
+        _profile.value = UserProfile(
+            name = remote.name,
+            partnerName = partnerName,
+            avatarPreset = me?.avatarPreset,
+            avatarUrl = me?.avatarUrl,
+            partnerAvatarPreset = partner?.avatarPreset,
+            partnerAvatarUrl = partner?.avatarUrl,
+        )
         prefs.edit {
             putString("name", remote.name)
-            putString("partnerName", partner)
+            putString("partnerName", partnerName)
             putString("householdCode", remote.householdCode)
+            putString("avatarPreset", me?.avatarPreset)
+            putString("avatarUrl", me?.avatarUrl)
+            putString("partnerAvatarPreset", partner?.avatarPreset)
+            putString("partnerAvatarUrl", partner?.avatarUrl)
         }
         _session.update { it.copy(householdCode = remote.householdCode) }
     }

@@ -41,7 +41,7 @@ enum class Appearance(val prefValue: String) {
     }
 }
 
-/** 清爽 Q 版色角色：珊瑚只给金额和主按钮。 */
+/** 清爽 Q 版色角色：珊瑚主要给金额；浅色主按钮仍用珊瑚，深色主按钮用天空蓝。 */
 data class QColors(
     val canvas: Color,
     val wash: Color,
@@ -85,6 +85,11 @@ data class QColors(
 ) {
     /** 深色用 ink-soft，浅色仍用原来的 muted，避免浅色回归。 */
     val secondary: Color get() = if (isDark) inkSoft else muted
+    val primaryButton: Color get() = if (isDark) sky else coral
+    val onPrimaryButton: Color get() = if (isDark) Color(0xFF0A2430) else Color.White
+    val approveButton: Color get() = mint
+    val onApproveButton: Color get() = if (isDark) Color(0xFF062820) else Color.White
+    val secondaryStroke: Color get() = if (isDark) sky else lineStrong
 }
 
 private fun Color.softWash(): Color = copy(alpha = 0.16f)
@@ -213,10 +218,10 @@ private val LightColors = lightColorScheme(
 )
 
 private val DarkColors = darkColorScheme(
-    primary = DarkQColors.coral,
-    onPrimary = Color.White,
-    primaryContainer = DarkQColors.coralSoft,
-    onPrimaryContainer = DarkQColors.partialInk,
+    primary = DarkQColors.sky,
+    onPrimary = Color(0xFF0A2430),
+    primaryContainer = DarkQColors.skySoft,
+    onPrimaryContainer = DarkQColors.sky,
     secondary = DarkQColors.sky,
     onSecondary = Color(0xFF0A2430),
     secondaryContainer = DarkQColors.skySoft,

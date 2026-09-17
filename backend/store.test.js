@@ -72,6 +72,40 @@ function twoMembers(store) {
   return { alice: store.memberByToken(a.token), bob: store.memberByToken(b.token) };
 }
 
+test("new household defaults to cat and dog presets and can switch preset or photo", () => {
+  withStore((store) => {
+    const { alice, bob } = twoMembers(store);
+    const aliceSession = store.sessionPayload(alice.token);
+    const bobSession = store.sessionPayload(bob.token);
+    const aliceRow = aliceSession.members.find((m) => m.id === alice.id);
+    const bobRow = bobSession.members.find((m) => m.id === bob.id);
+    assert.equal(aliceRow.avatarPreset, "mascot_cat");
+    assert.equal(bobRow.avatarPreset, "mascot_dog");
+    assert.equal(aliceRow.avatarFile, null);
+
+    store.setAvatarPreset(alice.id, "kitten");
+    const afterPreset = store.sessionPayload(alice.token).members.find((m) => m.id === alice.id);
+    assert.equal(afterPreset.avatarPreset, "kitten");
+    assert.equal(afterPreset.avatarFile, null);
+
+    const filename = store.savePhoto(Buffer.from("fake-image"), ".png");
+    store.setAvatarFile(alice.id, filename);
+    const afterFile = store.sessionPayload(alice.token).members.find((m) => m.id === alice.id);
+    assert.equal(afterFile.avatarPreset, null);
+    assert.equal(afterFile.avatarFile, filename);
+    assert.ok(store.photoPath(filename));
+
+    store.setAvatarPreset(alice.id, "corgi");
+    const backToPreset = store.sessionPayload(alice.token).members.find((m) => m.id === alice.id);
+    assert.equal(backToPreset.avatarPreset, "corgi");
+    assert.equal(backToPreset.avatarFile, null);
+    assert.equal(store.photoPath(filename), null);
+
+    assert.equal(store.knownAvatarPreset("penguin"), true);
+    assert.equal(store.knownAvatarPreset("dragon"), false);
+  });
+});
+
 function insertPending(store, alice, { quantity, unitPriceCents }) {
   return store.insertRequest(alice.household_id, {
     requester_id: alice.id,

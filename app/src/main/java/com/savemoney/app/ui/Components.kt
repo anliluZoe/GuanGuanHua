@@ -59,7 +59,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.savemoney.app.data.RequestStatus
 import com.savemoney.app.ui.theme.Appearance
@@ -135,6 +134,7 @@ fun PageHeader(
     title: String,
     subtitle: String,
     onBack: (() -> Unit)? = null,
+    leading: (@Composable () -> Unit)? = null,
 ) {
     val colors = QTheme.colors
     val backButton: @Composable () -> Unit = {
@@ -150,13 +150,20 @@ fun PageHeader(
             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回", tint = colors.ink)
         }
     }
-    if (onBack != null && colors.isDark) {
+    val useInlineRow = leading != null || (onBack != null && colors.isDark)
+    if (useInlineRow) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            backButton()
-            Spacer(Modifier.width(12.dp))
+            if (onBack != null) {
+                backButton()
+                Spacer(Modifier.width(12.dp))
+            }
+            if (leading != null) {
+                leading()
+                Spacer(Modifier.width(12.dp))
+            }
             Column(modifier = Modifier.weight(1f)) {
                 Text(title, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onBackground)
                 Spacer(Modifier.height(4.dp))
@@ -183,25 +190,31 @@ fun PillButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     filled: Boolean = true,
+    approve: Boolean = false,
 ) {
     val colors = QTheme.colors
+    val fill = when {
+        !filled -> Color.Transparent
+        approve -> colors.approveButton
+        else -> colors.primaryButton
+    }
+    val fg = when {
+        !filled -> colors.ink
+        approve -> colors.onApproveButton
+        else -> colors.onPrimaryButton
+    }
     Button(
         onClick = onClick,
         enabled = enabled,
         modifier = modifier.fillMaxWidth().height(54.dp),
         shape = RoundedCornerShape(28.dp),
-        colors = if (filled) ButtonDefaults.buttonColors(
-            containerColor = colors.coral,
-            contentColor = Color.White,
-            disabledContainerColor = colors.disabledFill,
-            disabledContentColor = colors.disabledInk,
-        ) else ButtonDefaults.buttonColors(
-            containerColor = Color.Transparent,
-            contentColor = colors.ink,
-            disabledContainerColor = Color.Transparent,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = fill,
+            contentColor = fg,
+            disabledContainerColor = if (filled) colors.disabledFill else Color.Transparent,
             disabledContentColor = colors.disabledInk,
         ),
-        border = if (filled) null else BorderStroke(1.5.dp, colors.lineStrong),
+        border = if (filled) null else BorderStroke(1.5.dp, colors.secondaryStroke),
         elevation = ButtonDefaults.buttonElevation(0.dp),
     ) {
         Text(text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
@@ -406,9 +419,9 @@ fun CoralProgress(modifier: Modifier = Modifier) {
     val colors = QTheme.colors
     CircularProgressIndicator(
         modifier = modifier.size(36.dp),
-        color = colors.coral,
+        color = colors.primaryButton,
         strokeWidth = 3.dp,
-        trackColor = colors.coralSoft,
+        trackColor = if (colors.isDark) colors.skySoft else colors.coralSoft,
     )
 }
 
@@ -434,7 +447,7 @@ fun PullRefreshBox(
                 isRefreshing = isRefreshing,
                 state = state,
                 containerColor = colors.paper,
-                color = colors.coral,
+                color = colors.primaryButton,
             )
         },
         content = content,
@@ -512,25 +525,6 @@ fun MoneyText(
 }
 
 @Composable
-fun NameDot(name: String, fill: Color, modifier: Modifier = Modifier, size: Dp = 36.dp) {
-    Box(
-        modifier = modifier
-            .size(size)
-            .clip(CircleShape)
-            .background(fill)
-            .border(2.dp, QTheme.colors.canvas, CircleShape),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = name.take(1),
-            color = Color.White,
-            fontWeight = FontWeight.SemiBold,
-            fontSize = (size.value * 0.38f).sp,
-        )
-    }
-}
-
-@Composable
 fun AppearancePicker(
     value: Appearance,
     onChange: (Appearance) -> Unit,
@@ -540,7 +534,7 @@ fun AppearancePicker(
         Text("外观", style = MaterialTheme.typography.titleMedium)
         Spacer(Modifier.height(6.dp))
         Text(
-            "浅色是现在的清爽 Q 版；深色用深夜画布，珊瑚只留给金额和主按钮。",
+            "浅色是现在的清爽 Q 版；深色用深夜画布，主按钮用天空蓝，珊瑚留给金额。",
             style = MaterialTheme.typography.bodySmall,
             color = QTheme.colors.secondary,
         )

@@ -15,6 +15,7 @@ class RequestListFilterTest {
 
     @Test
     fun pendingForMeIsOnlyOthersWaitingOnMe() {
+        assertEquals("待审核", RequestListFilter.PENDING_FOR_ME.label)
         assertEquals(
             listOf(theirsPending),
             all.filter { RequestListFilter.PENDING_FOR_ME.matches(it) },
