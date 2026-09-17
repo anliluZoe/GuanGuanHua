@@ -113,7 +113,7 @@ jobs:
           VERSION_NAME: ${{ needs.check-secrets.outputs.version_name }}
         run: |
           chmod +x gradlew
-          echo "applicationId 保持 com.savemoney.app"
+          echo "applicationId=com.guanguanhua.app（新应用身份；APK 文件名仍为 saveMoney.apk，以兼容 /api/update）"
           echo "打包 versionCode=$VERSION_CODE versionName=$VERSION_NAME"
           ./gradlew assembleDebug --no-daemon \
             -PappVersionCode="$VERSION_CODE" \
