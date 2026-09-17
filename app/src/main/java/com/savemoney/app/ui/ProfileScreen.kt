@@ -437,7 +437,7 @@ private fun UpdateCard() {
         Spacer(Modifier.height(4.dp))
         Text(
             when (val state = ui) {
-                UpdateUi.Idle -> "有新版本时会从 GitHub Releases 下载安装包。"
+                UpdateUi.Idle -> "有新版本时会从当前服务器下载安装包。"
                 UpdateUi.Checking -> "正在看看有没有新版本…"
                 UpdateUi.UpToDate -> "已经是最新的啦。"
                 is UpdateUi.Available -> "发现新版本 ${state.update.versionName}（内部号 ${state.update.versionCode}）"
@@ -511,7 +511,7 @@ private fun UpdateCard() {
         AlertDialog(
             onDismissRequest = { if (!busy) confirmUpdate = null },
             title = { Text("安装 ${update.versionName}") },
-            text = { Text("会下载 GitHub 上的 APK，再打开系统安装界面。内部号 ${update.versionCode}，要比现在的 ${installed.versionCode} 大才能覆盖安装。") },
+            text = { Text("会从家里的服务器下载 APK，再打开系统安装界面。内部号 ${update.versionCode}，要比现在的 ${installed.versionCode} 大才能覆盖安装。") },
             confirmButton = {
                 TextButton(
                     enabled = !busy,

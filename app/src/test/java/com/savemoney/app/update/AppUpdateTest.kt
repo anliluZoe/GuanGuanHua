@@ -1,122 +1,116 @@
 package com.savemoney.app.update
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AppUpdateTest {
 
+    private val productionBase = "http://8.153.195.112:8080"
+
     @Test
-    fun latestReleaseUsesWatchMoneyRepo() {
-        assertEquals("watchMoney", AppUpdates.GITHUB_REPO)
+    fun latestUrlUsesConfiguredServerBase() {
         assertEquals(
-            "https://api.github.com/repos/anliluZoe/watchMoney/releases/latest",
-            AppUpdates.LATEST_RELEASE_URL,
-        )
-    }
-
-    @Test
-    fun parsesTagWithVPrefix() {
-        val version = AppUpdates.parseReleaseVersion("v1.1.0+2")
-        assertEquals("1.1.0", version?.versionName)
-        assertEquals(2, version?.versionCode)
-    }
-
-    @Test
-    fun parsesTagWithoutVPrefix() {
-        val version = AppUpdates.parseReleaseVersion("1.2.3+10")
-        assertEquals("1.2.3", version?.versionName)
-        assertEquals(10, version?.versionCode)
-    }
-
-    @Test
-    fun parsesPrereleaseNameAndFindsVersionInReleaseTitle() {
-        assertEquals(
-            ReleaseVersion("1.1.0-beta.1", 3),
-            AppUpdates.parseReleaseVersion("v1.1.0-beta.1+3"),
+            "http://8.153.195.112:8080/api/update/latest",
+            AppUpdates.latestUrl("http://8.153.195.112:8080/"),
         )
         assertEquals(
-            ReleaseVersion("1.1.0", 2),
-            AppUpdates.parseReleaseVersion("untagged", "省钱助手 v1.1.0+2"),
+            "http://10.0.2.2:8080/api/update/latest",
+            AppUpdates.latestUrl("http://10.0.2.2:8080"),
         )
     }
 
     @Test
-    fun rejectsMissingVersionCode() {
-        assertNull(AppUpdates.parseReleaseVersion("v1.1.0"))
-        assertNull(AppUpdates.parseReleaseVersion(""))
-        assertNull(AppUpdates.parseReleaseVersion("latest"))
-    }
-
-    @Test
-    fun prefersSaveMoneyApkThenDebug() {
-        val mixed = listOf(
-            "notes.txt" to "https://example/notes",
-            "app-debug.apk" to "https://example/debug",
-            "saveMoney.apk" to "https://example/named",
-        )
-        assertEquals("saveMoney.apk" to "https://example/named", AppUpdates.pickApkAsset(mixed))
+    fun resolveUrlJoinsRelativePathsAndKeepsAbsolute() {
         assertEquals(
-            "app-debug.apk" to "https://example/debug",
-            AppUpdates.pickApkAsset(mixed.filterNot { it.first.equals("saveMoney.apk", ignoreCase = true) }),
+            "http://8.153.195.112:8080/api/update/download/saveMoney.apk",
+            AppUpdates.resolveUrl(productionBase, "/api/update/download/saveMoney.apk"),
+        )
+        assertEquals(
+            "http://8.153.195.112:8080/updates/app-debug.apk",
+            AppUpdates.resolveUrl("$productionBase/", "updates/app-debug.apk"),
+        )
+        assertEquals(
+            "https://cdn.example/saveMoney.apk",
+            AppUpdates.resolveUrl(productionBase, "https://cdn.example/saveMoney.apk"),
         )
     }
 
     @Test
-    fun fallsBackToAnyApk() {
-        val assets = listOf("readme.md" to "https://example/md", "household-debug.apk" to "https://example/apk")
-        assertEquals("household-debug.apk" to "https://example/apk", AppUpdates.pickApkAsset(assets))
-        assertNull(AppUpdates.pickApkAsset(listOf("notes.txt" to "https://example/notes")))
-    }
-
-    @Test
-    fun resolveUpdateRequiresNewerVersionCodeAndApk() {
-        val release = GithubRelease(
-            tagName = "v1.2.0+5",
-            name = "省钱助手 1.2.0",
-            body = "修了点小毛病",
-            assets = listOf(GithubAsset("saveMoney.apk", "https://example/saveMoney.apk")),
-        )
-        val available = AppUpdates.resolveUpdate(release, currentVersionCode = 2)
-        assertTrue(available is UpdateCheckResult.Available)
-        available as UpdateCheckResult.Available
-        assertEquals("1.2.0", available.update.versionName)
-        assertEquals(5, available.update.versionCode)
-        assertEquals("https://example/saveMoney.apk", available.update.apkUrl)
-
-        assertTrue(AppUpdates.resolveUpdate(release, currentVersionCode = 5) is UpdateCheckResult.UpToDate)
-        assertTrue(AppUpdates.resolveUpdate(release, currentVersionCode = 6) is UpdateCheckResult.UpToDate)
-        assertTrue(
-            AppUpdates.resolveUpdate(release.copy(tagName = "v1.2.0"), currentVersionCode = 2)
-                is UpdateCheckResult.Failed,
-        )
-        assertTrue(
-            AppUpdates.resolveUpdate(release.copy(assets = emptyList()), currentVersionCode = 2)
-                is UpdateCheckResult.Failed,
-        )
-    }
-
-    @Test
-    fun gsonMapsGithubLatestReleaseJson() {
+    fun gsonMapsLatestJsonAndResolvesRelativeApkUrl() {
         val json = """
             {
-              "tag_name": "v1.1.0+2",
-              "name": "省钱助手 1.1.0",
-              "body": "覆盖安装用",
-              "assets": [
-                {"name": "app-debug.apk", "browser_download_url": "https://example/app-debug.apk"},
-                {"name": "saveMoney.apk", "browser_download_url": "https://example/saveMoney.apk"}
-              ]
+              "versionCode": 3,
+              "versionName": "1.2.0",
+              "apkUrl": "/api/update/download/saveMoney.apk",
+              "notes": "修了点小毛病"
             }
         """.trimIndent()
-        val release = com.google.gson.Gson().fromJson(json, GithubRelease::class.java)
-        val result = AppUpdates.resolveUpdate(release, currentVersionCode = 1)
+        val latest = com.google.gson.Gson().fromJson(json, ServerLatest::class.java)
+        val result = AppUpdates.resolveUpdate(latest, currentVersionCode = 2, serverBase = productionBase)
         assertTrue(result is UpdateCheckResult.Available)
         result as UpdateCheckResult.Available
-        assertEquals("1.1.0", result.update.versionName)
-        assertEquals(2, result.update.versionCode)
+        assertEquals("1.2.0", result.update.versionName)
+        assertEquals(3, result.update.versionCode)
         assertEquals("saveMoney.apk", result.update.apkName)
-        assertEquals("https://example/saveMoney.apk", result.update.apkUrl)
+        assertEquals(
+            "http://8.153.195.112:8080/api/update/download/saveMoney.apk",
+            result.update.apkUrl,
+        )
+        assertEquals("修了点小毛病", result.update.notes)
+    }
+
+    @Test
+    fun resolveUpdateRequiresNewerVersionCode() {
+        val latest = ServerLatest(
+            versionCode = 5,
+            versionName = "1.2.0",
+            apkUrl = "/api/update/download/saveMoney.apk",
+            notes = "修了点小毛病",
+        )
+        val available = AppUpdates.resolveUpdate(latest, currentVersionCode = 2, serverBase = productionBase)
+        assertTrue(available is UpdateCheckResult.Available)
+        available as UpdateCheckResult.Available
+        assertEquals(5, available.update.versionCode)
+
+        assertTrue(
+            AppUpdates.resolveUpdate(latest, currentVersionCode = 5, serverBase = productionBase)
+                is UpdateCheckResult.UpToDate,
+        )
+        assertTrue(
+            AppUpdates.resolveUpdate(latest, currentVersionCode = 6, serverBase = productionBase)
+                is UpdateCheckResult.UpToDate,
+        )
+    }
+
+    @Test
+    fun incompleteLatestPayloadFails() {
+        assertTrue(
+            AppUpdates.resolveUpdate(
+                ServerLatest(versionCode = 0, versionName = "1.2.0", apkUrl = "/x.apk"),
+                currentVersionCode = 1,
+                serverBase = productionBase,
+            ) is UpdateCheckResult.Failed,
+        )
+        assertTrue(
+            AppUpdates.resolveUpdate(
+                ServerLatest(versionCode = 3, versionName = "  ", apkUrl = "/x.apk"),
+                currentVersionCode = 1,
+                serverBase = productionBase,
+            ) is UpdateCheckResult.Failed,
+        )
+        assertTrue(
+            AppUpdates.resolveUpdate(
+                ServerLatest(versionCode = 3, versionName = "1.2.0", apkUrl = ""),
+                currentVersionCode = 1,
+                serverBase = productionBase,
+            ) is UpdateCheckResult.Failed,
+        )
+    }
+
+    @Test
+    fun apkNameFallsBackWhenUrlHasNoApk() {
+        assertEquals("saveMoney.apk", AppUpdates.apkNameFromUrl("http://host/api/update/download"))
+        assertEquals("household-debug.apk", AppUpdates.apkNameFromUrl("/api/update/download/household-debug.apk?x=1"))
     }
 }
