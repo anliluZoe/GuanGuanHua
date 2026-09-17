@@ -60,19 +60,90 @@ appVersionName=1.1.0
 ./gradlew assembleDebug -PappVersionCode=3 -PappVersionName=1.1.1
 ```
 
-## GitHub Releases（应用内检查更新）
+## 应用内检查更新（自家服务器）
 
-App 在「我们」页可以「检查更新」；进家庭账本后每天最多自动查一次，有新版本才提醒。它请求：
+App 在「我们」页可以「检查更新」；进家庭账本后每天最多自动查一次，有新版本才提醒。它请求的是**当前配置的 API 地址**：
 
-`GET https://api.github.com/repos/anliluZoe/watchMoney/releases/latest`
+`GET {serverUrl}/api/update/latest`
 
-发版时请同时：
+例如生产环境：`http://8.153.195.112:8080/api/update/latest`。
 
-1. 把 `gradle.properties` 里的 `appVersionCode` / `appVersionName` 调高，再打包。
-2. 创建 GitHub Release，**tag（或标题）写成** `v{versionName}+{versionCode}`，例如 `v1.1.0+2`。内部号只认 `+` 后面的整数，用来和手机上的 `versionCode` 比较。
-3. 把 APK 挂到这次 Release 的 Assets。文件名优先 `saveMoney.apk`，其次 `app-debug.apk` / `app-release.apk`；都不匹配时会用第一个 `.apk`。
+返回 JSON：
 
-手机上点「下载并安装」后，如系统要求，需要允许「管管花」安装未知应用，再走系统安装界面。
+```json
+{
+  "versionCode": 3,
+  "versionName": "1.2.0",
+  "apkUrl": "/api/update/download/saveMoney.apk",
+  "notes": "修了点小毛病"
+}
+```
+
+`apkUrl` 可以是相对路径（相对 `serverUrl`）或完整 URL。手机用 `versionCode` 和本地 `PackageInfo` 比较，更大才提示下载安装。
+
+### 怎么发版
+
+1. 把 `gradle.properties` 里的 `appVersionCode` / `appVersionName` 调高，再 `./gradlew assembleDebug`（或 release）。
+2. 把 APK 拷进数据目录的 `updates/`，并写 `latest.json`。**换文件即可，不用重启后端。**
+
+`latest.json` 示例：
+
+```json
+{
+  "versionCode": 3,
+  "versionName": "1.2.0",
+  "filename": "saveMoney.apk",
+  "notes": "修了点小毛病"
+}
+```
+
+本地 / 未设环境变量时，数据目录是 `backend/data`：
+
+```bash
+backend/scripts/publish-update.sh app/build/outputs/apk/debug/app-debug.apk 3 1.2.0 "修了点小毛病"
+```
+
+### 阿里云（生产 `http://8.153.195.112:8080`）
+
+数据在 `SAVE_MONEY_DATA`（Docker Compose 里是容器内 `/data`，对应卷 `savemoney-data`）。
+
+用脚本（在能写到数据目录的机器上）：
+
+```bash
+export SAVE_MONEY_DATA=/data   # 或实际挂载路径
+backend/scripts/publish-update.sh ./saveMoney.apk 3 1.2.0 "修了点小毛病"
+```
+
+若后端跑在 Docker Compose 里：
+
+```bash
+cd backend
+docker compose exec api mkdir -p /data/updates
+docker compose cp ./saveMoney.apk api:/data/updates/saveMoney.apk
+docker compose exec -T api sh -c 'cat > /data/updates/latest.json' <<'EOF'
+{
+  "versionCode": 3,
+  "versionName": "1.2.0",
+  "filename": "saveMoney.apk",
+  "notes": "修了点小毛病"
+}
+EOF
+```
+
+或在容器内跑脚本：
+
+```bash
+docker compose cp ./saveMoney.apk api:/tmp/saveMoney.apk
+docker compose exec api /app/scripts/publish-update.sh /tmp/saveMoney.apk 3 1.2.0 "修了点小毛病"
+```
+
+发完后可用：
+
+```bash
+curl http://8.153.195.112:8080/api/update/latest
+```
+
+确认 JSON 后，手机上打开「我们」→「检查更新」。安装时如系统要求，需要允许「管管花」安装未知应用。`applicationId` 仍是 `com.savemoney.app`，不要改，否则无法覆盖安装。
 
 ## 界面截图
 

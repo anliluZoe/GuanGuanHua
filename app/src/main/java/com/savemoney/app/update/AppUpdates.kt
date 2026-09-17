@@ -8,7 +8,6 @@ import androidx.core.content.FileProvider
 import androidx.core.content.edit
 import androidx.core.content.pm.PackageInfoCompat
 import com.google.gson.Gson
-import com.google.gson.annotations.SerializedName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
@@ -20,28 +19,22 @@ import java.util.concurrent.TimeUnit
 import kotlin.coroutines.coroutineContext
 
 /**
- * GitHub Releases 应用内更新。
+ * 用家里的后端做应用内更新：`GET {serverUrl}/api/update/latest`。
  *
- * 发版约定（给打包的人）：
- * - tag / 发布标题写成 `v{versionName}+{versionCode}`，例如 `v1.1.0+2`
- * - 挂上 APK，优先命名 `saveMoney.apk`，其次 `app-debug.apk`
- * - [gradle.properties] 里的 `appVersionCode` 必须比手机上已装的更大，才能覆盖安装
+ * 发版时把 APK 放到服务器数据目录 `updates/`，并写 `latest.json`
+ *（versionCode / versionName / filename / notes）。
+ * [gradle.properties] 里的 `appVersionCode` 必须比手机上已装的更大，才能覆盖安装。
  */
-data class ReleaseVersion(
+data class InstalledVersion(
     val versionName: String,
     val versionCode: Int,
 )
 
-data class GithubAsset(
-    val name: String? = null,
-    @SerializedName("browser_download_url") val browserDownloadUrl: String? = null,
-)
-
-data class GithubRelease(
-    @SerializedName("tag_name") val tagName: String? = null,
-    val name: String? = null,
-    val body: String? = null,
-    val assets: List<GithubAsset>? = null,
+data class ServerLatest(
+    val versionCode: Int = 0,
+    val versionName: String? = null,
+    val apkUrl: String? = null,
+    val notes: String? = null,
 )
 
 data class AvailableUpdate(
@@ -59,12 +52,9 @@ sealed class UpdateCheckResult {
 }
 
 object AppUpdates {
-    const val GITHUB_OWNER = "anliluZoe"
-    const val GITHUB_REPO = "watchMoney"
-    const val LATEST_RELEASE_URL =
-        "https://api.github.com/repos/$GITHUB_OWNER/$GITHUB_REPO/releases/latest"
-
     private const val PREFS = "app_update"
+    private const val SESSION_PREFS = "session"
+    private const val DEFAULT_SERVER = "http://10.0.2.2:8080"
     private const val KEY_LAST_CHECK_MS = "last_check_ms"
     private const val KEY_CACHE_CODE = "cache_code"
     private const val KEY_CACHE_NAME = "cache_name"
@@ -73,8 +63,6 @@ object AppUpdates {
     private const val KEY_CACHE_NOTES = "cache_notes"
     private const val DAY_MS = 24 * 60 * 60 * 1000L
     private const val USER_AGENT = "watchMoney-android"
-    private val preferredApkNames = listOf("savemoney.apk", "app-debug.apk", "app-release.apk")
-    private val versionInText = Regex("""v?(\d+[0-9A-Za-z.\-]*)\+(\d+)""")
 
     private val gson = Gson()
     private val http by lazy {
@@ -87,60 +75,61 @@ object AppUpdates {
             .build()
     }
 
-    fun parseReleaseVersion(tagName: String, releaseName: String? = null): ReleaseVersion? {
-        listOf(tagName, releaseName.orEmpty()).forEach { raw ->
-            val text = raw.trim()
-            if (text.isEmpty()) return@forEach
-            val match = versionInText.find(text) ?: return@forEach
-            val name = match.groupValues[1]
-            val code = match.groupValues[2].toIntOrNull() ?: return@forEach
-            if (name.isNotBlank() && code > 0) return ReleaseVersion(name, code)
+    fun configuredServerBase(context: Context): String =
+        context.getSharedPreferences(SESSION_PREFS, Context.MODE_PRIVATE)
+            .getString("serverUrl", DEFAULT_SERVER)!!
+            .trim()
+            .trimEnd('/')
+
+    fun latestUrl(serverBase: String): String =
+        "${serverBase.trim().trimEnd('/')}/api/update/latest"
+
+    fun resolveUrl(serverBase: String, apkUrl: String): String {
+        val url = apkUrl.trim()
+        if (url.startsWith("http://", ignoreCase = true) || url.startsWith("https://", ignoreCase = true)) {
+            return url
         }
-        return null
+        val root = serverBase.trim().trimEnd('/')
+        return if (url.startsWith("/")) "$root$url" else "$root/$url"
     }
 
-    fun pickApkAsset(assets: List<Pair<String, String>>): Pair<String, String>? {
-        val apks = assets.filter { it.first.endsWith(".apk", ignoreCase = true) }
-        if (apks.isEmpty()) return null
-        preferredApkNames.forEach { preferred ->
-            apks.firstOrNull { it.first.equals(preferred, ignoreCase = true) }?.let { return it }
-        }
-        return apks.first()
+    fun apkNameFromUrl(url: String): String {
+        val path = url.substringBefore('?').trimEnd('/')
+        val name = path.substringAfterLast('/')
+        return if (name.endsWith(".apk", ignoreCase = true)) name else "saveMoney.apk"
     }
 
-    fun resolveUpdate(release: GithubRelease, currentVersionCode: Int): UpdateCheckResult {
-        val version = parseReleaseVersion(release.tagName.orEmpty(), release.name)
-            ?: return UpdateCheckResult.Failed("发布 tag 要写成 v1.1.0+2 这种格式")
-        val apk = pickApkAsset(
-            release.assets.orEmpty().mapNotNull { asset ->
-                val name = asset.name?.trim().orEmpty()
-                val url = asset.browserDownloadUrl?.trim().orEmpty()
-                if (name.isEmpty() || url.isEmpty()) null else name to url
-            },
-        ) ?: return UpdateCheckResult.Failed("这个版本还没挂上 APK")
-        if (version.versionCode <= currentVersionCode) return UpdateCheckResult.UpToDate
+    fun resolveUpdate(latest: ServerLatest, currentVersionCode: Int, serverBase: String): UpdateCheckResult {
+        val versionName = latest.versionName?.trim().orEmpty()
+        val apkUrl = latest.apkUrl?.trim().orEmpty()
+        if (latest.versionCode <= 0 || versionName.isEmpty() || apkUrl.isEmpty()) {
+            return UpdateCheckResult.Failed("更新信息不完整")
+        }
+        if (latest.versionCode <= currentVersionCode) return UpdateCheckResult.UpToDate
+        val resolved = resolveUrl(serverBase, apkUrl)
         return UpdateCheckResult.Available(
             AvailableUpdate(
-                versionName = version.versionName,
-                versionCode = version.versionCode,
-                apkUrl = apk.second,
-                apkName = apk.first,
-                notes = release.body?.trim()?.takeIf { it.isNotEmpty() },
+                versionName = versionName,
+                versionCode = latest.versionCode,
+                apkUrl = resolved,
+                apkName = apkNameFromUrl(resolved),
+                notes = latest.notes?.trim()?.takeIf { it.isNotEmpty() },
             ),
         )
     }
 
-    fun installedVersion(context: Context): ReleaseVersion {
+    fun installedVersion(context: Context): InstalledVersion {
         val info = context.packageManager.getPackageInfo(context.packageName, 0)
-        return ReleaseVersion(
+        return InstalledVersion(
             versionName = info.versionName ?: "?",
             versionCode = PackageInfoCompat.getLongVersionCode(info).toInt(),
         )
     }
 
     suspend fun checkLatest(context: Context): UpdateCheckResult {
+        val serverBase = configuredServerBase(context)
         val result = try {
-            resolveUpdate(fetchLatestRelease(), installedVersion(context).versionCode)
+            resolveUpdate(fetchLatest(serverBase), installedVersion(context).versionCode, serverBase)
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -261,20 +250,24 @@ object AppUpdates {
         context.startActivity(intent)
     }
 
-    private suspend fun fetchLatestRelease(): GithubRelease = withContext(Dispatchers.IO) {
+    private data class ErrorBody(val detail: String? = null)
+
+    private suspend fun fetchLatest(serverBase: String): ServerLatest = withContext(Dispatchers.IO) {
         val request = Request.Builder()
-            .url(LATEST_RELEASE_URL)
+            .url(latestUrl(serverBase))
             .header("User-Agent", USER_AGENT)
-            .header("Accept", "application/vnd.github+json")
+            .header("Accept", "application/json")
             .build()
         http.newCall(request).execute().use { response ->
             val body = response.body?.string().orEmpty()
+            val detail = runCatching {
+                gson.fromJson(body, ErrorBody::class.java)?.detail?.trim()?.takeIf { it.isNotEmpty() }
+            }.getOrNull()
             when (response.code) {
-                200 -> gson.fromJson(body, GithubRelease::class.java)
-                    ?: throw IOException("GitHub 返回空数据")
-                404 -> throw IOException("还没有正式发布")
-                403, 429 -> throw IOException("GitHub 有点忙，过一会再试")
-                else -> throw IOException("检查更新失败（${response.code}）")
+                200 -> gson.fromJson(body, ServerLatest::class.java)
+                    ?: throw IOException("服务器返回空数据")
+                404 -> throw IOException(detail ?: "还没有发布新版本")
+                else -> throw IOException(detail ?: "检查更新失败（${response.code}）")
             }
         }
     }

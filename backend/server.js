@@ -3,9 +3,11 @@ const express = require("express");
 const cors = require("cors");
 const multer = require("multer");
 const { Store } = require("./store");
+const { UpdateStore } = require("./updates");
 
 const DATA_ROOT = process.env.SAVE_MONEY_DATA || path.join(__dirname, "data");
 const store = new Store(DATA_ROOT);
+const updates = new UpdateStore(DATA_ROOT);
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
 const app = express();
 app.use(cors());
@@ -50,6 +52,7 @@ function requireMember(req, res, next) {
 }
 
 app.get("/api/health", (_req, res) => res.json({ ok: true }));
+updates.attach(app);
 
 function fileUrl(req, filename) {
   if (!filename) return null;
