@@ -60,6 +60,8 @@ appVersionName=1.1.0
 ./gradlew assembleDebug -PappVersionCode=3 -PappVersionName=1.1.1
 ```
 
+推到 `main` 时 GitHub Actions 会用 `versionCode = 1000 + run_number`、`versionName = 1.2.{run_number}`，不改仓库里的这两个数字。`applicationId` 始终是 `com.savemoney.app`。
+
 ## 应用内检查更新（自家服务器）
 
 App 在「我们」页可以「检查更新」；进家庭账本后每天最多自动查一次，有新版本才提醒。它请求的是**当前配置的 API 地址**：
@@ -83,6 +85,8 @@ App 在「我们」页可以「检查更新」；进家庭账本后每天最多�
 
 ### 怎么发版
 
+生产环境推 `main` 即可（见下方 GitHub Actions）。本地手动发版：
+
 1. 把 `gradle.properties` 里的 `appVersionCode` / `appVersionName` 调高，再 `./gradlew assembleDebug`（或 release）。
 2. 把 APK 拷进数据目录的 `updates/`，并写 `latest.json`。**换文件即可，不用重启后端。**
 
@@ -103,43 +107,19 @@ App 在「我们」页可以「检查更新」；进家庭账本后每天最多�
 backend/scripts/publish-update.sh app/build/outputs/apk/debug/app-debug.apk 3 1.2.0 "修了点小毛病"
 ```
 
-### 阿里云（生产 `http://8.153.195.112:8080`）
+### 阿里云自动部署（GitHub Actions）
 
-数据在 `SAVE_MONEY_DATA`（Docker Compose 里是容器内 `/data`，对应卷 `savemoney-data`）。
+推送到 `main`，或在 Actions 里手动 **Run workflow**，会 SSH 部署后端、打 `saveMoney.apk`，并发布到服务器 `updates/`。
 
-用脚本（在能写到数据目录的机器上）：
+**必填 Secrets（精确名称）：** `DEPLOY_HOST`、`DEPLOY_USER`、`DEPLOY_SSH_KEY`  
+**可选：** `DEPLOY_PATH`（不设则用服务器上已有的 `~/watchMoney` 或 `~/saveMoney`，否则 clone 到 `~/watchMoney`）
 
-```bash
-export SAVE_MONEY_DATA=/data   # 或实际挂载路径
-backend/scripts/publish-update.sh ./saveMoney.apk 3 1.2.0 "修了点小毛病"
-```
+首次需要服务器已安装 Docker、git、curl，并建好数据目录 `/data/savemoney`（重建容器也不会删账本）。完整步骤、密钥怎么配、从旧 compose 迁数据：见 **[docs/deploy.md](docs/deploy.md)**。
 
-若后端跑在 Docker Compose 里：
+生产健康检查 / 最新版本：
 
 ```bash
-cd backend
-docker compose exec api mkdir -p /data/updates
-docker compose cp ./saveMoney.apk api:/data/updates/saveMoney.apk
-docker compose exec -T api sh -c 'cat > /data/updates/latest.json' <<'EOF'
-{
-  "versionCode": 3,
-  "versionName": "1.2.0",
-  "filename": "saveMoney.apk",
-  "notes": "修了点小毛病"
-}
-EOF
-```
-
-或在容器内跑脚本：
-
-```bash
-docker compose cp ./saveMoney.apk api:/tmp/saveMoney.apk
-docker compose exec api /app/scripts/publish-update.sh /tmp/saveMoney.apk 3 1.2.0 "修了点小毛病"
-```
-
-发完后可用：
-
-```bash
+curl http://8.153.195.112:8080/api/health
 curl http://8.153.195.112:8080/api/update/latest
 ```
 
