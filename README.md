@@ -1,6 +1,8 @@
-# watchMoney
+# watchMoney（管管花 / GuanGuanHua）
 
 两人协作的购买申请审核与月度消费记录。**数据存在自己的后端**，两部手机用同一个家庭码同步申请、审核、照片和账本。
+
+应用身份：桌面名 **管管花**（英文环境 **GuanGuanHua**），`applicationId` 为 **`com.guanguanhua.app`**。这是一次新的应用身份，**不能覆盖安装**旧的 `com.savemoney.app`；请装新包。旧 App 可自行卸载，本地数据不会自动迁移。
 
 - 两个人**谁都可以**发起购买申请（可附照片）
 - 每一条申请由**另一个人**通过或拒绝，不能审自己的；通过时可以改数量或单价，但总额不能超过申请金额，入账按改过的金额
@@ -60,7 +62,7 @@ appVersionName=1.1.0
 ./gradlew assembleDebug -PappVersionCode=3 -PappVersionName=1.1.1
 ```
 
-推到 `main` 时 GitHub Actions 会用 `versionCode = 1000 + run_number`、`versionName = 1.2.{run_number}`，不改仓库里的这两个数字。`applicationId` 始终是 `com.savemoney.app`。
+推到 `main` 时 GitHub Actions 会用 `versionCode = 1000 + run_number`、`versionName = 1.2.{run_number}`，不改仓库里的这两个数字。`applicationId` 是 `com.guanguanhua.app`。服务器上的下载文件名仍是 `saveMoney.apk`（`/api/update/download/saveMoney.apk`），不要改，以免阿里云应用内更新失效。
 
 ## 应用内检查更新（自家服务器）
 
@@ -123,7 +125,9 @@ curl http://8.153.195.112:8080/api/health
 curl http://8.153.195.112:8080/api/update/latest
 ```
 
-确认 JSON 后，手机上打开「我们」→「检查更新」。安装时如系统要求，需要允许「管管花」安装未知应用。`applicationId` 仍是 `com.savemoney.app`，不要改，否则无法覆盖安装。
+确认 JSON 后，手机上打开「我们」→「检查更新」。安装时如系统要求，需要允许「管管花」安装未知应用。
+
+**从旧包 `com.savemoney.app` 换过来：** 这是新 App，系统不会覆盖旧安装。先装新包，再按需卸载旧的「管管花」；家庭账本在服务器上，用同一家庭码重新加入即可。之后同一 `applicationId` 的更新仍走覆盖安装。
 
 ## 界面截图
 

@@ -8,11 +8,11 @@ val appVersionCode = providers.gradleProperty("appVersionCode").get().toInt()
 val appVersionName = providers.gradleProperty("appVersionName").get()
 
 android {
-    namespace = "com.savemoney.app"
+    namespace = "com.guanguanhua.app"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.savemoney.app"
+        applicationId = "com.guanguanhua.app"
         minSdk = 26
         targetSdk = 35
         versionCode = appVersionCode
