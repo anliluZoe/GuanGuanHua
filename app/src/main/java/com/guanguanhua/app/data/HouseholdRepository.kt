@@ -124,7 +124,7 @@ class HouseholdRepository(private val app: Application) {
     private val text = "text/plain".toMediaType()
 
     private fun api(): GuanGuanHuaApi {
-        val base = prefs.getString("serverUrl", "http://10.0.2.2:8080")!!.trim().trimEnd('/') + "/"
+        val base = ApiConfig.resolvedServerUrl(prefs.getString("serverUrl", null)) + "/"
         val client = OkHttpClient.Builder()
             .connectTimeout(20, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)

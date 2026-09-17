@@ -6,6 +6,7 @@ import android.net.Uri
 import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.guanguanhua.app.data.ApiConfig
 import com.guanguanhua.app.data.ExpenseRecord
 import com.guanguanhua.app.data.MonthlyBudget
 import com.guanguanhua.app.data.PurchaseRequest
@@ -49,7 +50,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _session = MutableStateFlow(
         HouseholdSession(
-            serverUrl = prefs.getString("serverUrl", "http://10.0.2.2:8080")!!,
+            serverUrl = ApiConfig.resolvedServerUrl(prefs.getString("serverUrl", null)),
             token = prefs.getString("token", "")!!,
             householdCode = prefs.getString("householdCode", "")!!,
         )
@@ -102,13 +103,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val appearance: StateFlow<Appearance> = _appearance.asStateFlow()
 
     init {
-        if (_session.value.joined) refresh()
+        prefs.edit(commit = true) { putString("serverUrl", _session.value.serverUrl) }
+        if (_session.value.joined) refresh() else _ready.value = true
     }
 
     fun observeRequest(id: Long): Flow<PurchaseRequest?> =
         requests.map { list -> list.firstOrNull { it.id == id } }
 
     fun refresh(quiet: Boolean = false) {
+        if (!_session.value.joined) {
+            _ready.value = true
+            return
+        }
         viewModelScope.launch {
             track(_refreshCount, enabled = !quiet) {
                 runCatching {
@@ -121,16 +127,22 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun createHome(serverUrl: String, name: String) {
+    fun createHome(name: String) {
         viewModelScope.launch {
-            track(_busyCount) { connect(serverUrl) { repo.createHousehold(name.trim()) } }
+            track(_busyCount) { connect(_session.value.serverUrl) { repo.createHousehold(name.trim()) } }
         }
     }
 
-    fun joinHome(serverUrl: String, code: String, name: String) {
+    fun joinHome(code: String, name: String) {
         viewModelScope.launch {
-            track(_busyCount) { connect(serverUrl) { repo.joinHousehold(code, name.trim()) } }
+            track(_busyCount) { connect(_session.value.serverUrl) { repo.joinHousehold(code, name.trim()) } }
         }
+    }
+
+    fun setServerUrl(url: String) {
+        val resolved = ApiConfig.resolvedServerUrl(url)
+        prefs.edit(commit = true) { putString("serverUrl", resolved) }
+        _session.update { it.copy(serverUrl = resolved) }
     }
 
     fun leaveHome() {
@@ -259,7 +271,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private suspend fun connect(serverUrl: String, action: suspend () -> SessionDto) {
-        val url = serverUrl.trim().trimEnd('/')
+        val url = ApiConfig.resolvedServerUrl(serverUrl)
         prefs.edit(commit = true) { putString("serverUrl", url) }
         _session.update { it.copy(serverUrl = url) }
         runCatching {

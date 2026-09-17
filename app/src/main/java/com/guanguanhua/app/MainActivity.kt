@@ -66,7 +66,6 @@ import com.guanguanhua.app.ui.NewRequestScreen
 import com.guanguanhua.app.ui.ProfileScreen
 import com.guanguanhua.app.ui.RequestDetailScreen
 import com.guanguanhua.app.ui.RequestListScreen
-import com.guanguanhua.app.ui.SetupScreen
 import com.guanguanhua.app.ui.theme.QTheme
 import com.guanguanhua.app.ui.theme.GuanGuanHuaTheme
 import com.guanguanhua.app.update.AppUpdates
@@ -118,129 +117,126 @@ class MainActivity : ComponentActivity() {
                 val isBusy by viewModel.isBusy.collectAsStateWithLifecycle()
                 val backStackEntry by navController.currentBackStackEntryAsState()
                 val currentRoute = backStackEntry?.destination?.route
-                val showBottomBar = session.joined && TABS.any { it.route == currentRoute }
+                val showBottomBar = TABS.any { it.route == currentRoute }
                 val snackbar = remember { SnackbarHostState() }
 
                 BackHandler(enabled = isBusy) { }
 
                 Box(modifier = Modifier.fillMaxSize()) {
-                    if (!session.joined) {
-                        SetupScreen(viewModel)
-                    } else {
-                        val lifecycleOwner = LocalLifecycleOwner.current
-                        LaunchedEffect(lifecycleOwner) {
-                            lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-                                while (true) {
-                                    delay(FOREGROUND_POLL_MS)
-                                    viewModel.refresh(quiet = true)
-                                }
+                    val lifecycleOwner = LocalLifecycleOwner.current
+                    LaunchedEffect(lifecycleOwner, session.joined) {
+                        if (!session.joined) return@LaunchedEffect
+                        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                            while (true) {
+                                delay(FOREGROUND_POLL_MS)
+                                viewModel.refresh(quiet = true)
                             }
                         }
+                    }
 
-                        LaunchedEffect(status) {
-                            if (!status.isNullOrBlank()) {
-                                snackbar.showSnackbar(status!!)
-                                viewModel.consumeStatus()
-                            }
+                    LaunchedEffect(status) {
+                        if (!status.isNullOrBlank()) {
+                            snackbar.showSnackbar(status!!)
+                            viewModel.consumeStatus()
                         }
+                    }
 
-                        LaunchedEffect(Unit) {
-                            val result = AppUpdates.maybeCheckDaily(this@MainActivity)
-                            if (result is UpdateCheckResult.Available) {
-                                snackbar.showSnackbar(
-                                    message = "发现新版本 ${result.update.versionName}，去「我们」页更新",
-                                    duration = SnackbarDuration.Long,
-                                )
-                            }
+                    LaunchedEffect(Unit) {
+                        val result = AppUpdates.maybeCheckDaily(this@MainActivity)
+                        if (result is UpdateCheckResult.Available) {
+                            snackbar.showSnackbar(
+                                message = "发现新版本 ${result.update.versionName}，去「我们」页更新",
+                                duration = SnackbarDuration.Long,
+                            )
                         }
+                    }
 
-                        val pendingRequestId = openRequestId.longValue
-                        LaunchedEffect(pendingRequestId) {
-                            if (pendingRequestId != 0L) {
-                                navController.navigate("requests/$pendingRequestId") { launchSingleTop = true }
-                                openRequestId.longValue = 0L
-                            }
+                    val pendingRequestId = openRequestId.longValue
+                    LaunchedEffect(pendingRequestId, session.joined) {
+                        if (session.joined && pendingRequestId != 0L) {
+                            navController.navigate("requests/$pendingRequestId") { launchSingleTop = true }
+                            openRequestId.longValue = 0L
                         }
+                    }
 
-                        Scaffold(
-                            containerColor = QTheme.colors.canvas,
-                            snackbarHost = { SnackbarHost(snackbar) },
-                            bottomBar = {
-                                if (showBottomBar) {
-                                    val q = QTheme.colors
-                                    Row(
-                                        modifier = Modifier
-                                            .windowInsetsPadding(WindowInsets.navigationBars)
-                                            .padding(horizontal = 20.dp, vertical = 10.dp)
-                                            .clip(RoundedCornerShape(28.dp))
-                                            .background(q.paper)
-                                            .border(1.dp, q.lineStrong, RoundedCornerShape(28.dp))
-                                            .padding(horizontal = 8.dp, vertical = 6.dp)
-                                            .fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceEvenly,
-                                    ) {
-                                        TABS.forEach { tab ->
-                                            val selected = currentRoute == tab.route
-                                            Column(
-                                                modifier = Modifier
-                                                    .clip(RoundedCornerShape(22.dp))
-                                                    .background(if (selected) q.skySoft else Color.Transparent)
-                                                    .clickable {
-                                                        navController.navigate(tab.route) {
-                                                            popUpTo(navController.graph.findStartDestination().id) {
-                                                                saveState = true
-                                                            }
-                                                            launchSingleTop = true
-                                                            restoreState = true
+                    Scaffold(
+                        containerColor = QTheme.colors.canvas,
+                        snackbarHost = { SnackbarHost(snackbar) },
+                        bottomBar = {
+                            if (showBottomBar) {
+                                val q = QTheme.colors
+                                Row(
+                                    modifier = Modifier
+                                        .windowInsetsPadding(WindowInsets.navigationBars)
+                                        .padding(horizontal = 20.dp, vertical = 10.dp)
+                                        .clip(RoundedCornerShape(28.dp))
+                                        .background(q.paper)
+                                        .border(1.dp, q.lineStrong, RoundedCornerShape(28.dp))
+                                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                                        .fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceEvenly,
+                                ) {
+                                    TABS.forEach { tab ->
+                                        val selected = currentRoute == tab.route
+                                        Column(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(22.dp))
+                                                .background(if (selected) q.skySoft else Color.Transparent)
+                                                .clickable {
+                                                    navController.navigate(tab.route) {
+                                                        popUpTo(navController.graph.findStartDestination().id) {
+                                                            saveState = true
                                                         }
+                                                        launchSingleTop = true
+                                                        restoreState = true
                                                     }
-                                                    .padding(horizontal = 22.dp, vertical = 8.dp),
-                                                horizontalAlignment = Alignment.CenterHorizontally,
-                                            ) {
-                                                Icon(
-                                                    tab.icon,
-                                                    contentDescription = tab.label,
-                                                    tint = if (selected) q.sky else q.muted,
-                                                    modifier = Modifier.size(22.dp),
-                                                )
-                                                Text(
-                                                    tab.label,
-                                                    color = if (selected) q.sky else q.muted,
-                                                )
-                                            }
+                                                }
+                                                .padding(horizontal = 22.dp, vertical = 8.dp),
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                        ) {
+                                            Icon(
+                                                tab.icon,
+                                                contentDescription = tab.label,
+                                                tint = if (selected) q.sky else q.muted,
+                                                modifier = Modifier.size(22.dp),
+                                            )
+                                            Text(
+                                                tab.label,
+                                                color = if (selected) q.sky else q.muted,
+                                            )
                                         }
                                     }
                                 }
-                            },
-                        ) { padding ->
-                            NavHost(
-                                navController = navController,
-                                startDestination = "requests",
-                                modifier = Modifier.padding(padding),
-                            ) {
-                                composable("requests") {
-                                    RequestListScreen(
-                                        viewModel = viewModel,
-                                        onCreate = { navController.navigate("requests/new") },
-                                        onOpen = { id -> navController.navigate("requests/$id") },
-                                    )
-                                }
-                                composable("requests/new") {
-                                    NewRequestScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
-                                }
-                                composable(
-                                    route = "requests/{id}",
-                                    arguments = listOf(navArgument("id") { type = NavType.LongType }),
-                                ) { entry ->
-                                    RequestDetailScreen(
-                                        viewModel = viewModel,
-                                        requestId = entry.arguments?.getLong("id") ?: 0L,
-                                        onBack = { navController.popBackStack() },
-                                    )
-                                }
-                                composable("expenses") { ExpensesScreen(viewModel = viewModel) }
-                                composable("profile") { ProfileScreen(viewModel = viewModel) }
                             }
+                        },
+                    ) { padding ->
+                        NavHost(
+                            navController = navController,
+                            startDestination = "requests",
+                            modifier = Modifier.padding(padding),
+                        ) {
+                            composable("requests") {
+                                RequestListScreen(
+                                    viewModel = viewModel,
+                                    onCreate = { navController.navigate("requests/new") },
+                                    onOpen = { id -> navController.navigate("requests/$id") },
+                                )
+                            }
+                            composable("requests/new") {
+                                NewRequestScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+                            }
+                            composable(
+                                route = "requests/{id}",
+                                arguments = listOf(navArgument("id") { type = NavType.LongType }),
+                            ) { entry ->
+                                RequestDetailScreen(
+                                    viewModel = viewModel,
+                                    requestId = entry.arguments?.getLong("id") ?: 0L,
+                                    onBack = { navController.popBackStack() },
+                                )
+                            }
+                            composable("expenses") { ExpensesScreen(viewModel = viewModel) }
+                            composable("profile") { ProfileScreen(viewModel = viewModel) }
                         }
                     }
                     LoadingScrim(visible = isBusy)

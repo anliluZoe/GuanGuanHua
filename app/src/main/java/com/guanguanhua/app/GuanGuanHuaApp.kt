@@ -3,6 +3,9 @@ package com.guanguanhua.app
 import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.content.Context
+import androidx.core.content.edit
+import com.guanguanhua.app.data.ApiConfig
 import com.guanguanhua.app.data.HouseholdRepository
 import com.guanguanhua.app.notify.ReviewActivityWorker
 
@@ -14,6 +17,10 @@ class GuanGuanHuaApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        val prefs = getSharedPreferences("session", Context.MODE_PRIVATE)
+        prefs.edit(commit = true) {
+            putString("serverUrl", ApiConfig.resolvedServerUrl(prefs.getString("serverUrl", null)))
+        }
         ensureReviewChannel()
         ReviewActivityWorker.schedule(this)
     }

@@ -47,6 +47,7 @@ fun RequestListScreen(
 ) {
     val requests by viewModel.requests.collectAsStateWithLifecycle()
     val profile by viewModel.profile.collectAsStateWithLifecycle()
+    val session by viewModel.session.collectAsStateWithLifecycle()
     val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
     val isBusy by viewModel.isBusy.collectAsStateWithLifecycle()
     val isReady by viewModel.isReady.collectAsStateWithLifecycle()
@@ -69,8 +70,12 @@ fun RequestListScreen(
         Spacer(Modifier.height(12.dp))
         PageHeader(
             title = "买买申请",
-            subtitle = profile.partnerName?.let { "${profile.name} × $it · 想买？先过我这关哼" }
-                ?: "${profile.name}，等另一半加入后一起把关每一笔开销",
+            subtitle = if (!session.joined) {
+                "去「我们」页创建或加入家庭账本"
+            } else {
+                profile.partnerName?.let { "${profile.name} × $it · 想买？先过我这关哼" }
+                    ?: "${profile.name}，等另一半加入后一起把关每一笔开销"
+            },
             leading = {
                 StackedAvatars(
                     meName = profile.name,
@@ -124,6 +129,14 @@ fun RequestListScreen(
             ) {
                 if (waitingForList) {
                     item { LoadingHint("正在同步申请…") }
+                } else if (!session.joined) {
+                    item {
+                        EmptyHint(
+                            kind = MascotKind.Cat,
+                            title = "还没连上账本",
+                            subtitle = "打开「我们」，创建家庭账本或输入家庭码加入。",
+                        )
+                    }
                 } else if (shown.isEmpty()) {
                     item {
                         EmptyHint(
@@ -142,7 +155,7 @@ fun RequestListScreen(
     }
         PillButton(
             "＋  哼，又要买",
-            enabled = !isBusy,
+            enabled = !isBusy && session.joined,
             onClick = onCreate,
             modifier = Modifier
                 .align(Alignment.BottomCenter)

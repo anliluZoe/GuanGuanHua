@@ -60,6 +60,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.guanguanhua.app.AppViewModel
+import com.guanguanhua.app.data.ApiConfig
 import com.guanguanhua.app.notify.ReviewActivityWorker
 import com.guanguanhua.app.ui.theme.QTheme
 import com.guanguanhua.app.update.AppUpdates
@@ -77,7 +78,9 @@ fun ProfileScreen(viewModel: AppViewModel) {
     val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
     val isReady by viewModel.isReady.collectAsStateWithLifecycle()
     val appearance by viewModel.appearance.collectAsStateWithLifecycle()
-    var name by rememberSaveable(profile.name) { mutableStateOf(profile.name) }
+    var name by rememberSaveable(profile.name) { mutableStateOf(profile.name.ifBlank { "小明" }) }
+    var householdCode by rememberSaveable { mutableStateOf("") }
+    var serverUrl by rememberSaveable(session.serverUrl) { mutableStateOf(session.serverUrl) }
     val context = LocalContext.current
     var notificationsOn by remember { mutableStateOf(ReviewActivityWorker.notificationsAllowed(context)) }
     val notificationSettings = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
@@ -135,6 +138,39 @@ fun ProfileScreen(viewModel: AppViewModel) {
                 )
             },
         )
+        if (!session.joined) {
+            SoftCard(modifier = Modifier.fillMaxWidth()) {
+                Text("家庭账本", style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "不用填服务器。默认连家里那台，先起个名字就能建账本。",
+                    color = QTheme.colors.muted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Spacer(Modifier.height(12.dp))
+                SoftField(value = name, onValueChange = { name = it }, label = "我的名字")
+                Spacer(Modifier.height(16.dp))
+                PillButton("创建家庭账本", enabled = !isBusy && name.trim().isNotBlank(), onClick = {
+                    viewModel.consumeStatus()
+                    viewModel.createHome(name)
+                })
+            }
+            SoftCard(modifier = Modifier.fillMaxWidth()) {
+                Text("已经有家庭码？", style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.height(10.dp))
+                SoftField(value = householdCode, onValueChange = { householdCode = it }, label = "6 位家庭码")
+                Spacer(Modifier.height(12.dp))
+                PillButton(
+                    "加入",
+                    filled = false,
+                    enabled = !isBusy && name.trim().isNotBlank() && householdCode.trim().isNotBlank(),
+                    onClick = {
+                        viewModel.consumeStatus()
+                        viewModel.joinHome(householdCode, name)
+                    },
+                )
+            }
+        } else {
         SoftCard(modifier = Modifier.fillMaxWidth()) {
             Text("我的头像", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(12.dp))
@@ -172,7 +208,7 @@ fun ProfileScreen(viewModel: AppViewModel) {
             )
             Spacer(Modifier.height(8.dp))
             Text(
-                "把码塞给另一部手机，启动页点「加入」——别搞丢了哦。",
+                "把码塞给另一部手机，打开「我们」页点「加入」——别搞丢了哦。",
                 color = QTheme.colors.muted,
                 style = MaterialTheme.typography.bodySmall,
             )
@@ -254,9 +290,30 @@ fun ProfileScreen(viewModel: AppViewModel) {
                 })
             }
         }
+        }
         AppearancePicker(value = appearance, onChange = viewModel::setAppearance)
         UpdateCard()
-        PillButton("退出这个家庭账本", filled = false, enabled = !isBusy, onClick = { viewModel.leaveHome() })
+        SoftCard(modifier = Modifier.fillMaxWidth()) {
+            Text("服务器地址", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "调试用。一般不用改，默认已连家里的服务器。",
+                color = QTheme.colors.muted,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Spacer(Modifier.height(12.dp))
+            SoftField(value = serverUrl, onValueChange = { serverUrl = it }, label = "API 地址")
+            Spacer(Modifier.height(16.dp))
+            PillButton(
+                "保存地址",
+                filled = false,
+                enabled = !isBusy && ApiConfig.resolvedServerUrl(serverUrl) != session.serverUrl,
+                onClick = { viewModel.setServerUrl(serverUrl) },
+            )
+        }
+        if (session.joined) {
+            PillButton("退出这个家庭账本", filled = false, enabled = !isBusy, onClick = { viewModel.leaveHome() })
+        }
         Spacer(Modifier.height(96.dp))
         }
     }

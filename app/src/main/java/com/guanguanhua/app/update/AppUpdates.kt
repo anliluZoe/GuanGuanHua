@@ -8,6 +8,7 @@ import androidx.core.content.FileProvider
 import androidx.core.content.edit
 import androidx.core.content.pm.PackageInfoCompat
 import com.google.gson.Gson
+import com.guanguanhua.app.data.ApiConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
@@ -54,7 +55,6 @@ sealed class UpdateCheckResult {
 object AppUpdates {
     private const val PREFS = "app_update"
     private const val SESSION_PREFS = "session"
-    private const val DEFAULT_SERVER = "http://10.0.2.2:8080"
     private const val KEY_LAST_CHECK_MS = "last_check_ms"
     private const val KEY_CACHE_CODE = "cache_code"
     private const val KEY_CACHE_NAME = "cache_name"
@@ -76,10 +76,9 @@ object AppUpdates {
     }
 
     fun configuredServerBase(context: Context): String =
-        context.getSharedPreferences(SESSION_PREFS, Context.MODE_PRIVATE)
-            .getString("serverUrl", DEFAULT_SERVER)!!
-            .trim()
-            .trimEnd('/')
+        ApiConfig.resolvedServerUrl(
+            context.getSharedPreferences(SESSION_PREFS, Context.MODE_PRIVATE).getString("serverUrl", null),
+        )
 
     fun latestUrl(serverBase: String): String =
         "${serverBase.trim().trimEnd('/')}/api/update/latest"
