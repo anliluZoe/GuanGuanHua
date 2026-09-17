@@ -51,10 +51,29 @@ function requireMember(req, res, next) {
 
 app.get("/api/health", (_req, res) => res.json({ ok: true }));
 
+function fileUrl(req, filename) {
+  if (!filename) return null;
+  return `${req.protocol}://${req.get("host")}/api/files/${encodeURIComponent(filename)}`;
+}
+
+function sessionJson(req, token) {
+  const payload = store.sessionPayload(token);
+  return {
+    ...payload,
+    members: payload.members.map((member) => ({
+      id: member.id,
+      name: member.name,
+      avatarPreset: member.avatarPreset,
+      avatarUrl: fileUrl(req, member.avatarFile),
+    })),
+  };
+}
+
 app.post("/api/households", (req, res) => {
   const name = String(req.body?.name || "").trim();
   if (!name) return res.status(400).json({ detail: "先填一下名字" });
-  res.json(store.createHousehold(name));
+  const created = store.createHousehold(name);
+  res.json(sessionJson(req, created.token));
 });
 
 app.post("/api/households/join", (req, res) => {
@@ -63,18 +82,31 @@ app.post("/api/households/join", (req, res) => {
   if (!name || !code) return res.status(400).json({ detail: "名字和家庭码都要填" });
   const session = store.joinHousehold(code, name);
   if (!session) return res.status(404).json({ detail: "找不到这个家庭码" });
-  res.json(session);
+  res.json(sessionJson(req, session.token));
 });
 
 app.get("/api/session", requireMember, (req, res) => {
-  res.json(store.sessionPayload(req.member.token));
+  res.json(sessionJson(req, req.member.token));
 });
 
 app.put("/api/session", requireMember, (req, res) => {
   const name = String(req.body?.name || "").trim();
-  if (!name) return res.status(400).json({ detail: "名字不能为空" });
-  store.updateName(req.member.id, name);
-  res.json(store.sessionPayload(req.member.token));
+  const hasPreset = typeof req.body?.avatarPreset === "string";
+  if (!name && !hasPreset) return res.status(400).json({ detail: "名字不能为空" });
+  if (name) store.updateName(req.member.id, name);
+  if (hasPreset) {
+    const preset = String(req.body.avatarPreset).trim();
+    if (!store.knownAvatarPreset(preset)) return res.status(400).json({ detail: "头像预设不对" });
+    store.setAvatarPreset(req.member.id, preset);
+  }
+  res.json(sessionJson(req, req.member.token));
+});
+
+app.post("/api/session/avatar", requireMember, upload.single("avatar"), (req, res) => {
+  if (!req.file || !req.file.buffer.length) return res.status(400).json({ detail: "先选一张照片" });
+  const suffix = path.extname(req.file.originalname || "") || ".jpg";
+  store.setAvatarFile(req.member.id, store.savePhoto(req.file.buffer, suffix));
+  res.json(sessionJson(req, req.member.token));
 });
 
 app.get("/api/requests", requireMember, (req, res) => {
@@ -178,5 +210,5 @@ app.get("/api/files/:filename", (req, res) => {
 
 const port = Number(process.env.PORT || 8080);
 app.listen(port, "0.0.0.0", () => {
-  console.log(`省钱助手 API  http://0.0.0.0:${port}`);
+  console.log(`管管花 API  http://0.0.0.0:${port}`);
 });

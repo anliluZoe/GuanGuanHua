@@ -22,7 +22,12 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 import java.util.concurrent.TimeUnit
 
-data class MemberDto(val id: Long, val name: String)
+data class MemberDto(
+    val id: Long,
+    val name: String,
+    val avatarPreset: String? = null,
+    val avatarUrl: String? = null,
+)
 
 data class SessionDto(
     val token: String,
@@ -44,7 +49,7 @@ data class ReviewBody(
     val quantity: Int? = null,
 )
 
-data class ProfileBody(val name: String)
+data class ProfileBody(val name: String? = null, val avatarPreset: String? = null)
 
 data class BudgetBody(val amountCents: Long)
 
@@ -60,6 +65,13 @@ interface SaveMoneyApi {
 
     @PUT("api/session")
     suspend fun updateSession(@Header("Authorization") authorization: String, @Body body: ProfileBody): SessionDto
+
+    @Multipart
+    @POST("api/session/avatar")
+    suspend fun uploadAvatar(
+        @Header("Authorization") authorization: String,
+        @Part avatar: MultipartBody.Part,
+    ): SessionDto
 
     @GET("api/requests")
     suspend fun listRequests(@Header("Authorization") authorization: String): List<PurchaseRequest>
@@ -136,7 +148,20 @@ class HouseholdRepository(private val app: Application) {
     suspend fun session(): SessionDto = api().session(bearer())
 
     suspend fun updateName(name: String): SessionDto =
-        api().updateSession(bearer(), ProfileBody(name))
+        api().updateSession(bearer(), ProfileBody(name = name))
+
+    suspend fun updateAvatarPreset(name: String, preset: String): SessionDto =
+        api().updateSession(bearer(), ProfileBody(name = name, avatarPreset = preset))
+
+    suspend fun uploadAvatar(imageUri: Uri): SessionDto {
+        val bytes = app.contentResolver.openInputStream(imageUri)?.use { it.readBytes() }
+            ?: error("读不到这张照片")
+        val body = bytes.toRequestBody("image/*".toMediaType())
+        return api().uploadAvatar(
+            bearer(),
+            MultipartBody.Part.createFormData("avatar", "avatar.jpg", body),
+        )
+    }
 
     suspend fun listRequests(): List<PurchaseRequest> = api().listRequests(bearer())
 

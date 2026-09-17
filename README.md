@@ -64,7 +64,7 @@ appVersionName=1.1.0
 
 App 在「我们」页可以「检查更新」；进家庭账本后每天最多自动查一次，有新版本才提醒。它请求：
 
-`GET https://api.github.com/repos/anliluZoe/saveMoney/releases/latest`
+`GET https://api.github.com/repos/anliluZoe/watchMoney/releases/latest`
 
 发版时请同时：
 

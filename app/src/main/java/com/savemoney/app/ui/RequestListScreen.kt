@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -57,25 +56,45 @@ fun RequestListScreen(
     val waitingForList = !isReady
     LaunchedEffect(Unit) { viewModel.refresh() }
 
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(QTheme.colors.screenGlow),
+    ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(QTheme.colors.screenGlow)
             .padding(horizontal = 20.dp),
     ) {
         Spacer(Modifier.height(12.dp))
-        Mascot(MascotKind.Cat, size = 64.dp)
-        Spacer(Modifier.height(8.dp))
         PageHeader(
             title = "买买申请",
             subtitle = profile.partnerName?.let { "${profile.name} × $it · 想买？先过我这关哼" }
                 ?: "${profile.name}，等另一半加入后一起把关每一笔开销",
+            leading = {
+                StackedAvatars(
+                    meName = profile.name,
+                    mePreset = profile.avatarPreset,
+                    mePhotoUrl = profile.avatarUrl,
+                    partnerName = profile.partnerName,
+                    partnerPreset = profile.partnerAvatarPreset,
+                    partnerPhotoUrl = profile.partnerAvatarUrl,
+                )
+            },
         )
         if (profile.partnerName != null) {
             Spacer(Modifier.height(12.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                NameDot(profile.name, QTheme.colors.sky)
-                NameDot(profile.partnerName!!, QTheme.colors.mint, modifier = Modifier.offset(x = (-8).dp))
+                StackedAvatars(
+                    meName = profile.name,
+                    mePreset = profile.avatarPreset,
+                    mePhotoUrl = profile.avatarUrl,
+                    partnerName = profile.partnerName,
+                    partnerPreset = profile.partnerAvatarPreset,
+                    partnerPhotoUrl = profile.partnerAvatarUrl,
+                    size = 28.dp,
+                )
+                Spacer(Modifier.width(8.dp))
                 Text(
                     if (pendingForMe > 0) "$pendingForMe 笔在等你批哦" else "暂时没人闯关，哼",
                     style = MaterialTheme.typography.bodyMedium,
@@ -113,20 +132,22 @@ fun RequestListScreen(
                             subtitle = filter.emptySubtitle,
                         )
                     }
-                    item {
-                        PillButton("新建申请", enabled = !isBusy, onClick = onCreate)
-                    }
                 } else {
                     items(shown, key = { it.id }) { request ->
                         RequestCard(request, onClick = { onOpen(request.id) })
                     }
-                    item {
-                        Spacer(Modifier.height(4.dp))
-                        PillButton("＋  新建申请", enabled = !isBusy, onClick = onCreate)
-                    }
                 }
             }
         }
+    }
+        PillButton(
+            "＋  哼，又要买",
+            enabled = !isBusy,
+            onClick = onCreate,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(start = 20.dp, end = 20.dp, bottom = 10.dp),
+        )
     }
 }
 
@@ -209,14 +230,14 @@ private fun RequestCard(request: PurchaseRequest, onClick: () -> Unit) {
     }
 }
 
-/** 申请列表顶部芯片：待审核只展示「待我审」，自己发出去的待审进「等对方」。 */
+/** 申请列表顶部芯片：待审核只展示待我审的申请，自己发出去的待审进「等对方」。 */
 enum class RequestListFilter(
     val label: String,
     val emptyTitle: String,
     val emptySubtitle: String,
 ) {
     ALL("全部", "还没有人来闯关", "想买就提申请，过了我这关再说"),
-    PENDING_FOR_ME("待我审", "暂时没人闯关", "对方提交、等你把关的申请会出现在这里"),
+    PENDING_FOR_ME("待审核", "暂时没人闯关", "对方提交、等你把关的申请会出现在这里"),
     WAITING_FOR_PARTNER("等对方", "没有在等对方的申请", "你提交后、还在等 TA 审核的会出现在这里"),
     APPROVED("已通过", "还没有过关的申请", "通过的购买会出现在这里"),
     REJECTED("已拒绝", "还没有被拒绝的申请", "被拒的申请会出现在这里");

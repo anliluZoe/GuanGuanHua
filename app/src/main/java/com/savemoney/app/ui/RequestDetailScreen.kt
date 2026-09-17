@@ -259,7 +259,7 @@ fun RequestDetailScreen(viewModel: AppViewModel, requestId: Long, onBack: () -> 
                         PillButton("拒绝", filled = false, enabled = !isBusy, onClick = {
                             viewModel.review(current.id, approve = false, comment = comment, onSuccess = onBack)
                         }, modifier = Modifier.weight(1f))
-                        PillButton("通过", enabled = !isBusy, onClick = {
+                        PillButton("通过", enabled = !isBusy, approve = true, onClick = {
                             approveAttempted = true
                             if (approveAmountsOk) {
                                 viewModel.review(

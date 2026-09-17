@@ -59,6 +59,7 @@ class Store {
       );
     `);
     this.migrateFromFixedRoles();
+    this.migrateAvatars();
   }
 
   /** 早期版本每个成员有固定的申请人/审核人角色；现在谁都能申请，由对方审核。 */
@@ -74,6 +75,23 @@ class Store {
     if (!columns("purchase_requests").includes("approved_quantity")) {
       this.db.exec("ALTER TABLE purchase_requests ADD COLUMN approved_quantity INTEGER");
       this.db.exec("ALTER TABLE purchase_requests ADD COLUMN approved_unit_price_cents INTEGER");
+    }
+  }
+
+  /** 成员头像：预设 id 和/或相册上传文件（复用 photos 目录）。 */
+  migrateAvatars() {
+    const columns = this.db.prepare("PRAGMA table_info(members)").all().map((c) => c.name);
+    if (columns.includes("avatar_preset")) return;
+    this.db.exec("ALTER TABLE members ADD COLUMN avatar_preset TEXT");
+    this.db.exec("ALTER TABLE members ADD COLUMN avatar_file TEXT");
+    const houses = this.db.prepare("SELECT DISTINCT household_id FROM members").all();
+    for (const { household_id } of houses) {
+      const members = this.db.prepare("SELECT id FROM members WHERE household_id = ? ORDER BY id").all(household_id);
+      members.forEach((member, index) => {
+        this.db
+          .prepare("UPDATE members SET avatar_preset = ? WHERE id = ?")
+          .run(index === 1 ? "mascot_dog" : "mascot_cat", member.id);
+      });
     }
   }
 
@@ -104,8 +122,8 @@ class Store {
         }
       }
       this.db
-        .prepare("INSERT INTO members(household_id, token, name) VALUES (?,?,?)")
-        .run(householdId, token, name);
+        .prepare("INSERT INTO members(household_id, token, name, avatar_preset) VALUES (?,?,?,?)")
+        .run(householdId, token, name, "mascot_cat");
     });
     return this.sessionPayload(token);
   }
@@ -114,9 +132,11 @@ class Store {
     const house = this.db.prepare("SELECT * FROM households WHERE code = ?").get(String(code).trim());
     if (!house) return null;
     const token = crypto.randomBytes(16).toString("hex");
+    const existing = this.db.prepare("SELECT COUNT(*) AS n FROM members WHERE household_id = ?").get(house.id).n;
+    const preset = existing === 1 ? "mascot_dog" : "mascot_cat";
     this.db
-      .prepare("INSERT INTO members(household_id, token, name) VALUES (?,?,?)")
-      .run(house.id, token, name);
+      .prepare("INSERT INTO members(household_id, token, name, avatar_preset) VALUES (?,?,?,?)")
+      .run(house.id, token, name, preset);
     return this.sessionPayload(token);
   }
 
@@ -133,8 +153,14 @@ class Store {
   sessionPayload(token) {
     const row = this.memberByToken(token);
     const members = this.db
-      .prepare("SELECT id, name FROM members WHERE household_id = ? ORDER BY id")
-      .all(row.household_id);
+      .prepare("SELECT id, name, avatar_preset, avatar_file FROM members WHERE household_id = ? ORDER BY id")
+      .all(row.household_id)
+      .map((member) => ({
+        id: member.id,
+        name: member.name,
+        avatarPreset: member.avatar_preset || null,
+        avatarFile: member.avatar_file || null,
+      }));
     return {
       token,
       memberId: row.id,
@@ -146,6 +172,27 @@ class Store {
 
   updateName(memberId, name) {
     this.db.prepare("UPDATE members SET name = ? WHERE id = ?").run(name, memberId);
+  }
+
+  knownAvatarPreset(id) {
+    return AVATAR_PRESETS.includes(id);
+  }
+
+  setAvatarPreset(memberId, preset) {
+    const row = this.db.prepare("SELECT avatar_file FROM members WHERE id = ?").get(memberId);
+    if (row?.avatar_file) this.deletePhoto(row.avatar_file);
+    this.db.prepare("UPDATE members SET avatar_preset = ?, avatar_file = NULL WHERE id = ?").run(preset, memberId);
+  }
+
+  setAvatarFile(memberId, filename) {
+    const row = this.db.prepare("SELECT avatar_file FROM members WHERE id = ?").get(memberId);
+    if (row?.avatar_file && row.avatar_file !== filename) this.deletePhoto(row.avatar_file);
+    this.db.prepare("UPDATE members SET avatar_preset = NULL, avatar_file = ? WHERE id = ?").run(filename, memberId);
+  }
+
+  deletePhoto(filename) {
+    const filePath = this.photoPath(filename);
+    if (filePath) fs.unlinkSync(filePath);
   }
 
   savePhoto(buffer, suffix = ".jpg") {
@@ -305,4 +352,18 @@ function approvedAmountsOk(requestedQuantity, requestedUnitPriceCents, approvedQ
   return approvedTotal <= askedTotal;
 }
 
-module.exports = { Store, approvedAmountsOk };
+const AVATAR_PRESETS = [
+  "mascot_cat",
+  "mascot_dog",
+  "kitten",
+  "corgi",
+  "bunny",
+  "panda",
+  "duckling",
+  "redpanda",
+  "penguin",
+  "hedgehog",
+  "pup",
+];
+
+module.exports = { Store, approvedAmountsOk, AVATAR_PRESETS };

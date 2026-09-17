@@ -155,7 +155,7 @@ fun NewRequestScreen(viewModel: AppViewModel, onBack: () -> Unit) {
         )
         Spacer(Modifier.height(4.dp))
         PillButton(
-            text = "提交申请",
+            text = "哼，提交申请",
             enabled = !isBusy,
             onClick = {
                 submitted = true
