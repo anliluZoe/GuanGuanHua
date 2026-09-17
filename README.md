@@ -11,7 +11,7 @@
 
 ## 两部手机怎么一起用
 
-1. 打开 App，默认连生产服务器 `http://8.153.195.112:8080`，不用填地址。
+1. 打开 App，默认连生产服务器 `http://xxxxx`，不用填地址。
 2. 第一部手机打开「我们」，填自己的名字，点 **创建家庭账本**，记下 6 位家庭码。
 3. 第二部手机同样打开「我们」，填名字，输入家庭码，点 **加入**。
 4. 之后两边的申请、照片和消费都会同步；在「我们」页可以看到家庭码。
@@ -70,7 +70,7 @@ App 在「我们」页可以「检查更新」；进家庭账本后每天最多�
 
 `GET {serverUrl}/api/update/latest`
 
-例如生产环境：`http://8.153.195.112:8080/api/update/latest`。
+例如生产环境：`http://xxxxx/api/update/latest`。
 
 返回 JSON：
 
@@ -121,8 +121,8 @@ backend/scripts/publish-update.sh app/build/outputs/apk/debug/app-debug.apk 3 1.
 生产健康检查 / 最新版本：
 
 ```bash
-curl http://8.153.195.112:8080/api/health
-curl http://8.153.195.112:8080/api/update/latest
+curl http://xxxxx/api/health
+curl http://xxxxx/api/update/latest
 ```
 
 确认 JSON 后，手机上打开「我们」→「检查更新」。安装时如系统要求，需要允许「管管花」安装未知应用。
