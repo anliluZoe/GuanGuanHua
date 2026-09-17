@@ -104,6 +104,29 @@ test("latest 404s when the apk file is missing", async () => {
   });
 });
 
+test("publish-update.sh copies apk and writes latest.json", () => {
+  const { spawnSync } = require("node:child_process");
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "save-money-publish-"));
+  try {
+    const apk = path.join(root, "saveMoney.apk");
+    fs.writeFileSync(apk, "apk-bytes");
+    const result = spawnSync(
+      "bash",
+      [path.join(__dirname, "scripts/publish-update.sh"), apk, "1042", "1.2.42", "ci-notes"],
+      { env: { ...process.env, SAVE_MONEY_DATA: root }, encoding: "utf8" }
+    );
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const latest = JSON.parse(fs.readFileSync(path.join(root, "updates", "latest.json"), "utf8"));
+    assert.equal(latest.versionCode, 1042);
+    assert.equal(latest.versionName, "1.2.42");
+    assert.equal(latest.filename, "saveMoney.apk");
+    assert.equal(latest.notes, "ci-notes");
+    assert.equal(fs.readFileSync(path.join(root, "updates", "saveMoney.apk"), "utf8"), "apk-bytes");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 function publish(dir, payload, bytes = Buffer.from("apk-bytes")) {
   fs.writeFileSync(path.join(dir, payload.filename), bytes);
   fs.writeFileSync(path.join(dir, "latest.json"), JSON.stringify(payload));
