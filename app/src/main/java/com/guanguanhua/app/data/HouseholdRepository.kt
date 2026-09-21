@@ -57,11 +57,15 @@ data class BudgetBody(val amountCents: Long)
 data class WidgetDto(
     val widgetImageUrl: String? = null,
     val widgetCaption: String? = null,
+    val widgetCaptionColor: String? = null,
     val widgetUpdatedBy: String? = null,
     val widgetUpdatedAt: Long? = null,
 )
 
-data class WidgetCaptionBody(val widgetCaption: String)
+data class WidgetCaptionBody(
+    val widgetCaption: String,
+    val widgetCaptionColor: String,
+)
 
 interface GuanGuanHuaApi {
     @POST("api/households")
@@ -241,8 +245,14 @@ class HouseholdRepository(private val app: Application) {
 
     suspend fun getWidget(): WidgetDto = api().getWidget(bearer())
 
-    suspend fun updateWidgetCaption(caption: String): WidgetDto =
-        api().updateWidget(bearer(), WidgetCaptionBody(widgetCaption = caption))
+    suspend fun updateWidgetCaption(caption: String, captionColor: String): WidgetDto =
+        api().updateWidget(
+            bearer(),
+            WidgetCaptionBody(
+                widgetCaption = caption,
+                widgetCaptionColor = captionColor,
+            ),
+        )
 
     suspend fun uploadWidgetImage(imageUri: Uri): WidgetDto {
         val bytes = app.contentResolver.openInputStream(imageUri)?.use { it.readBytes() }

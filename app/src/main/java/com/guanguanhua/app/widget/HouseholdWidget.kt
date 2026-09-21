@@ -21,13 +21,13 @@ import androidx.glance.appwidget.provideContent
 import androidx.glance.background
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
-import androidx.glance.layout.Column
 import androidx.glance.layout.ContentScale
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.padding
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
+import androidx.glance.text.TextAlign
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import com.guanguanhua.app.MainActivity
@@ -52,64 +52,40 @@ private fun WidgetCard(context: Context, state: WidgetState, cover: Bitmap?) {
         .putExtra(MainActivity.EXTRA_OPEN_WIDGET, true)
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
     val caption = WidgetCopy.clampCaption(state.caption)
+    val hasCover = cover != null && !state.localImagePath.isNullOrBlank()
+    val overlayText = caption.ifBlank { if (hasCover) "" else WidgetCopy.EMPTY_PHOTO }
     Box(
         modifier = GlanceModifier
             .fillMaxSize()
             .appWidgetBackground()
             .cornerRadius(20.dp)
-            .background(ColorProvider(Color.White))
+            .background(ColorProvider(if (hasCover) Color.White else Color(0xFFD7EAF3)))
             .clickable(actionStartActivity(open)),
+        contentAlignment = Alignment.Center,
     ) {
-        if (cover != null && !state.localImagePath.isNullOrBlank()) {
+        if (hasCover && cover != null) {
             Image(
                 provider = ImageProvider(cover),
-                contentDescription = caption.ifBlank { context.getString(R.string.widget_name) },
+                contentDescription = overlayText.ifBlank { context.getString(R.string.widget_name) },
                 contentScale = ContentScale.Crop,
                 modifier = GlanceModifier.fillMaxSize().cornerRadius(20.dp),
             )
-        } else {
-            Box(
-                modifier = GlanceModifier
-                    .fillMaxSize()
-                    .background(ColorProvider(Color(0xFFD7EAF3))),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = WidgetCopy.EMPTY_PHOTO,
-                    style = TextStyle(color = ColorProvider(Color(0xFF5C6673)), fontSize = 14.sp),
-                )
-            }
         }
-        Column(
-            modifier = GlanceModifier.fillMaxSize(),
-            verticalAlignment = Alignment.Bottom,
-        ) {
-            Column(
-                modifier = GlanceModifier
-                    .fillMaxWidth()
-                    .background(ColorProvider(Color(0xCC1C212B)))
-                    .padding(horizontal = 10.dp, vertical = 8.dp),
-            ) {
-                if (caption.isNotBlank()) {
-                    Text(
-                        text = caption,
-                        maxLines = 2,
-                        style = TextStyle(
-                            color = ColorProvider(Color.White),
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium,
-                        ),
-                    )
-                }
-                Text(
-                    text = WidgetCopy.BRAND,
-                    style = TextStyle(
-                        color = ColorProvider(Color(0xFFF07A5C)),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
+        if (overlayText.isNotBlank()) {
+            Text(
+                text = overlayText,
+                maxLines = 3,
+                style = TextStyle(
+                    color = ColorProvider(
+                        if (caption.isNotBlank()) Color(WidgetCopy.captionColorArgb(state.captionColor))
+                        else Color(0xFF5C6673),
                     ),
-                )
-            }
+                    fontSize = 14.sp,
+                    fontWeight = if (caption.isNotBlank()) FontWeight.Medium else FontWeight.Normal,
+                    textAlign = TextAlign.Center,
+                ),
+                modifier = GlanceModifier.fillMaxWidth().padding(horizontal = 12.dp),
+            )
         }
     }
 }

@@ -1,6 +1,7 @@
 package com.guanguanhua.app.widget
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class WidgetCopyTest {
@@ -24,6 +25,21 @@ class WidgetCopyTest {
     @Test
     fun emptyPhotoCopyIsTheApprovedPlaceholder() {
         assertEquals("还没有照片", WidgetCopy.EMPTY_PHOTO)
-        assertEquals("管管花", WidgetCopy.BRAND)
+        assertEquals("上传一张放上桌面吧", WidgetCopy.EMPTY_PHOTO_HINT)
+    }
+
+    @Test
+    fun captionColorDefaultsAndNormalizesHex() {
+        assertEquals("#FFFFFF", WidgetCopy.DEFAULT_CAPTION_COLOR)
+        assertEquals("#FFFFFF", WidgetCopy.normalizeCaptionColor(null))
+        assertEquals("#FFFFFF", WidgetCopy.normalizeCaptionColor("  "))
+        assertEquals("#FFFFFF", WidgetCopy.normalizeCaptionColor("#fff"))
+        assertEquals("#F07A5C", WidgetCopy.normalizeCaptionColor("f07a5c"))
+        assertEquals("#FF0077", WidgetCopy.normalizeCaptionColor("#f07"))
+        assertEquals("#7EB8D8", WidgetCopy.normalizeCaptionColor("#7EB8D8"))
+        assertNull(WidgetCopy.parseCaptionColorRgb("not-a-color"))
+        assertNull(WidgetCopy.parseCaptionColorRgb("#GG0000"))
+        assertEquals(0xFFF07A5C.toInt(), WidgetCopy.captionColorArgb("#F07A5C"))
+        assertEquals(0xFFFFFFFF.toInt(), WidgetCopy.captionColorArgb("nope"))
     }
 }

@@ -219,7 +219,7 @@ fun ProfileScreen(viewModel: AppViewModel, onOpenWidget: () -> Unit = {}) {
             Text("桌面组件", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(6.dp))
             Text(
-                "一张合照、一句说明，两部手机的桌面一起换。",
+                "一张合照、一句说明叠在正中间，两部手机的桌面一起换。",
                 color = QTheme.colors.muted,
                 style = MaterialTheme.typography.bodySmall,
             )

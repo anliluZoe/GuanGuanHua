@@ -17,6 +17,7 @@ import java.util.concurrent.TimeUnit
 data class WidgetState(
     val imageUrl: String? = null,
     val caption: String = "",
+    val captionColor: String = WidgetCopy.DEFAULT_CAPTION_COLOR,
     val updatedBy: String? = null,
     val updatedAt: Long? = null,
     val localImagePath: String? = null,
@@ -26,6 +27,7 @@ object WidgetCache {
     private const val PREFS = "widget"
     private const val KEY_IMAGE_URL = "imageUrl"
     private const val KEY_CAPTION = "caption"
+    private const val KEY_CAPTION_COLOR = "captionColor"
     private const val KEY_UPDATED_BY = "updatedBy"
     private const val KEY_UPDATED_AT = "updatedAt"
 
@@ -43,6 +45,7 @@ object WidgetCache {
         return WidgetState(
             imageUrl = imageUrl,
             caption = prefs.getString(KEY_CAPTION, "").orEmpty(),
+            captionColor = WidgetCopy.normalizeCaptionColor(prefs.getString(KEY_CAPTION_COLOR, null)),
             updatedBy = prefs.getString(KEY_UPDATED_BY, null),
             updatedAt = if (prefs.contains(KEY_UPDATED_AT)) prefs.getLong(KEY_UPDATED_AT, 0L) else null,
             localImagePath = if (!imageUrl.isNullOrBlank() && file.exists()) file.absolutePath else null,
@@ -96,6 +99,7 @@ object WidgetCache {
         prefs.edit(commit = true) {
             putString(KEY_IMAGE_URL, remoteUrl)
             putString(KEY_CAPTION, remote.widgetCaption.orEmpty())
+            putString(KEY_CAPTION_COLOR, WidgetCopy.normalizeCaptionColor(remote.widgetCaptionColor))
             putString(KEY_UPDATED_BY, remote.widgetUpdatedBy)
             val updatedAt = remote.widgetUpdatedAt
             if (updatedAt != null) putLong(KEY_UPDATED_AT, updatedAt) else remove(KEY_UPDATED_AT)

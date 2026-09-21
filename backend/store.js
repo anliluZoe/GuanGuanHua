@@ -79,20 +79,25 @@ class Store {
     }
   }
 
-  /** 家庭桌面组件：一张共享照片 + 一句说明，存在 photos 目录。 */
+  /** 家庭桌面组件：一张共享照片 + 一句说明 + 文案颜色，存在 photos 目录。 */
   migrateWidget() {
     const columns = this.db.prepare("PRAGMA table_info(households)").all().map((c) => c.name);
-    if (columns.includes("widget_image_file")) return;
-    this.db.exec("ALTER TABLE households ADD COLUMN widget_image_file TEXT");
-    this.db.exec("ALTER TABLE households ADD COLUMN widget_caption TEXT");
-    this.db.exec("ALTER TABLE households ADD COLUMN widget_updated_by INTEGER");
-    this.db.exec("ALTER TABLE households ADD COLUMN widget_updated_at INTEGER");
+    if (!columns.includes("widget_image_file")) {
+      this.db.exec("ALTER TABLE households ADD COLUMN widget_image_file TEXT");
+      this.db.exec("ALTER TABLE households ADD COLUMN widget_caption TEXT");
+      this.db.exec("ALTER TABLE households ADD COLUMN widget_updated_by INTEGER");
+      this.db.exec("ALTER TABLE households ADD COLUMN widget_updated_at INTEGER");
+    }
+    if (!columns.includes("widget_caption_color")) {
+      this.db.exec("ALTER TABLE households ADD COLUMN widget_caption_color TEXT");
+    }
   }
 
   getWidget(householdId) {
     const row = this.db
       .prepare(
         `SELECT h.widget_image_file AS image_file, h.widget_caption AS caption,
+                h.widget_caption_color AS caption_color,
                 h.widget_updated_at AS updated_at, m.name AS updated_by
          FROM households h
          LEFT JOIN members m ON m.id = h.widget_updated_by
@@ -102,6 +107,7 @@ class Store {
     return {
       imageFile: row?.image_file || null,
       caption: row?.caption || "",
+      captionColor: normalizeWidgetCaptionColor(row?.caption_color) || DEFAULT_WIDGET_CAPTION_COLOR,
       updatedBy: row?.updated_by || null,
       updatedAt: row?.updated_at || null,
     };
@@ -109,23 +115,28 @@ class Store {
 
   setWidget(householdId, memberId, fields = {}) {
     const row = this.db
-      .prepare("SELECT widget_image_file, widget_caption FROM households WHERE id = ?")
+      .prepare("SELECT widget_image_file, widget_caption, widget_caption_color FROM households WHERE id = ?")
       .get(householdId);
     const imageFile = fields.imageFile !== undefined ? fields.imageFile : row?.widget_image_file || null;
     const caption =
       fields.caption !== undefined
         ? String(fields.caption).trim().slice(0, MAX_WIDGET_CAPTION)
         : row?.widget_caption || "";
+    const captionColor =
+      fields.captionColor !== undefined
+        ? normalizeWidgetCaptionColor(fields.captionColor) || DEFAULT_WIDGET_CAPTION_COLOR
+        : normalizeWidgetCaptionColor(row?.widget_caption_color) || DEFAULT_WIDGET_CAPTION_COLOR;
     if (fields.imageFile !== undefined && row?.widget_image_file && row.widget_image_file !== fields.imageFile) {
       this.deletePhoto(row.widget_image_file);
     }
     this.db
       .prepare(
         `UPDATE households
-         SET widget_image_file = ?, widget_caption = ?, widget_updated_by = ?, widget_updated_at = ?
+         SET widget_image_file = ?, widget_caption = ?, widget_caption_color = ?,
+             widget_updated_by = ?, widget_updated_at = ?
          WHERE id = ?`
       )
-      .run(imageFile, caption, memberId, Date.now(), householdId);
+      .run(imageFile, caption, captionColor, memberId, Date.now(), householdId);
     return this.getWidget(householdId);
   }
 
@@ -418,5 +429,27 @@ const AVATAR_PRESETS = [
 ];
 
 const MAX_WIDGET_CAPTION = 40;
+const DEFAULT_WIDGET_CAPTION_COLOR = "#FFFFFF";
 
-module.exports = { Store, approvedAmountsOk, AVATAR_PRESETS, MAX_WIDGET_CAPTION };
+function normalizeWidgetCaptionColor(value) {
+  if (value == null || String(value).trim() === "") return DEFAULT_WIDGET_CAPTION_COLOR;
+  const hex = String(value).trim().replace(/^#/, "");
+  if (/^[0-9a-fA-F]{3}$/.test(hex)) {
+    return `#${hex
+      .split("")
+      .map((digit) => digit + digit)
+      .join("")
+      .toUpperCase()}`;
+  }
+  if (/^[0-9a-fA-F]{6}$/.test(hex)) return `#${hex.toUpperCase()}`;
+  return null;
+}
+
+module.exports = {
+  Store,
+  approvedAmountsOk,
+  AVATAR_PRESETS,
+  MAX_WIDGET_CAPTION,
+  DEFAULT_WIDGET_CAPTION_COLOR,
+  normalizeWidgetCaptionColor,
+};
