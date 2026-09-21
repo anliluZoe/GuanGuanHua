@@ -254,3 +254,80 @@ function insertPending(store, alice, { quantity, unitPriceCents }) {
     created_at: Date.now(),
   });
 }
+
+test("join creates the second member then refuses a third", () => {
+  withStore((store) => {
+    const created = store.createHousehold("Alice");
+    const second = store.joinHousehold(created.householdCode, "Bob");
+    assert.equal(second.members.length, 2);
+    assert.equal(second.name, "Bob");
+
+    const third = store.joinHousehold(created.householdCode, "Cara");
+    assert.equal(third.householdFull, true);
+    assert.equal(third.members.length, 2);
+    assert.deepEqual(
+      third.members.map((member) => member.name).sort(),
+      ["Alice", "Bob"],
+    );
+    assert.equal(store.sessionPayload(created.token).members.length, 2);
+  });
+});
+
+test("join as an existing member returns that identity when the household is full", () => {
+  withStore((store) => {
+    const { alice, bob } = twoMembers(store);
+    const asBob = store.joinHousehold(alice.code, "ignored", bob.id);
+    assert.equal(asBob.token, bob.token);
+    assert.equal(asBob.memberId, bob.id);
+    assert.equal(asBob.name, "Bob");
+    assert.equal(asBob.members.length, 2);
+
+    const other = store.createHousehold("Zed");
+    const zed = store.memberByToken(other.token);
+    const mismatch = store.joinHousehold(alice.code, "X", zed.id);
+    assert.equal(mismatch.error, "bad_member");
+    assert.equal(store.joinHousehold("000000", "X"), null);
+  });
+});
+
+test("leave frees a slot so the next join creates a member", () => {
+  withStore((store) => {
+    const { alice, bob } = twoMembers(store);
+    const filename = store.savePhoto(Buffer.from("face"), ".png");
+    store.setAvatarFile(bob.id, filename);
+    store.leaveHousehold(bob.id);
+    assert.equal(store.memberByToken(bob.token), undefined);
+    assert.equal(store.photoPath(filename), null);
+    assert.equal(store.sessionPayload(alice.token).members.length, 1);
+
+    const again = store.joinHousehold(alice.code, "Cara");
+    assert.ok(again.token);
+    assert.notEqual(again.token, bob.token);
+    assert.equal(again.name, "Cara");
+    assert.equal(again.members.length, 2);
+    assert.ok(again.members.some((member) => member.name === "Cara"));
+  });
+});
+
+test("leave then rejoin while two people remain uses the picker", () => {
+  withStore((store) => {
+    const { alice, bob } = twoMembers(store);
+    const thirdDevice = store.joinHousehold(alice.code, "Ghost");
+    assert.equal(thirdDevice.householdFull, true);
+    const asAlice = store.joinHousehold(alice.code, "", alice.id);
+    assert.equal(asAlice.memberId, alice.id);
+    assert.equal(asAlice.token, alice.token);
+    assert.equal(store.sessionPayload(bob.token).members.length, 2);
+  });
+});
+
+test("insertMember refuses a third person", () => {
+  withStore((store) => {
+    const { alice } = twoMembers(store);
+    assert.throws(
+      () => store.insertMember(alice.household_id, "tok", "Cara", "mascot_cat"),
+      (error) => error.code === "household_full",
+    );
+    assert.equal(store.membersForHousehold(alice.household_id).length, 2);
+  });
+});

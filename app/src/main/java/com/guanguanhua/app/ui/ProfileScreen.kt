@@ -78,6 +78,7 @@ fun ProfileScreen(viewModel: AppViewModel, onOpenWidget: () -> Unit = {}) {
     val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
     val isReady by viewModel.isReady.collectAsStateWithLifecycle()
     val appearance by viewModel.appearance.collectAsStateWithLifecycle()
+    val joinPicker by viewModel.joinPicker.collectAsStateWithLifecycle()
     var name by rememberSaveable(profile.name) { mutableStateOf(profile.name.ifBlank { "小明" }) }
     var householdCode by rememberSaveable { mutableStateOf("") }
     var serverUrl by rememberSaveable(session.serverUrl) { mutableStateOf(session.serverUrl) }
@@ -143,7 +144,7 @@ fun ProfileScreen(viewModel: AppViewModel, onOpenWidget: () -> Unit = {}) {
                 Text("家庭账本", style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "不用填服务器。默认连家里那台，先起个名字就能建账本。",
+                    "不用填服务器。默认连家里那台，先起个名字就能建账本。每个家庭最多两个人。",
                     color = QTheme.colors.muted,
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -157,6 +158,12 @@ fun ProfileScreen(viewModel: AppViewModel, onOpenWidget: () -> Unit = {}) {
             }
             SoftCard(modifier = Modifier.fillMaxWidth()) {
                 Text("已经有家庭码？", style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "还没满两人就新建身份；已经有两个人了，会让你选其中一个进入，不会再加第三人。",
+                    color = QTheme.colors.muted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
                 Spacer(Modifier.height(10.dp))
                 SoftField(value = householdCode, onValueChange = { householdCode = it }, label = "6 位家庭码")
                 Spacer(Modifier.height(12.dp))
@@ -208,7 +215,7 @@ fun ProfileScreen(viewModel: AppViewModel, onOpenWidget: () -> Unit = {}) {
             )
             Spacer(Modifier.height(8.dp))
             Text(
-                "把码塞给另一部手机，打开「我们」页点「加入」——别搞丢了哦。",
+                "把码塞给另一部手机，打开「我们」页点「加入」。已经有两个人时，对方会选一个身份进入。退出会让出名额。",
                 color = QTheme.colors.muted,
                 style = MaterialTheme.typography.bodySmall,
             )
@@ -326,6 +333,61 @@ fun ProfileScreen(viewModel: AppViewModel, onOpenWidget: () -> Unit = {}) {
             PillButton("退出这个家庭账本", filled = false, enabled = !isBusy, onClick = { viewModel.leaveHome() })
         }
         Spacer(Modifier.height(96.dp))
+        }
+    }
+
+    val picker = joinPicker
+    if (picker != null) {
+        val colors = QTheme.colors
+        ModalBottomSheet(
+            onDismissRequest = { if (!isBusy) viewModel.dismissJoinPicker() },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = colors.paper,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                    .padding(bottom = 28.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text("这个家庭已经有两个人了", style = MaterialTheme.typography.titleLarge)
+                Text(
+                    "选一个身份进入。不会新建第三人。",
+                    color = colors.secondary,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                picker.members.forEachIndexed { index, member ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(if (colors.isDark) colors.sandDeep else colors.chipWash)
+                            .clickable(enabled = !isBusy) { viewModel.enterAsExistingMember(member.id) }
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        MemberAvatar(
+                            name = member.name,
+                            presetId = member.avatarPreset,
+                            photoUrl = member.avatarUrl,
+                            fallbackPreset = if (index == 0) AvatarIds.CAT else AvatarIds.DOG,
+                            size = 48.dp,
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(member.name, style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                "用这个身份进入",
+                                color = colors.muted,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                    }
+                }
+                PillButton("先不了", filled = false, enabled = !isBusy, onClick = { viewModel.dismissJoinPicker() })
+            }
         }
     }
 

@@ -183,23 +183,75 @@ class Store {
           throw error;
         }
       }
-      this.db
-        .prepare("INSERT INTO members(household_id, token, name, avatar_preset) VALUES (?,?,?,?)")
-        .run(householdId, token, name, "mascot_cat");
+      this.insertMember(householdId, token, name, "mascot_cat");
     });
     return this.sessionPayload(token);
   }
 
-  joinHousehold(code, name) {
+  /**
+   * 用家庭码加入。
+   * 成功返回 session；找不到码返回 null。
+   * 人满且没指定 memberId 时返回 { householdFull: true, members }，不新建第三人。
+   * 指定 memberId 则进入该成员身份（沿用其 token）。memberId 不属于这个家庭时返回 { error: "bad_member" }。
+   */
+  joinHousehold(code, name, memberId = null) {
     const house = this.db.prepare("SELECT * FROM households WHERE code = ?").get(String(code).trim());
     if (!house) return null;
-    const token = crypto.randomBytes(16).toString("hex");
-    const existing = this.db.prepare("SELECT COUNT(*) AS n FROM members WHERE household_id = ?").get(house.id).n;
-    const preset = existing === 1 ? "mascot_dog" : "mascot_cat";
+    if (memberId != null) {
+      const member = this.db
+        .prepare("SELECT token FROM members WHERE id = ? AND household_id = ?")
+        .get(memberId, house.id);
+      if (!member) return { error: "bad_member" };
+      return this.sessionPayload(member.token);
+    }
+    return this.withTransaction(() => {
+      const members = this.membersForHousehold(house.id);
+      if (members.length >= MAX_HOUSEHOLD_MEMBERS) {
+        return { householdFull: true, members };
+      }
+      const token = crypto.randomBytes(16).toString("hex");
+      const preset = members.length === 1 ? "mascot_dog" : "mascot_cat";
+      try {
+        this.insertMember(house.id, token, name, preset);
+      } catch (error) {
+        if (error.code === "household_full") {
+          return { householdFull: true, members: this.membersForHousehold(house.id) };
+        }
+        throw error;
+      }
+      return this.sessionPayload(token);
+    });
+  }
+
+  insertMember(householdId, token, name, preset) {
+    const existing = this.db.prepare("SELECT COUNT(*) AS n FROM members WHERE household_id = ?").get(householdId).n;
+    if (existing >= MAX_HOUSEHOLD_MEMBERS) {
+      const error = new Error("household_full");
+      error.code = "household_full";
+      throw error;
+    }
     this.db
       .prepare("INSERT INTO members(household_id, token, name, avatar_preset) VALUES (?,?,?,?)")
-      .run(house.id, token, name, preset);
-    return this.sessionPayload(token);
+      .run(householdId, token, name, preset);
+  }
+
+  /** 退出家庭：删掉这条成员，名额腾出来。历史申请/账本仍按当时写上的名字保留。 */
+  leaveHousehold(memberId) {
+    const row = this.db.prepare("SELECT avatar_file FROM members WHERE id = ?").get(memberId);
+    this.db.prepare("DELETE FROM members WHERE id = ?").run(memberId);
+    if (row?.avatar_file) this.deletePhoto(row.avatar_file);
+  }
+
+  membersForHousehold(householdId) {
+    return this.db
+      .prepare("SELECT id, name, avatar_preset, avatar_file FROM members WHERE household_id = ? ORDER BY id")
+      .all(householdId)
+      .map((member) => ({
+        id: member.id,
+        name: member.name,
+        avatarPreset: member.avatar_preset || null,
+        avatarFile: member.avatar_file || null,
+      }));
   }
 
   memberByToken(token) {
@@ -214,21 +266,12 @@ class Store {
 
   sessionPayload(token) {
     const row = this.memberByToken(token);
-    const members = this.db
-      .prepare("SELECT id, name, avatar_preset, avatar_file FROM members WHERE household_id = ? ORDER BY id")
-      .all(row.household_id)
-      .map((member) => ({
-        id: member.id,
-        name: member.name,
-        avatarPreset: member.avatar_preset || null,
-        avatarFile: member.avatar_file || null,
-      }));
     return {
       token,
       memberId: row.id,
       householdCode: row.code,
       name: row.name,
-      members,
+      members: this.membersForHousehold(row.household_id),
     };
   }
 
@@ -414,6 +457,9 @@ function approvedAmountsOk(requestedQuantity, requestedUnitPriceCents, approvedQ
   return approvedTotal <= askedTotal;
 }
 
+/** 暂时只支持两个人。加人必须走 joinHousehold，满员时选已有身份，不能建第三人。 */
+const MAX_HOUSEHOLD_MEMBERS = 2;
+
 const AVATAR_PRESETS = [
   "mascot_cat",
   "mascot_dog",
@@ -449,6 +495,7 @@ module.exports = {
   Store,
   approvedAmountsOk,
   AVATAR_PRESETS,
+  MAX_HOUSEHOLD_MEMBERS,
   MAX_WIDGET_CAPTION,
   DEFAULT_WIDGET_CAPTION_COLOR,
   normalizeWidgetCaptionColor,
