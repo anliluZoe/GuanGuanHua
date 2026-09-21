@@ -17,7 +17,7 @@ class WidgetCopyTest {
         assertEquals(1, WidgetCopy.bitmapSampleSize(720, 720))
         assertEquals(1, WidgetCopy.bitmapSampleSize(400, 300))
         assertEquals(2, WidgetCopy.bitmapSampleSize(1440, 900))
-        assertEquals(4, WidgetCopy.bitmapSampleSize(3000, 2000))
+        assertEquals(8, WidgetCopy.bitmapSampleSize(3000, 2000))
         assertEquals(1, WidgetCopy.bitmapSampleSize(0, 100))
     }
 
