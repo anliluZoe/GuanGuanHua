@@ -17,6 +17,7 @@ import retrofit2.http.Header
 import retrofit2.http.Multipart
 import retrofit2.http.POST
 import retrofit2.http.PUT
+import retrofit2.http.PATCH
 import retrofit2.http.Part
 import retrofit2.http.Path
 import retrofit2.http.Query
@@ -52,6 +53,15 @@ data class ReviewBody(
 data class ProfileBody(val name: String? = null, val avatarPreset: String? = null)
 
 data class BudgetBody(val amountCents: Long)
+
+data class WidgetDto(
+    val widgetImageUrl: String? = null,
+    val widgetCaption: String? = null,
+    val widgetUpdatedBy: String? = null,
+    val widgetUpdatedAt: Long? = null,
+)
+
+data class WidgetCaptionBody(val widgetCaption: String)
 
 interface GuanGuanHuaApi {
     @POST("api/households")
@@ -117,6 +127,22 @@ interface GuanGuanHuaApi {
         @Query("yearMonth") yearMonth: String,
         @Body body: BudgetBody,
     ): MonthlyBudget
+
+    @GET("api/widget")
+    suspend fun getWidget(@Header("Authorization") authorization: String): WidgetDto
+
+    @PATCH("api/widget")
+    suspend fun updateWidget(
+        @Header("Authorization") authorization: String,
+        @Body body: WidgetCaptionBody,
+    ): WidgetDto
+
+    @Multipart
+    @POST("api/widget/image")
+    suspend fun uploadWidgetImage(
+        @Header("Authorization") authorization: String,
+        @Part image: MultipartBody.Part,
+    ): WidgetDto
 }
 
 class HouseholdRepository(private val app: Application) {
@@ -212,4 +238,19 @@ class HouseholdRepository(private val app: Application) {
 
     suspend fun setBudget(yearMonth: String, amountCents: Long): MonthlyBudget =
         api().setBudget(bearer(), yearMonth, BudgetBody(amountCents))
+
+    suspend fun getWidget(): WidgetDto = api().getWidget(bearer())
+
+    suspend fun updateWidgetCaption(caption: String): WidgetDto =
+        api().updateWidget(bearer(), WidgetCaptionBody(widgetCaption = caption))
+
+    suspend fun uploadWidgetImage(imageUri: Uri): WidgetDto {
+        val bytes = app.contentResolver.openInputStream(imageUri)?.use { it.readBytes() }
+            ?: error("读不到这张照片")
+        val body = bytes.toRequestBody("image/*".toMediaType())
+        return api().uploadWidgetImage(
+            bearer(),
+            MultipartBody.Part.createFormData("image", "widget.jpg", body),
+        )
+    }
 }

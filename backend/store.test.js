@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
-const { Store, approvedAmountsOk } = require("./store");
+const { Store, approvedAmountsOk, MAX_WIDGET_CAPTION } = require("./store");
 
 test("3×10=30 allows 2×15=30 and higher qty at same total", () => {
   assert.equal(approvedAmountsOk(3, 10, 2, 15), true);
@@ -103,6 +103,69 @@ test("new household defaults to cat and dog presets and can switch preset or pho
 
     assert.equal(store.knownAvatarPreset("penguin"), true);
     assert.equal(store.knownAvatarPreset("dragon"), false);
+  });
+});
+
+test("widget starts empty and is shared for the household", () => {
+  withStore((store) => {
+    const { alice, bob } = twoMembers(store);
+    const empty = store.getWidget(alice.household_id);
+    assert.equal(empty.imageFile, null);
+    assert.equal(empty.caption, "");
+    assert.equal(empty.updatedBy, null);
+    assert.equal(empty.updatedAt, null);
+
+    const first = store.savePhoto(Buffer.from("cover-one"), ".jpg");
+    store.setWidget(alice.household_id, alice.id, { imageFile: first, caption: "周末去看海" });
+    const aliceView = store.getWidget(alice.household_id);
+    const bobView = store.getWidget(bob.household_id);
+    assert.equal(aliceView.imageFile, first);
+    assert.equal(aliceView.caption, "周末去看海");
+    assert.equal(aliceView.updatedBy, "Alice");
+    assert.equal(typeof aliceView.updatedAt, "number");
+    assert.deepEqual(bobView, aliceView);
+    assert.ok(store.photoPath(first));
+  });
+});
+
+test("widget caption is trimmed and capped, image replace deletes the old file", () => {
+  withStore((store) => {
+    const { alice, bob } = twoMembers(store);
+    const first = store.savePhoto(Buffer.from("cover-one"), ".png");
+    store.setWidget(alice.household_id, alice.id, { imageFile: first, caption: "  先写一句  " });
+    assert.equal(store.getWidget(alice.household_id).caption, "先写一句");
+
+    const long = "啊".repeat(MAX_WIDGET_CAPTION + 8);
+    store.setWidget(alice.household_id, bob.id, { caption: long });
+    const afterCaption = store.getWidget(alice.household_id);
+    assert.equal(afterCaption.caption, "啊".repeat(MAX_WIDGET_CAPTION));
+    assert.equal(afterCaption.imageFile, first);
+    assert.equal(afterCaption.updatedBy, "Bob");
+
+    const second = store.savePhoto(Buffer.from("cover-two"), ".jpg");
+    store.setWidget(alice.household_id, bob.id, { imageFile: second });
+    const afterImage = store.getWidget(alice.household_id);
+    assert.equal(afterImage.imageFile, second);
+    assert.equal(afterImage.caption, "啊".repeat(MAX_WIDGET_CAPTION));
+    assert.equal(store.photoPath(first), null);
+    assert.ok(store.photoPath(second));
+  });
+});
+
+test("widget state is per household", () => {
+  withStore((store) => {
+    const a = store.createHousehold("Alice");
+    const alice = store.memberByToken(a.token);
+    const other = store.createHousehold("Cara");
+    const cara = store.memberByToken(other.token);
+    store.setWidget(alice.household_id, alice.id, {
+      imageFile: store.savePhoto(Buffer.from("a"), ".jpg"),
+      caption: "我们的",
+    });
+    store.setWidget(cara.household_id, cara.id, { caption: "另一家" });
+    assert.equal(store.getWidget(alice.household_id).caption, "我们的");
+    assert.equal(store.getWidget(cara.household_id).caption, "另一家");
+    assert.equal(store.getWidget(cara.household_id).imageFile, null);
   });
 });
 

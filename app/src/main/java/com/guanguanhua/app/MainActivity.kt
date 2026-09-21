@@ -39,6 +39,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -66,10 +67,12 @@ import com.guanguanhua.app.ui.NewRequestScreen
 import com.guanguanhua.app.ui.ProfileScreen
 import com.guanguanhua.app.ui.RequestDetailScreen
 import com.guanguanhua.app.ui.RequestListScreen
+import com.guanguanhua.app.ui.WidgetScreen
 import com.guanguanhua.app.ui.theme.QTheme
 import com.guanguanhua.app.ui.theme.GuanGuanHuaTheme
 import com.guanguanhua.app.update.AppUpdates
 import com.guanguanhua.app.update.UpdateCheckResult
+import com.guanguanhua.app.widget.WidgetRefreshWorker
 import kotlinx.coroutines.delay
 import java.util.concurrent.TimeUnit
 
@@ -88,6 +91,9 @@ class MainActivity : ComponentActivity() {
     /** 从通知点进来要打开的申请 id；0 表示没有。 */
     private val openRequestId = mutableLongStateOf(0L)
 
+    /** 从桌面组件点进来，打开「我们 → 桌面组件」。 */
+    private val openWidget = mutableStateOf(false)
+
     private val requestNotifications = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) ReviewActivityWorker.enqueueSoon(this)
     }
@@ -96,12 +102,14 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         openRequestId.longValue = intent.getLongExtra(EXTRA_REQUEST_ID, 0L)
+        openWidget.value = wantsWidget(intent)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         openRequestId.longValue = intent.getLongExtra(EXTRA_REQUEST_ID, 0L)
+        openWidget.value = wantsWidget(intent)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) {
@@ -157,6 +165,22 @@ class MainActivity : ComponentActivity() {
                             navController.navigate("requests/$pendingRequestId") { launchSingleTop = true }
                             openRequestId.longValue = 0L
                         }
+                    }
+
+                    val pendingWidget = openWidget.value
+                    LaunchedEffect(pendingWidget, session.joined) {
+                        if (!pendingWidget) return@LaunchedEffect
+                        navController.navigate("profile") {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                        if (session.joined) {
+                            navController.navigate("profile/widget") { launchSingleTop = true }
+                        }
+                        openWidget.value = false
                     }
 
                     Scaffold(
@@ -236,7 +260,15 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
                             composable("expenses") { ExpensesScreen(viewModel = viewModel) }
-                            composable("profile") { ProfileScreen(viewModel = viewModel) }
+                            composable("profile") {
+                                ProfileScreen(
+                                    viewModel = viewModel,
+                                    onOpenWidget = { navController.navigate("profile/widget") },
+                                )
+                            }
+                            composable("profile/widget") {
+                                WidgetScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+                            }
                         }
                     }
                     LoadingScrim(visible = isBusy)
@@ -259,10 +291,16 @@ class MainActivity : ComponentActivity() {
         super.onStop()
         if (!isChangingConfigurations) {
             ReviewActivityWorker.enqueueSoon(this, delay = 20, unit = TimeUnit.SECONDS)
+            WidgetRefreshWorker.enqueueSoon(this, delay = 20, unit = TimeUnit.SECONDS)
         }
     }
 
     companion object {
         const val EXTRA_REQUEST_ID = "requestId"
+        const val EXTRA_OPEN_WIDGET = "openWidget"
+        const val ACTION_OPEN_WIDGET = "com.guanguanhua.app.OPEN_WIDGET"
+
+        fun wantsWidget(intent: Intent?): Boolean =
+            intent?.getBooleanExtra(EXTRA_OPEN_WIDGET, false) == true || intent?.action == ACTION_OPEN_WIDGET
     }
 }
