@@ -3,6 +3,7 @@ package com.guanguanhua.app.widget
 object WidgetCopy {
     const val EMPTY_PHOTO = "还没有照片"
     const val EMPTY_PHOTO_HINT = "上传一张放上桌面吧"
+    const val COMPRESS_HINT = "上传会压缩为 JPG"
     const val MAX_CAPTION = 40
     const val MAX_IMAGE_PX = 720
     const val DEFAULT_CAPTION_COLOR = "#FFFFFF"
@@ -16,6 +17,15 @@ object WidgetCopy {
     )
 
     fun clampCaption(value: String): String = value.trim().take(MAX_CAPTION)
+
+    fun summaryLine(hasPhoto: Boolean, caption: String): String {
+        val text = clampCaption(caption)
+        return when {
+            !hasPhoto && text.isEmpty() -> "未设置"
+            text.isEmpty() -> "已设置"
+            else -> "已设置 · $text"
+        }
+    }
 
     fun normalizeCaptionColor(value: String?): String =
         parseCaptionColorRgb(value)?.let { rgb -> "#%06X".format(rgb) } ?: DEFAULT_CAPTION_COLOR

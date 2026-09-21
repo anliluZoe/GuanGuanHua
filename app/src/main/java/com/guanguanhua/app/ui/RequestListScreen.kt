@@ -132,7 +132,6 @@ fun RequestListScreen(
                 } else if (!session.joined) {
                     item {
                         EmptyHint(
-                            kind = MascotKind.Cat,
                             title = "还没连上账本",
                             subtitle = "打开「我们」，创建家庭账本或输入家庭码加入。",
                         )
@@ -140,7 +139,6 @@ fun RequestListScreen(
                 } else if (shown.isEmpty()) {
                     item {
                         EmptyHint(
-                            kind = MascotKind.Cat,
                             title = filter.emptyTitle,
                             subtitle = filter.emptySubtitle,
                         )
@@ -154,7 +152,7 @@ fun RequestListScreen(
         }
     }
         PillButton(
-            "＋  哼，又要买",
+            "＋  新建",
             enabled = !isBusy && session.joined,
             onClick = onCreate,
             modifier = Modifier
@@ -249,7 +247,7 @@ enum class RequestListFilter(
     val emptyTitle: String,
     val emptySubtitle: String,
 ) {
-    ALL("全部", "还没有人来闯关", "想买就提申请，过了我这关再说"),
+    ALL("全部", "还没有申请", "换个筛选，或点下面「新建」"),
     PENDING_FOR_ME("待审核", "暂时没人闯关", "对方提交、等你把关的申请会出现在这里"),
     WAITING_FOR_PARTNER("等对方", "没有在等对方的申请", "你提交后、还在等 TA 审核的会出现在这里"),
     APPROVED("已通过", "还没有过关的申请", "通过的购买会出现在这里"),

@@ -230,7 +230,7 @@ fun ExpensesScreen(viewModel: AppViewModel) {
                 item { LoadingHint("正在同步账本…") }
             } else if (expenses.isEmpty()) {
                 item {
-                    EmptyHint(MascotKind.Dog, "哼，这个月还没花过？", "申请通过后，会自动出现在这里")
+                    EmptyHint("本月还没有消费", "通过的申请会显示在这里")
                 }
             } else {
                 items(expenses, key = { it.id }) { record ->

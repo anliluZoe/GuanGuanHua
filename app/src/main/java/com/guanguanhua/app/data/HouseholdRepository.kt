@@ -25,6 +25,8 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 import java.io.IOException
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 data class MemberDto(
     val id: Long,
@@ -154,6 +156,9 @@ interface GuanGuanHuaApi {
         @Header("Authorization") authorization: String,
         @Part image: MultipartBody.Part,
     ): WidgetDto
+
+    @DELETE("api/widget/image")
+    suspend fun deleteWidgetImage(@Header("Authorization") authorization: String): WidgetDto
 }
 
 class HouseholdRepository(private val app: Application) {
@@ -203,15 +208,11 @@ class HouseholdRepository(private val app: Application) {
     suspend fun updateAvatarPreset(name: String, preset: String): SessionDto =
         api().updateSession(bearer(), ProfileBody(name = name, avatarPreset = preset))
 
-    suspend fun uploadAvatar(imageUri: Uri): SessionDto {
-        val bytes = app.contentResolver.openInputStream(imageUri)?.use { it.readBytes() }
-            ?: error("读不到这张照片")
-        val body = bytes.toRequestBody("image/*".toMediaType())
-        return api().uploadAvatar(
+    suspend fun uploadAvatar(imageUri: Uri): SessionDto =
+        api().uploadAvatar(
             bearer(),
-            MultipartBody.Part.createFormData("avatar", "avatar.jpg", body),
+            jpegPart(imageUri, field = "avatar", filename = "avatar.jpg", maxEdge = ImageCompress.AVATAR_MAX_EDGE),
         )
-    }
 
     suspend fun listRequests(): List<PurchaseRequest> = api().listRequests(bearer())
 
@@ -224,9 +225,7 @@ class HouseholdRepository(private val app: Application) {
         imageUri: Uri?,
     ): PurchaseRequest {
         val imagePart = imageUri?.let { uri ->
-            val bytes = app.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return@let null
-            val body = bytes.toRequestBody("image/*".toMediaType())
-            MultipartBody.Part.createFormData("image", "photo.jpg", body)
+            jpegPart(uri, field = "image", filename = "photo.jpg", maxEdge = ImageCompress.PHOTO_MAX_EDGE)
         }
         return api().createRequest(
             bearer(),
@@ -274,15 +273,20 @@ class HouseholdRepository(private val app: Application) {
             ),
         )
 
-    suspend fun uploadWidgetImage(imageUri: Uri): WidgetDto {
-        val bytes = app.contentResolver.openInputStream(imageUri)?.use { it.readBytes() }
-            ?: error("读不到这张照片")
-        val body = bytes.toRequestBody("image/*".toMediaType())
-        return api().uploadWidgetImage(
+    suspend fun uploadWidgetImage(imageUri: Uri): WidgetDto =
+        api().uploadWidgetImage(
             bearer(),
-            MultipartBody.Part.createFormData("image", "widget.jpg", body),
+            jpegPart(imageUri, field = "image", filename = "widget.jpg", maxEdge = ImageCompress.PHOTO_MAX_EDGE),
         )
-    }
+
+    suspend fun clearWidgetImage(): WidgetDto = api().deleteWidgetImage(bearer())
+
+    private suspend fun jpegPart(uri: Uri, field: String, filename: String, maxEdge: Int): MultipartBody.Part =
+        withContext(Dispatchers.IO) {
+            val jpeg = ImageCompress.compress(app, uri, maxEdge, filename)
+            val body = jpeg.bytes.toRequestBody(jpeg.mimeType.toMediaType())
+            MultipartBody.Part.createFormData(field, jpeg.filename, body)
+        }
 }
 
 class HouseholdFullException(

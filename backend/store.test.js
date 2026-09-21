@@ -159,6 +159,12 @@ test("widget caption is trimmed and capped, image replace deletes the old file",
     assert.equal(afterImage.caption, "啊".repeat(MAX_WIDGET_CAPTION));
     assert.equal(store.photoPath(first), null);
     assert.ok(store.photoPath(second));
+
+    store.setWidget(alice.household_id, alice.id, { imageFile: null });
+    const afterClear = store.getWidget(alice.household_id);
+    assert.equal(afterClear.imageFile, null);
+    assert.equal(afterClear.caption, "啊".repeat(MAX_WIDGET_CAPTION));
+    assert.equal(store.photoPath(second), null);
   });
 });
 
