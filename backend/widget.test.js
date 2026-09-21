@@ -62,6 +62,17 @@ test("widget API is household-scoped and round-trips image plus caption", async 
     assert.equal(photo.status, 200);
     assert.equal(Buffer.from(await photo.arrayBuffer()).toString(), "cover-two");
 
+    const cleared = await fetch(`${base}/api/widget/image`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${alice.token}` },
+    });
+    const clearedBody = await cleared.json();
+    assert.equal(cleared.status, 200, JSON.stringify(clearedBody));
+    assert.equal(clearedBody.widgetImageUrl, null);
+    assert.equal(clearedBody.widgetCaption, "想吃火锅");
+    assert.equal(clearedBody.widgetCaptionColor, "#7EB8D8");
+    assert.equal((await fetch(afterPhoto.widgetImageUrl)).status, 404);
+
     const missingCaption = await fetch(`${base}/api/widget`, {
       method: "PATCH",
       headers: { Authorization: `Bearer ${alice.token}`, "Content-Type": "application/json" },

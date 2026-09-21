@@ -88,6 +88,7 @@ fun WidgetScreen(viewModel: AppViewModel, onBack: () -> Unit) {
             }
             Spacer(Modifier.height(24.dp))
         } else {
+        val hasPhoto = !widget.imageUrl.isNullOrBlank() || !widget.localImagePath.isNullOrBlank()
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -112,7 +113,7 @@ fun WidgetScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                 )
-            } else if (widget.imageUrl.isNullOrBlank() && widget.localImagePath.isNullOrBlank()) {
+            } else if (!hasPhoto) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(WidgetCopy.EMPTY_PHOTO, color = QTheme.colors.inkSoft, style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(4.dp))
@@ -202,7 +203,7 @@ fun WidgetScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                     onClick = { viewModel.saveWidgetCaption(caption, captionColor) },
                 )
                 PillButton(
-                    "上传照片",
+                    if (hasPhoto) "换图" else "上传照片",
                     modifier = Modifier.weight(1f),
                     enabled = !isBusy,
                     onClick = {
@@ -210,7 +211,22 @@ fun WidgetScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                     },
                 )
             }
+            if (hasPhoto) {
+                Spacer(Modifier.height(10.dp))
+                PillButton(
+                    "清空",
+                    filled = false,
+                    enabled = !isBusy,
+                    onClick = { viewModel.clearWidgetPhoto() },
+                )
+            }
             Spacer(Modifier.height(10.dp))
+            Text(
+                WidgetCopy.COMPRESS_HINT,
+                color = QTheme.colors.muted,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Spacer(Modifier.height(6.dp))
             Text(
                 "真机需在系统桌面「添加小部件 → 管管花」。照片铺满，说明叠在正中间。",
                 color = QTheme.colors.muted,

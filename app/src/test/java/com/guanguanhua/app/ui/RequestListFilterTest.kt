@@ -36,6 +36,12 @@ class RequestListFilterTest {
     }
 
     @Test
+    fun allEmptyCopyIsTextOnlyHandoff() {
+        assertEquals("还没有申请", RequestListFilter.ALL.emptyTitle)
+        assertEquals("换个筛选，或点下面「新建」", RequestListFilter.ALL.emptySubtitle)
+    }
+
+    @Test
     fun approvedAndRejectedStayStatusOnly() {
         assertEquals(listOf(mineApproved), all.filter { RequestListFilter.APPROVED.matches(it) })
         assertEquals(listOf(theirsRejected), all.filter { RequestListFilter.REJECTED.matches(it) })

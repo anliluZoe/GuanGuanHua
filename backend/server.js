@@ -182,6 +182,11 @@ app.post("/api/widget/image", requireMember, upload.single("image"), (req, res) 
   res.json(widgetJson(req, req.member.household_id));
 });
 
+app.delete("/api/widget/image", requireMember, (req, res) => {
+  store.setWidget(req.member.household_id, req.member.id, { imageFile: null });
+  res.json(widgetJson(req, req.member.household_id));
+});
+
 app.get("/api/requests", requireMember, (req, res) => {
   res.json(store.listRequests(req.member.household_id).map((row) => requestJson(row, req)));
 });

@@ -177,7 +177,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         _session.update { it.copy(serverUrl = resolved) }
     }
 
-    fun leaveHome() {
+    fun leaveHome(onSuccess: () -> Unit = {}) {
         viewModelScope.launch {
             track(_busyCount) {
                 runCatching { repo.leaveHousehold() }
@@ -198,13 +198,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                         _monthBudget.value = null
                         _ready.value = true
                         WidgetCache.publish(getApplication())
+                        onSuccess()
                     }
                     .onFailure { _statusMessage.value = it.message ?: "退出失败，请检查网络后再试" }
             }
         }
     }
 
-    fun updateName(name: String) {
+    fun updateName(name: String, onSuccess: () -> Unit = {}) {
         val trimmed = name.trim()
         if (trimmed.isBlank()) {
             _statusMessage.value = "名字不能为空"
@@ -213,6 +214,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             track(_busyCount) {
                 runCatching { applyRemoteSession(repo.updateName(trimmed)) }
+                    .onSuccess { onSuccess() }
                     .onFailure { _statusMessage.value = it.message ?: "保存失败" }
             }
         }
@@ -340,6 +342,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             track(_busyCount) {
                 runCatching { applyWidget(repo.uploadWidgetImage(uri)) }
                     .onFailure { _statusMessage.value = it.message ?: "照片上传失败" }
+            }
+        }
+    }
+
+    fun clearWidgetPhoto() {
+        viewModelScope.launch {
+            track(_busyCount) {
+                runCatching { applyWidget(repo.clearWidgetImage()) }
+                    .onFailure { _statusMessage.value = it.message ?: "照片清空失败" }
             }
         }
     }
