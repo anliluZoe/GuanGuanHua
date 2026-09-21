@@ -1,3 +1,7 @@
 <resources>
     <string name="app_name">管管花</string>
+    <string name="widget_name">管管花</string>
+    <string name="widget_description">家庭共享照片和一句说明</string>
+    <string name="widget_empty_photo">还没有照片</string>
+    <string name="widget_brand">管管花</string>
 </resources>

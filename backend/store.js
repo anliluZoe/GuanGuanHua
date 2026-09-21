@@ -60,6 +60,7 @@ class Store {
     `);
     this.migrateFromFixedRoles();
     this.migrateAvatars();
+    this.migrateWidget();
   }
 
   /** 早期版本每个成员有固定的申请人/审核人角色；现在谁都能申请，由对方审核。 */
@@ -76,6 +77,56 @@ class Store {
       this.db.exec("ALTER TABLE purchase_requests ADD COLUMN approved_quantity INTEGER");
       this.db.exec("ALTER TABLE purchase_requests ADD COLUMN approved_unit_price_cents INTEGER");
     }
+  }
+
+  /** 家庭桌面组件：一张共享照片 + 一句说明，存在 photos 目录。 */
+  migrateWidget() {
+    const columns = this.db.prepare("PRAGMA table_info(households)").all().map((c) => c.name);
+    if (columns.includes("widget_image_file")) return;
+    this.db.exec("ALTER TABLE households ADD COLUMN widget_image_file TEXT");
+    this.db.exec("ALTER TABLE households ADD COLUMN widget_caption TEXT");
+    this.db.exec("ALTER TABLE households ADD COLUMN widget_updated_by INTEGER");
+    this.db.exec("ALTER TABLE households ADD COLUMN widget_updated_at INTEGER");
+  }
+
+  getWidget(householdId) {
+    const row = this.db
+      .prepare(
+        `SELECT h.widget_image_file AS image_file, h.widget_caption AS caption,
+                h.widget_updated_at AS updated_at, m.name AS updated_by
+         FROM households h
+         LEFT JOIN members m ON m.id = h.widget_updated_by
+         WHERE h.id = ?`
+      )
+      .get(householdId);
+    return {
+      imageFile: row?.image_file || null,
+      caption: row?.caption || "",
+      updatedBy: row?.updated_by || null,
+      updatedAt: row?.updated_at || null,
+    };
+  }
+
+  setWidget(householdId, memberId, fields = {}) {
+    const row = this.db
+      .prepare("SELECT widget_image_file, widget_caption FROM households WHERE id = ?")
+      .get(householdId);
+    const imageFile = fields.imageFile !== undefined ? fields.imageFile : row?.widget_image_file || null;
+    const caption =
+      fields.caption !== undefined
+        ? String(fields.caption).trim().slice(0, MAX_WIDGET_CAPTION)
+        : row?.widget_caption || "";
+    if (fields.imageFile !== undefined && row?.widget_image_file && row.widget_image_file !== fields.imageFile) {
+      this.deletePhoto(row.widget_image_file);
+    }
+    this.db
+      .prepare(
+        `UPDATE households
+         SET widget_image_file = ?, widget_caption = ?, widget_updated_by = ?, widget_updated_at = ?
+         WHERE id = ?`
+      )
+      .run(imageFile, caption, memberId, Date.now(), householdId);
+    return this.getWidget(householdId);
   }
 
   /** 成员头像：预设 id 和/或相册上传文件（复用 photos 目录）。 */
@@ -366,4 +417,6 @@ const AVATAR_PRESETS = [
   "pup",
 ];
 
-module.exports = { Store, approvedAmountsOk, AVATAR_PRESETS };
+const MAX_WIDGET_CAPTION = 40;
+
+module.exports = { Store, approvedAmountsOk, AVATAR_PRESETS, MAX_WIDGET_CAPTION };

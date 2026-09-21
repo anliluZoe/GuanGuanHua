@@ -112,6 +112,37 @@ app.post("/api/session/avatar", requireMember, upload.single("avatar"), (req, re
   res.json(sessionJson(req, req.member.token));
 });
 
+function widgetJson(req, householdId) {
+  const row = store.getWidget(householdId);
+  return {
+    widgetImageUrl: fileUrl(req, row.imageFile),
+    widgetCaption: row.caption,
+    widgetUpdatedBy: row.updatedBy,
+    widgetUpdatedAt: row.updatedAt,
+  };
+}
+
+app.get("/api/widget", requireMember, (req, res) => {
+  res.json(widgetJson(req, req.member.household_id));
+});
+
+app.patch("/api/widget", requireMember, (req, res) => {
+  if (!Object.prototype.hasOwnProperty.call(req.body || {}, "widgetCaption")) {
+    return res.status(400).json({ detail: "请填写说明" });
+  }
+  store.setWidget(req.member.household_id, req.member.id, { caption: req.body.widgetCaption });
+  res.json(widgetJson(req, req.member.household_id));
+});
+
+app.post("/api/widget/image", requireMember, upload.single("image"), (req, res) => {
+  if (!req.file || !req.file.buffer.length) return res.status(400).json({ detail: "先选一张照片" });
+  const suffix = path.extname(req.file.originalname || "") || ".jpg";
+  store.setWidget(req.member.household_id, req.member.id, {
+    imageFile: store.savePhoto(req.file.buffer, suffix),
+  });
+  res.json(widgetJson(req, req.member.household_id));
+});
+
 app.get("/api/requests", requireMember, (req, res) => {
   res.json(store.listRequests(req.member.household_id).map((row) => requestJson(row, req)));
 });
@@ -212,6 +243,10 @@ app.get("/api/files/:filename", (req, res) => {
 });
 
 const port = Number(process.env.PORT || 8080);
-app.listen(port, "0.0.0.0", () => {
-  console.log(`管管花 API  http://0.0.0.0:${port}`);
-});
+if (require.main === module) {
+  app.listen(port, "0.0.0.0", () => {
+    console.log(`管管花 API  http://0.0.0.0:${port}`);
+  });
+}
+
+module.exports = { app };

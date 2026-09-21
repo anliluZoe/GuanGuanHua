@@ -11,9 +11,14 @@ import com.guanguanhua.app.data.ExpenseRecord
 import com.guanguanhua.app.data.MonthlyBudget
 import com.guanguanhua.app.data.PurchaseRequest
 import com.guanguanhua.app.data.SessionDto
+import com.guanguanhua.app.data.WidgetDto
 import com.guanguanhua.app.notify.ReviewActivity
 import com.guanguanhua.app.notify.ReviewActivityWorker
 import com.guanguanhua.app.ui.theme.Appearance
+import com.guanguanhua.app.widget.WidgetCache
+import com.guanguanhua.app.widget.WidgetCopy
+import com.guanguanhua.app.widget.WidgetRefreshWorker
+import com.guanguanhua.app.widget.WidgetState
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -102,6 +107,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val _appearance = MutableStateFlow(Appearance.fromPref(prefs.getString(PREF_APPEARANCE, null)))
     val appearance: StateFlow<Appearance> = _appearance.asStateFlow()
 
+    private val _widget = MutableStateFlow(WidgetCache.read(app))
+    val widget: StateFlow<WidgetState> = _widget.asStateFlow()
+
     init {
         prefs.edit(commit = true) { putString("serverUrl", _session.value.serverUrl) }
         if (_session.value.joined) refresh() else _ready.value = true
@@ -122,6 +130,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     syncRequests()
                     loadMonth(_selectedMonth.value)
                 }.onFailure { _statusMessage.value = it.message ?: "同步失败" }
+                runCatching { syncWidget() }
                 _ready.value = true
             }
         }
@@ -147,6 +156,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun leaveHome() {
         ReviewActivityWorker.cancel(getApplication())
+        WidgetRefreshWorker.cancel(getApplication())
+        WidgetCache.clear(getApplication())
+        _widget.value = WidgetState()
         prefs.edit {
             remove("token")
             remove("householdCode")
@@ -157,6 +169,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         _monthExpenses.value = emptyList()
         _monthBudget.value = null
         _ready.value = false
+        viewModelScope.launch { WidgetCache.publish(getApplication()) }
     }
 
     fun updateName(name: String) {
@@ -265,6 +278,34 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         _statusMessage.value = null
     }
 
+    fun refreshWidget() {
+        if (!_session.value.joined) return
+        viewModelScope.launch {
+            track(_refreshCount) {
+                runCatching { syncWidget() }
+                    .onFailure { _statusMessage.value = it.message ?: "组件同步失败" }
+            }
+        }
+    }
+
+    fun saveWidgetCaption(caption: String) {
+        viewModelScope.launch {
+            track(_busyCount) {
+                runCatching { applyWidget(repo.updateWidgetCaption(WidgetCopy.clampCaption(caption))) }
+                    .onFailure { _statusMessage.value = it.message ?: "说明保存失败" }
+            }
+        }
+    }
+
+    fun uploadWidgetPhoto(uri: Uri) {
+        viewModelScope.launch {
+            track(_busyCount) {
+                runCatching { applyWidget(repo.uploadWidgetImage(uri)) }
+                    .onFailure { _statusMessage.value = it.message ?: "照片上传失败" }
+            }
+        }
+    }
+
     fun setAppearance(value: Appearance) {
         prefs.edit { putString(PREF_APPEARANCE, value.prefValue) }
         _appearance.value = value
@@ -281,8 +322,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             _session.update { it.copy(token = remote.token, householdCode = remote.householdCode) }
             syncRequests()
             loadMonth(_selectedMonth.value)
+            runCatching { syncWidget() }
             ReviewActivityWorker.schedule(getApplication())
             ReviewActivityWorker.enqueueSoon(getApplication())
+            WidgetRefreshWorker.schedule(getApplication())
+            WidgetRefreshWorker.enqueueSoon(getApplication())
         }.onFailure { _statusMessage.value = it.message ?: "连接失败，请检查服务器地址" }
         _ready.value = _session.value.joined
     }
@@ -311,6 +355,20 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun loadMonth(month: YearMonth) {
         _monthExpenses.value = repo.listExpenses(month.toString())
         _monthBudget.value = repo.getBudget(month.toString())
+    }
+
+    private suspend fun syncWidget() {
+        val app = getApplication<Application>()
+        val previous = WidgetCache.read(app)
+        val next = WidgetCache.applyRemote(app, repo.getWidget())
+        _widget.value = next
+        if (next != previous) WidgetCache.publish(app)
+    }
+
+    private suspend fun applyWidget(remote: WidgetDto) {
+        val app = getApplication<Application>()
+        _widget.value = WidgetCache.applyRemote(app, remote)
+        WidgetCache.publish(app)
     }
 
     private fun applyRemoteSession(remote: SessionDto) {

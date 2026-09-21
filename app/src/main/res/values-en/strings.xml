@@ -1,3 +1,7 @@
 <resources>
     <string name="app_name">GuanGuanHua</string>
+    <string name="widget_name">GuanGuanHua</string>
+    <string name="widget_description">Shared household photo and caption</string>
+    <string name="widget_empty_photo">No photo yet</string>
+    <string name="widget_brand">GuanGuanHua</string>
 </resources>

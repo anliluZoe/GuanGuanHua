@@ -71,7 +71,7 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProfileScreen(viewModel: AppViewModel) {
+fun ProfileScreen(viewModel: AppViewModel, onOpenWidget: () -> Unit = {}) {
     val profile by viewModel.profile.collectAsStateWithLifecycle()
     val session by viewModel.session.collectAsStateWithLifecycle()
     val isBusy by viewModel.isBusy.collectAsStateWithLifecycle()
@@ -214,6 +214,17 @@ fun ProfileScreen(viewModel: AppViewModel) {
             )
             Spacer(Modifier.height(4.dp))
             Text(session.serverUrl, color = QTheme.colors.muted, style = MaterialTheme.typography.bodySmall)
+        }
+        SoftCard(modifier = Modifier.fillMaxWidth(), onClick = onOpenWidget) {
+            Text("桌面组件", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "一张合照、一句说明，两部手机的桌面一起换。",
+                color = QTheme.colors.muted,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Spacer(Modifier.height(8.dp))
+            Text("去设置 →", color = QTheme.colors.sky, style = MaterialTheme.typography.labelLarge)
         }
         SoftCard(modifier = Modifier.fillMaxWidth()) {
             Text("谁来把关", style = MaterialTheme.typography.titleMedium)

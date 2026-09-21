@@ -8,6 +8,7 @@ import androidx.core.content.edit
 import com.guanguanhua.app.data.ApiConfig
 import com.guanguanhua.app.data.HouseholdRepository
 import com.guanguanhua.app.notify.ReviewActivityWorker
+import com.guanguanhua.app.widget.WidgetRefreshWorker
 
 class GuanGuanHuaApp : Application() {
     val repository: HouseholdRepository by lazy { HouseholdRepository(this) }
@@ -23,6 +24,7 @@ class GuanGuanHuaApp : Application() {
         }
         ensureReviewChannel()
         ReviewActivityWorker.schedule(this)
+        WidgetRefreshWorker.schedule(this)
     }
 
     fun ensureReviewChannel() {
