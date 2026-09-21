@@ -401,13 +401,10 @@ fun PhotoSlot(
                 )
             }
         } else if (showEmpty) {
-            Column(
+            Box(
                 modifier = Modifier.fillMaxSize().padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
+                contentAlignment = Alignment.Center,
             ) {
-                Text("📷", style = MaterialTheme.typography.headlineSmall)
-                Spacer(Modifier.height(6.dp))
                 Text(emptyLabel, color = colors.ink, style = MaterialTheme.typography.bodyMedium)
             }
         }
@@ -497,13 +494,12 @@ fun LoadingScrim(visible: Boolean, hint: String = "稍等一下哦…") {
 }
 
 @Composable
-fun EmptyHint(kind: MascotKind, title: String, subtitle: String) {
+fun EmptyHint(title: String, subtitle: String) {
     Column(
         modifier = Modifier.fillMaxWidth().padding(vertical = 28.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Mascot(kind, size = 128.dp)
         Text(title, style = MaterialTheme.typography.titleMedium)
         Text(subtitle, color = QTheme.colors.secondary, style = MaterialTheme.typography.bodyMedium)
     }
@@ -543,7 +539,6 @@ fun AppearancePicker(
             modifier = Modifier.horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            ChoiceChip("跟随系统", value == Appearance.System, onClick = { onChange(Appearance.System) })
             ChoiceChip("浅色", value == Appearance.Light, onClick = { onChange(Appearance.Light) })
             ChoiceChip("深色", value == Appearance.Dark, onClick = { onChange(Appearance.Dark) })
         }

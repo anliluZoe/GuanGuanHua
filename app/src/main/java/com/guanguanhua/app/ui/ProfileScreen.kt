@@ -1,23 +1,11 @@
 package com.guanguanhua.app.ui
 
-import android.Manifest
-import android.app.Activity
-import android.content.Intent
-import android.content.pm.PackageManager
-import android.os.Build
-import android.provider.Settings
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -45,69 +33,36 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
-import androidx.compose.foundation.Image
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.guanguanhua.app.AppViewModel
 import com.guanguanhua.app.data.ApiConfig
-import com.guanguanhua.app.notify.ReviewActivityWorker
 import com.guanguanhua.app.ui.theme.QTheme
 import com.guanguanhua.app.update.AppUpdates
 import com.guanguanhua.app.update.AvailableUpdate
 import com.guanguanhua.app.update.UpdateCheckResult
+import com.guanguanhua.app.widget.WidgetCopy
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProfileScreen(viewModel: AppViewModel, onOpenWidget: () -> Unit = {}) {
+fun ProfileScreen(viewModel: AppViewModel, onOpenWidget: () -> Unit = {}, onOpenEdit: () -> Unit = {}) {
     val profile by viewModel.profile.collectAsStateWithLifecycle()
     val session by viewModel.session.collectAsStateWithLifecycle()
     val isBusy by viewModel.isBusy.collectAsStateWithLifecycle()
     val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
     val isReady by viewModel.isReady.collectAsStateWithLifecycle()
     val appearance by viewModel.appearance.collectAsStateWithLifecycle()
+    val widget by viewModel.widget.collectAsStateWithLifecycle()
     val joinPicker by viewModel.joinPicker.collectAsStateWithLifecycle()
     var name by rememberSaveable(profile.name) { mutableStateOf(profile.name.ifBlank { "小明" }) }
     var householdCode by rememberSaveable { mutableStateOf("") }
     var serverUrl by rememberSaveable(session.serverUrl) { mutableStateOf(session.serverUrl) }
-    val context = LocalContext.current
-    var notificationsOn by remember { mutableStateOf(ReviewActivityWorker.notificationsAllowed(context)) }
-    val notificationSettings = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
-        .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-    val askNotifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        notificationsOn = ReviewActivityWorker.notificationsAllowed(context)
-        if (granted) {
-            ReviewActivityWorker.enqueueSoon(context)
-        } else {
-            val activity = context as? Activity
-            if (activity != null && !activity.shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS)) {
-                context.startActivity(notificationSettings)
-            }
-        }
-    }
-    var showPicker by remember { mutableStateOf(false) }
-    val avatarPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-        if (uri != null) {
-            viewModel.updateAvatarPhoto(uri)
-            showPicker = false
-        }
-    }
-    LifecycleResumeEffect(Unit) {
-        notificationsOn = ReviewActivityWorker.notificationsAllowed(context)
-        onPauseOrDispose { }
-    }
     LaunchedEffect(Unit) { viewModel.refresh() }
 
     PullRefreshBox(
@@ -127,7 +82,11 @@ fun ProfileScreen(viewModel: AppViewModel, onOpenWidget: () -> Unit = {}) {
         Spacer(Modifier.height(12.dp))
         PageHeader(
             title = "我们",
-            subtitle = "两个人的小金库 · 才不是腻歪呢",
+            subtitle = if (session.joined) {
+                "${profile.name.ifBlank { "我" }} × ${profile.partnerName ?: "另一半"}"
+            } else {
+                "两个人的小金库 · 才不是腻歪呢"
+            },
             leading = {
                 StackedAvatars(
                     meName = profile.name,
@@ -179,31 +138,51 @@ fun ProfileScreen(viewModel: AppViewModel, onOpenWidget: () -> Unit = {}) {
             }
         } else {
         SoftCard(modifier = Modifier.fillMaxWidth()) {
-            Text("我的头像", style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(12.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                MemberAvatar(
-                    name = profile.name,
-                    presetId = profile.avatarPreset,
-                    photoUrl = profile.avatarUrl,
-                    size = 56.dp,
-                )
-                Spacer(Modifier.width(12.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(profile.name.ifBlank { "还没起名" }, style = MaterialTheme.typography.titleMedium)
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        "预设或相册都行，对方那边也会同步",
-                        color = QTheme.colors.muted,
-                        style = MaterialTheme.typography.bodySmall,
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    MemberAvatar(
+                        name = profile.name,
+                        presetId = profile.avatarPreset,
+                        photoUrl = profile.avatarUrl,
+                        size = 56.dp,
                     )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        profile.name.ifBlank { "还没起名" },
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text("我", color = QTheme.colors.muted, style = MaterialTheme.typography.labelMedium)
                 }
-                ChoiceChip("更换", selected = false, onClick = { showPicker = true })
+                Column(
+                    modifier = Modifier.weight(1f),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    MemberAvatar(
+                        name = profile.partnerName ?: "另一半",
+                        presetId = profile.partnerAvatarPreset,
+                        photoUrl = profile.partnerAvatarUrl,
+                        fallbackPreset = AvatarIds.DOG,
+                        size = 56.dp,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        profile.partnerName ?: "还没加入",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (profile.partnerName == null) QTheme.colors.muted else QTheme.colors.ink,
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text("另一半", color = QTheme.colors.muted, style = MaterialTheme.typography.labelMedium)
+                }
             }
-        }
-        SoftCard(modifier = Modifier.fillMaxWidth()) {
-            Text("家庭码", style = MaterialTheme.typography.titleMedium, color = QTheme.colors.muted)
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(16.dp))
+            Text("家庭码", color = QTheme.colors.muted, style = MaterialTheme.typography.labelMedium)
+            Spacer(Modifier.height(4.dp))
             Text(
                 session.householdCode.ifBlank { "还未加入" },
                 style = MaterialTheme.typography.displaySmall.copy(
@@ -213,124 +192,55 @@ fun ProfileScreen(viewModel: AppViewModel, onOpenWidget: () -> Unit = {}) {
                 ),
                 color = QTheme.colors.sky,
             )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                "把码塞给另一部手机，打开「我们」页点「加入」。已经有两个人时，对方会选一个身份进入。退出会让出名额。",
-                color = QTheme.colors.muted,
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Spacer(Modifier.height(4.dp))
-            Text(session.serverUrl, color = QTheme.colors.muted, style = MaterialTheme.typography.bodySmall)
-        }
-        SoftCard(modifier = Modifier.fillMaxWidth(), onClick = onOpenWidget) {
-            Text("桌面组件", style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(6.dp))
-            Text(
-                "一张合照、一句说明叠在正中间，两部手机的桌面一起换。",
-                color = QTheme.colors.muted,
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Spacer(Modifier.height(8.dp))
-            Text("去设置 →", color = QTheme.colors.sky, style = MaterialTheme.typography.labelLarge)
+            Spacer(Modifier.height(16.dp))
+            PillButton("编辑资料", filled = false, onClick = onOpenEdit)
         }
         SoftCard(modifier = Modifier.fillMaxWidth()) {
-            Text("谁来把关", style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(6.dp))
-            Text(
-                "谁想买都行，但另一半说了算哼。过了关的钱才会乖乖进账本。",
-                style = MaterialTheme.typography.bodySmall,
-                color = QTheme.colors.muted,
-            )
-            Spacer(Modifier.height(16.dp))
+            val hasPhoto = !widget.imageUrl.isNullOrBlank() || !widget.localImagePath.isNullOrBlank()
             Row(verticalAlignment = Alignment.CenterVertically) {
-                MemberAvatar(
-                    name = profile.partnerName ?: "另一半",
-                    presetId = profile.partnerAvatarPreset,
-                    photoUrl = profile.partnerAvatarUrl,
-                    fallbackPreset = AvatarIds.DOG,
-                    size = 44.dp,
+                PhotoSlot(
+                    model = widget.imageUrl ?: widget.localImagePath,
+                    modifier = Modifier
+                        .width(96.dp)
+                        .height(96.dp),
+                    showEmpty = false,
                 )
-                Spacer(Modifier.width(12.dp))
-                Column {
-                    Text("另一半", color = QTheme.colors.muted, style = MaterialTheme.typography.labelMedium)
+                Spacer(Modifier.width(14.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("桌面组件", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(4.dp))
                     Text(
-                        profile.partnerName ?: "还没有人加入，把家庭码发给TA吧",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (profile.partnerName == null) QTheme.colors.muted else QTheme.colors.ink,
+                        WidgetCopy.summaryLine(hasPhoto, widget.caption),
+                        color = QTheme.colors.muted,
+                        style = MaterialTheme.typography.bodySmall,
                     )
                 }
             }
-        }
-        SoftCard(modifier = Modifier.fillMaxWidth()) {
-            Text("怎么称呼我", style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(12.dp))
-            SoftField(value = name, onValueChange = { name = it }, label = "我的名字")
             Spacer(Modifier.height(16.dp))
-            PillButton(
-                "保存名字",
-                enabled = !isBusy && name.trim().isNotBlank() && name.trim() != profile.name,
-                onClick = { viewModel.updateName(name) },
-            )
-        }
-        SoftCard(modifier = Modifier.fillMaxWidth()) {
-            Text("审核动态提醒", style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(6.dp))
-            Text("对方发起新申请、或审核了你的申请，都会通知你。", style = MaterialTheme.typography.bodySmall)
-            Spacer(Modifier.height(4.dp))
-            Text(
-                "App 打开时每 30 秒自动刷新；放到后台后大约 20 秒会检查一次，之后约每 15 分钟再查。不依赖 Google 推送。",
-                color = QTheme.colors.muted,
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Spacer(Modifier.height(4.dp))
-            Text(
-                "部分手机厂商会限制后台任务，若迟迟收不到，请在系统设置里允许本应用自启动/后台运行，并关掉电池优化。",
-                color = QTheme.colors.muted,
-                style = MaterialTheme.typography.bodySmall,
-            )
-            if (!notificationsOn) {
-                Spacer(Modifier.height(14.dp))
-                Text(
-                    "系统通知现在是关着的，打开后才能收到提醒。",
-                    color = if (QTheme.colors.isDark) QTheme.colors.rose else QTheme.colors.coral,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                Spacer(Modifier.height(10.dp))
-                PillButton("去开启通知", filled = false, onClick = {
-                    val needsRuntime = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-                    if (needsRuntime) {
-                        askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
-                    } else {
-                        context.startActivity(notificationSettings)
-                    }
-                })
-            }
+            PillButton("编辑桌面组件", filled = false, onClick = onOpenWidget)
         }
         }
         AppearancePicker(value = appearance, onChange = viewModel::setAppearance)
         UpdateCard()
-        SoftCard(modifier = Modifier.fillMaxWidth()) {
-            Text("服务器地址", style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(6.dp))
-            Text(
-                "调试用。一般不用改，默认已连家里的服务器。",
-                color = QTheme.colors.muted,
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Spacer(Modifier.height(12.dp))
-            SoftField(value = serverUrl, onValueChange = { serverUrl = it }, label = "API 地址")
-            Spacer(Modifier.height(16.dp))
-            PillButton(
-                "保存地址",
-                filled = false,
-                enabled = !isBusy && ApiConfig.resolvedServerUrl(serverUrl) != session.serverUrl,
-                onClick = { viewModel.setServerUrl(serverUrl) },
-            )
-        }
-        if (session.joined) {
-            PillButton("退出这个家庭账本", filled = false, enabled = !isBusy, onClick = { viewModel.leaveHome() })
+        if (!session.joined) {
+            SoftCard(modifier = Modifier.fillMaxWidth()) {
+                Text("服务器地址", style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "调试用。一般不用改，默认已连家里的服务器。",
+                    color = QTheme.colors.muted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Spacer(Modifier.height(12.dp))
+                SoftField(value = serverUrl, onValueChange = { serverUrl = it }, label = "API 地址")
+                Spacer(Modifier.height(16.dp))
+                PillButton(
+                    "保存地址",
+                    filled = false,
+                    enabled = !isBusy && ApiConfig.resolvedServerUrl(serverUrl) != session.serverUrl,
+                    onClick = { viewModel.setServerUrl(serverUrl) },
+                )
+            }
         }
         Spacer(Modifier.height(96.dp))
         }
@@ -387,100 +297,6 @@ fun ProfileScreen(viewModel: AppViewModel, onOpenWidget: () -> Unit = {}) {
                     }
                 }
                 PillButton("先不了", filled = false, enabled = !isBusy, onClick = { viewModel.dismissJoinPicker() })
-            }
-        }
-    }
-
-    if (showPicker) {
-        val colors = QTheme.colors
-        val sheetShape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
-        var selectedPreset by remember(profile.avatarPreset, profile.avatarUrl) {
-            mutableStateOf(if (profile.avatarUrl.isNullOrBlank()) profile.avatarPreset else null)
-        }
-        ModalBottomSheet(
-            onDismissRequest = { showPicker = false },
-            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-            containerColor = colors.paper,
-            shape = sheetShape,
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
-                    .padding(bottom = 28.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Text("换个头像呗", style = MaterialTheme.typography.titleLarge)
-                Text(
-                    "先挑预设，或从相册上传一张",
-                    color = colors.secondary,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                AvatarIds.ALL.chunked(3).forEach { row ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        row.forEach { id ->
-                            val selected = selectedPreset == id
-                            val tileShape = RoundedCornerShape(18.dp)
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .aspectRatio(1f)
-                                    .clip(tileShape)
-                                    .background(if (colors.isDark) colors.sandDeep else colors.chipWash)
-                                    .border(2.dp, if (selected) colors.sky else colors.line, tileShape)
-                                    .clickable { selectedPreset = id },
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Image(
-                                    painter = painterResource(avatarPresetRes(id)),
-                                    contentDescription = null,
-                                    contentScale = ContentScale.Fit,
-                                    modifier = Modifier.fillMaxSize().padding(6.dp),
-                                )
-                            }
-                        }
-                        repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
-                    }
-                }
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(54.dp)
-                        .clip(RoundedCornerShape(28.dp))
-                        .drawBehind {
-                            drawRoundRect(
-                                color = colors.lineStrong,
-                                style = Stroke(
-                                    width = 2.dp.toPx(),
-                                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(16f, 12f), 0f),
-                                ),
-                                cornerRadius = CornerRadius(28.dp.toPx()),
-                            )
-                        }
-                        .clickable {
-                            avatarPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                        },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        "从相册上传",
-                        color = colors.coral,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                }
-                PillButton("先这样", filled = false, onClick = {
-                    val preset = selectedPreset
-                    if (preset != null && AvatarIds.known(preset) &&
-                        (preset != profile.avatarPreset || !profile.avatarUrl.isNullOrBlank())
-                    ) {
-                        viewModel.updateAvatarPreset(preset)
-                    }
-                    showPicker = false
-                })
             }
         }
     }

@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.guanguanhua.app.AppViewModel
 import com.guanguanhua.app.ui.theme.QTheme
+import com.guanguanhua.app.widget.WidgetCopy
 
 @Composable
 fun NewRequestScreen(viewModel: AppViewModel, onBack: () -> Unit) {
@@ -152,6 +153,11 @@ fun NewRequestScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                 photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
             },
             onClear = photoUri?.let { { photoUri = null } },
+        )
+        Text(
+            WidgetCopy.COMPRESS_HINT,
+            color = QTheme.colors.muted,
+            style = MaterialTheme.typography.bodySmall,
         )
         Spacer(Modifier.height(4.dp))
         PillButton(

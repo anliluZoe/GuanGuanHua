@@ -64,6 +64,7 @@ import com.guanguanhua.app.notify.ReviewActivityWorker
 import com.guanguanhua.app.ui.ExpensesScreen
 import com.guanguanhua.app.ui.LoadingScrim
 import com.guanguanhua.app.ui.NewRequestScreen
+import com.guanguanhua.app.ui.ProfileEditScreen
 import com.guanguanhua.app.ui.ProfileScreen
 import com.guanguanhua.app.ui.RequestDetailScreen
 import com.guanguanhua.app.ui.RequestListScreen
@@ -264,7 +265,11 @@ class MainActivity : ComponentActivity() {
                                 ProfileScreen(
                                     viewModel = viewModel,
                                     onOpenWidget = { navController.navigate("profile/widget") },
+                                    onOpenEdit = { navController.navigate("profile/edit") },
                                 )
+                            }
+                            composable("profile/edit") {
+                                ProfileEditScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
                             }
                             composable("profile/widget") {
                                 WidgetScreen(viewModel = viewModel, onBack = { navController.popBackStack() })

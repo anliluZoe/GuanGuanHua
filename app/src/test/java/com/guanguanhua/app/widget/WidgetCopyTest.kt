@@ -26,6 +26,15 @@ class WidgetCopyTest {
     fun emptyPhotoCopyIsTheApprovedPlaceholder() {
         assertEquals("还没有照片", WidgetCopy.EMPTY_PHOTO)
         assertEquals("上传一张放上桌面吧", WidgetCopy.EMPTY_PHOTO_HINT)
+        assertEquals("上传会压缩为 JPG", WidgetCopy.COMPRESS_HINT)
+    }
+
+    @Test
+    fun summaryLineIsSetOrUnsetWithoutMixingEditCopy() {
+        assertEquals("未设置", WidgetCopy.summaryLine(hasPhoto = false, caption = "  "))
+        assertEquals("已设置", WidgetCopy.summaryLine(hasPhoto = true, caption = ""))
+        assertEquals("已设置 · 周末去看海", WidgetCopy.summaryLine(hasPhoto = true, caption = "  周末去看海  "))
+        assertEquals("已设置 · 想吃火锅", WidgetCopy.summaryLine(hasPhoto = false, caption = "想吃火锅"))
     }
 
     @Test
