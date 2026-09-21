@@ -7,6 +7,29 @@ plugins {
 val appVersionCode = providers.gradleProperty("appVersionCode").get().toInt()
 val appVersionName = providers.gradleProperty("appVersionName").get()
 
+fun envOrProp(name: String): String? {
+    val fromEnv = System.getenv(name)?.trim().orEmpty()
+    if (fromEnv.isNotEmpty()) return fromEnv
+    return (findProperty(name) as String?)?.trim()?.takeIf { it.isNotEmpty() }
+}
+
+val uploadKeystorePath = envOrProp("ANDROID_KEYSTORE_PATH")
+val uploadKeystorePassword = envOrProp("ANDROID_KEYSTORE_PASSWORD")
+val uploadKeyAlias = envOrProp("ANDROID_KEY_ALIAS")
+val uploadKeyPassword = envOrProp("ANDROID_KEY_PASSWORD")
+val useUploadSigning = listOf(
+    uploadKeystorePath,
+    uploadKeystorePassword,
+    uploadKeyAlias,
+    uploadKeyPassword
+).all { !it.isNullOrBlank() }
+
+if (useUploadSigning) {
+    logger.lifecycle("Signing with upload keystore: $uploadKeystorePath")
+} else {
+    logger.lifecycle("Upload signing env not set; debug builds use the default debug keystore")
+}
+
 android {
     namespace = "com.guanguanhua.app"
     compileSdk = 35
@@ -22,13 +45,32 @@ android {
         }
     }
 
+    signingConfigs {
+        if (useUploadSigning) {
+            create("upload") {
+                storeFile = file(uploadKeystorePath!!)
+                storePassword = uploadKeystorePassword!!
+                keyAlias = uploadKeyAlias!!
+                keyPassword = uploadKeyPassword!!
+            }
+        }
+    }
+
     buildTypes {
+        debug {
+            if (useUploadSigning) {
+                signingConfig = signingConfigs.getByName("upload")
+            }
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            if (useUploadSigning) {
+                signingConfig = signingConfigs.getByName("upload")
+            }
         }
     }
     compileOptions {

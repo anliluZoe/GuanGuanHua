@@ -115,8 +115,10 @@ backend/scripts/publish-update.sh app/build/outputs/apk/debug/app-debug.apk 3 1.
 
 推送到 `main`，或在 Actions 里手动 **Run workflow**，会 SSH 部署后端、打 `saveMoney.apk`，并发布到服务器 `updates/`。
 
-**必填 Secrets（精确名称）：** `DEPLOY_HOST`、`DEPLOY_USER`、`DEPLOY_SSH_KEY`  
+**必填 Secrets（精确名称）：** `DEPLOY_HOST`、`DEPLOY_USER`、`DEPLOY_SSH_KEY`，以及 APK 固定签名用的 `ANDROID_KEYSTORE_BASE64`、`ANDROID_KEYSTORE_PASSWORD`、`ANDROID_KEY_ALIAS`、`ANDROID_KEY_PASSWORD`  
 **可选：** `DEPLOY_PATH`（不设则用服务器上已有的 `~/watchMoney` 或 `~/saveMoney`，否则 clone 到 `~/watchMoney`）
+
+`ANDROID_KEYSTORE_BASE64` 是 **keystore 文件**的 base64（建议单行、无换行），不要把 `.jks` / 密码 / 这段 base64 提交进仓库。本地 `assembleDebug` 不设这些变量时仍用默认 debug 签名。详细生成步骤见 **[docs/deploy.md](docs/deploy.md)**。
 
 首次需要服务器已安装 Docker、git、curl，并建好数据目录 `/data/savemoney`（重建容器也不会删账本）。完整步骤、密钥怎么配、从旧 compose 迁数据：见 **[docs/deploy.md](docs/deploy.md)**。
 

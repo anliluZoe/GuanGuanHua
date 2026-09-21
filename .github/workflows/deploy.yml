@@ -33,17 +33,29 @@ jobs:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           missing=()
           [[ -z "$DEPLOY_HOST" ]] && missing+=(DEPLOY_HOST)
           [[ -z "$DEPLOY_USER" ]] && missing+=(DEPLOY_USER)
           [[ -z "$DEPLOY_SSH_KEY" ]] && missing+=(DEPLOY_SSH_KEY)
+          [[ -z "$ANDROID_KEYSTORE_BASE64" ]] && missing+=(ANDROID_KEYSTORE_BASE64)
+          [[ -z "$ANDROID_KEYSTORE_PASSWORD" ]] && missing+=(ANDROID_KEYSTORE_PASSWORD)
+          [[ -z "$ANDROID_KEY_ALIAS" ]] && missing+=(ANDROID_KEY_ALIAS)
+          [[ -z "$ANDROID_KEY_PASSWORD" ]] && missing+=(ANDROID_KEY_PASSWORD)
           if [[ ${#missing[@]} -ne 0 ]]; then
             echo "::error::缺少 GitHub Actions Secrets: ${missing[*]}"
             echo "请到仓库 Settings → Secrets and variables → Actions 添加："
-            echo "  DEPLOY_HOST     阿里云主机 IP 或域名"
-            echo "  DEPLOY_USER     SSH 用户名"
-            echo "  DEPLOY_SSH_KEY  SSH 私钥全文（含 BEGIN/END 行）"
+            echo "  DEPLOY_HOST                 阿里云主机 IP 或域名"
+            echo "  DEPLOY_USER                 SSH 用户名"
+            echo "  DEPLOY_SSH_KEY              SSH 私钥全文（含 BEGIN/END 行）"
+            echo "  ANDROID_KEYSTORE_BASE64     upload keystore 文件的 base64（建议单行、无换行）"
+            echo "  ANDROID_KEYSTORE_PASSWORD   keystore 密码"
+            echo "  ANDROID_KEY_ALIAS           密钥别名"
+            echo "  ANDROID_KEY_PASSWORD        密钥密码"
             echo "可选："
             echo "  DEPLOY_PATH     服务器仓库目录；不设则自动用 ~/watchMoney 或 ~/saveMoney"
             echo "说明见 docs/deploy.md"
@@ -107,14 +119,59 @@ jobs:
           log-accepted-android-sdk-licenses: false
       - name: 非交互接受 Android SDK 许可
         run: yes | sdkmanager --licenses >/dev/null || true
+      - name: 解码 upload keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$ANDROID_KEYSTORE_BASE64" ]]; then
+            echo "::error::缺少 Secret ANDROID_KEYSTORE_BASE64，无法用固定签名打包发布 APK"
+            echo "请到仓库 Settings → Secrets and variables → Actions 添加该 Secret。"
+            echo "说明见 docs/deploy.md"
+            exit 1
+          fi
+          # GitHub Secret 里偶发换行/空格；去掉空白后再解码，避免 INSTALL 签名抖动
+          if ! printf '%s' "$ANDROID_KEYSTORE_BASE64" | tr -d '[:space:]' | base64 --decode > "$RUNNER_TEMP/upload.jks"; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 不是合法 base64。请用 keystore 文件做 base64（建议单行、无换行）。"
+            echo "说明见 docs/deploy.md"
+            exit 1
+          fi
+          if [[ ! -s "$RUNNER_TEMP/upload.jks" ]]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 解码后文件为空。Secret 必须是 .jks/.keystore 文件的 base64，不要带 PEM 头或换行杂质。"
+            echo "说明见 docs/deploy.md"
+            exit 1
+          fi
+          echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/upload.jks" >> "$GITHUB_ENV"
+          echo "已解码 upload keystore → $RUNNER_TEMP/upload.jks"
       - name: assembleDebug 并重命名为 saveMoney.apk
         env:
           VERSION_CODE: ${{ needs.check-secrets.outputs.version_code }}
           VERSION_NAME: ${{ needs.check-secrets.outputs.version_name }}
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/upload.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
+          missing=()
+          [[ -z "$ANDROID_KEYSTORE_PATH" ]] && missing+=(ANDROID_KEYSTORE_PATH)
+          [[ -z "$ANDROID_KEYSTORE_PASSWORD" ]] && missing+=(ANDROID_KEYSTORE_PASSWORD)
+          [[ -z "$ANDROID_KEY_ALIAS" ]] && missing+=(ANDROID_KEY_ALIAS)
+          [[ -z "$ANDROID_KEY_PASSWORD" ]] && missing+=(ANDROID_KEY_PASSWORD)
+          if [[ ${#missing[@]} -ne 0 ]]; then
+            echo "::error::打包发布 APK 缺少签名配置: ${missing[*]}"
+            echo "本地 assembleDebug 无这些变量时会回退默认 debug 签名；CI 发布包必须用固定 upload keystore。"
+            echo "请配置 Secrets：ANDROID_KEYSTORE_BASE64、ANDROID_KEYSTORE_PASSWORD、ANDROID_KEY_ALIAS、ANDROID_KEY_PASSWORD"
+            echo "说明见 docs/deploy.md"
+            exit 1
+          fi
+          if [[ ! -s "$ANDROID_KEYSTORE_PATH" ]]; then
+            echo "::error::ANDROID_KEYSTORE_PATH 文件不存在或为空: $ANDROID_KEYSTORE_PATH"
+            exit 1
+          fi
           chmod +x gradlew
           echo "applicationId=com.guanguanhua.app（新应用身份；APK 文件名仍为 saveMoney.apk，以兼容 /api/update）"
           echo "打包 versionCode=$VERSION_CODE versionName=$VERSION_NAME"
+          echo "使用固定 upload keystore 签名，以便后续 Actions 构建可覆盖安装"
           ./gradlew assembleDebug --no-daemon \
             -PappVersionCode="$VERSION_CODE" \
             -PappVersionName="$VERSION_NAME"
