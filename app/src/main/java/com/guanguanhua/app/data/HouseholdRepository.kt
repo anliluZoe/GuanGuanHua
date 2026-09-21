@@ -3,10 +3,12 @@ package com.guanguanhua.app.data
 import android.app.Application
 import android.content.Context
 import android.net.Uri
+import com.google.gson.Gson
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.ResponseBody
 import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -21,6 +23,7 @@ import retrofit2.http.PATCH
 import retrofit2.http.Part
 import retrofit2.http.Path
 import retrofit2.http.Query
+import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 data class MemberDto(
@@ -41,6 +44,7 @@ data class SessionDto(
 data class JoinBody(
     val name: String,
     val code: String? = null,
+    val memberId: Long? = null,
 )
 
 data class ReviewBody(
@@ -72,10 +76,13 @@ interface GuanGuanHuaApi {
     suspend fun createHousehold(@Body body: JoinBody): SessionDto
 
     @POST("api/households/join")
-    suspend fun joinHousehold(@Body body: JoinBody): SessionDto
+    suspend fun joinHousehold(@Body body: JoinBody): Response<SessionDto>
 
     @GET("api/session")
     suspend fun session(@Header("Authorization") authorization: String): SessionDto
+
+    @DELETE("api/session")
+    suspend fun leaveSession(@Header("Authorization") authorization: String): Response<ResponseBody>
 
     @PUT("api/session")
     suspend fun updateSession(@Header("Authorization") authorization: String, @Body body: ProfileBody): SessionDto
@@ -172,8 +179,21 @@ class HouseholdRepository(private val app: Application) {
     suspend fun createHousehold(name: String): SessionDto =
         api().createHousehold(JoinBody(name = name))
 
-    suspend fun joinHousehold(code: String, name: String): SessionDto =
-        api().joinHousehold(JoinBody(name = name, code = code.trim()))
+    suspend fun joinHousehold(code: String, name: String, memberId: Long? = null): SessionDto {
+        val response = api().joinHousehold(
+            JoinBody(name = name, code = code.trim(), memberId = memberId),
+        )
+        if (response.isSuccessful) {
+            return response.body() ?: error("服务器没有返回登录信息")
+        }
+        throw apiFailure(response.code(), response.errorBody()?.string().orEmpty(), "加入失败")
+    }
+
+    suspend fun leaveHousehold() {
+        val response = api().leaveSession(bearer())
+        if (response.isSuccessful || response.code() == 401) return
+        throw apiFailure(response.code(), response.errorBody()?.string().orEmpty(), "退出失败")
+    }
 
     suspend fun session(): SessionDto = api().session(bearer())
 
@@ -263,4 +283,27 @@ class HouseholdRepository(private val app: Application) {
             MultipartBody.Part.createFormData("image", "widget.jpg", body),
         )
     }
+}
+
+class HouseholdFullException(
+    val members: List<MemberDto>,
+    override val message: String,
+) : IOException(message)
+
+internal data class ApiErrorBody(
+    val detail: String? = null,
+    val code: String? = null,
+    val members: List<MemberDto>? = null,
+)
+
+internal fun apiFailure(httpCode: Int, body: String, fallback: String): Exception {
+    val parsed = runCatching { Gson().fromJson(body, ApiErrorBody::class.java) }.getOrNull()
+    val detail = parsed?.detail?.trim()?.takeIf { it.isNotEmpty() }
+    if (httpCode == 409 && parsed?.code == "household_full") {
+        return HouseholdFullException(
+            members = parsed.members.orEmpty(),
+            message = detail ?: "这个家庭已经有两个人了，请选择其中一个身份进入",
+        )
+    }
+    return IOException(detail ?: fallback)
 }

@@ -59,16 +59,20 @@ function fileUrl(req, filename) {
   return `${req.protocol}://${req.get("host")}/api/files/${encodeURIComponent(filename)}`;
 }
 
+function memberJson(req, member) {
+  return {
+    id: member.id,
+    name: member.name,
+    avatarPreset: member.avatarPreset,
+    avatarUrl: fileUrl(req, member.avatarFile),
+  };
+}
+
 function sessionJson(req, token) {
   const payload = store.sessionPayload(token);
   return {
     ...payload,
-    members: payload.members.map((member) => ({
-      id: member.id,
-      name: member.name,
-      avatarPreset: member.avatarPreset,
-      avatarUrl: fileUrl(req, member.avatarFile),
-    })),
+    members: payload.members.map((member) => memberJson(req, member)),
   };
 }
 
@@ -82,14 +86,38 @@ app.post("/api/households", (req, res) => {
 app.post("/api/households/join", (req, res) => {
   const name = String(req.body?.name || "").trim();
   const code = String(req.body?.code || "").trim();
-  if (!name || !code) return res.status(400).json({ detail: "名字和家庭码都要填" });
-  const session = store.joinHousehold(code, name);
+  const rawMemberId = req.body?.memberId;
+  let memberId = null;
+  if (rawMemberId != null && rawMemberId !== "") {
+    memberId = Number(rawMemberId);
+    if (!Number.isSafeInteger(memberId) || memberId < 1) {
+      return res.status(400).json({ detail: "选的人不在这个家庭里" });
+    }
+  }
+  if (!code) return res.status(400).json({ detail: "名字和家庭码都要填" });
+  if (memberId == null && !name) return res.status(400).json({ detail: "名字和家庭码都要填" });
+  const session = store.joinHousehold(code, name, memberId);
   if (!session) return res.status(404).json({ detail: "找不到这个家庭码" });
+  if (session.error === "bad_member") {
+    return res.status(400).json({ detail: "选的人不在这个家庭里" });
+  }
+  if (session.householdFull) {
+    return res.status(409).json({
+      detail: "这个家庭已经有两个人了，请选择其中一个身份进入",
+      code: "household_full",
+      members: session.members.map((member) => memberJson(req, member)),
+    });
+  }
   res.json(sessionJson(req, session.token));
 });
 
 app.get("/api/session", requireMember, (req, res) => {
   res.json(sessionJson(req, req.member.token));
+});
+
+app.delete("/api/session", requireMember, (req, res) => {
+  store.leaveHousehold(req.member.id);
+  res.json({ ok: true });
 });
 
 app.put("/api/session", requireMember, (req, res) => {

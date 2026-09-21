@@ -8,6 +8,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.guanguanhua.app.data.ApiConfig
 import com.guanguanhua.app.data.ExpenseRecord
+import com.guanguanhua.app.data.HouseholdFullException
+import com.guanguanhua.app.data.MemberDto
 import com.guanguanhua.app.data.MonthlyBudget
 import com.guanguanhua.app.data.PurchaseRequest
 import com.guanguanhua.app.data.SessionDto
@@ -48,6 +50,11 @@ data class HouseholdSession(
     val joined: Boolean get() = token.isNotBlank()
 }
 
+data class JoinMemberPicker(
+    val code: String,
+    val members: List<MemberDto>,
+)
+
 class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private val repo = (app as GuanGuanHuaApp).repository
@@ -61,6 +68,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         )
     )
     val session: StateFlow<HouseholdSession> = _session.asStateFlow()
+
+    private val _joinPicker = MutableStateFlow<JoinMemberPicker?>(null)
+    val joinPicker: StateFlow<JoinMemberPicker?> = _joinPicker.asStateFlow()
 
     private val _profile = MutableStateFlow(
         UserProfile(
@@ -142,10 +152,23 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun joinHome(code: String, name: String) {
+    fun joinHome(code: String, name: String, memberId: Long? = null) {
         viewModelScope.launch {
-            track(_busyCount) { connect(_session.value.serverUrl) { repo.joinHousehold(code, name.trim()) } }
+            track(_busyCount) {
+                connect(_session.value.serverUrl, householdCode = code.trim()) {
+                    repo.joinHousehold(code, name.trim(), memberId)
+                }
+            }
         }
+    }
+
+    fun enterAsExistingMember(memberId: Long) {
+        val picker = _joinPicker.value ?: return
+        joinHome(picker.code, _profile.value.name, memberId)
+    }
+
+    fun dismissJoinPicker() {
+        _joinPicker.value = null
     }
 
     fun setServerUrl(url: String) {
@@ -155,21 +178,30 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun leaveHome() {
-        ReviewActivityWorker.cancel(getApplication())
-        WidgetRefreshWorker.cancel(getApplication())
-        WidgetCache.clear(getApplication())
-        _widget.value = WidgetState()
-        prefs.edit {
-            remove("token")
-            remove("householdCode")
-            remove(ReviewActivity.PREF_SINCE)
+        viewModelScope.launch {
+            track(_busyCount) {
+                runCatching { repo.leaveHousehold() }
+                    .onSuccess {
+                        ReviewActivityWorker.cancel(getApplication())
+                        WidgetRefreshWorker.cancel(getApplication())
+                        WidgetCache.clear(getApplication())
+                        _widget.value = WidgetState()
+                        prefs.edit {
+                            remove("token")
+                            remove("householdCode")
+                            remove(ReviewActivity.PREF_SINCE)
+                        }
+                        _session.update { it.copy(token = "", householdCode = "") }
+                        _joinPicker.value = null
+                        _requests.value = emptyList()
+                        _monthExpenses.value = emptyList()
+                        _monthBudget.value = null
+                        _ready.value = true
+                        WidgetCache.publish(getApplication())
+                    }
+                    .onFailure { _statusMessage.value = it.message ?: "退出失败，请检查网络后再试" }
+            }
         }
-        _session.update { it.copy(token = "", householdCode = "") }
-        _requests.value = emptyList()
-        _monthExpenses.value = emptyList()
-        _monthBudget.value = null
-        _ready.value = false
-        viewModelScope.launch { WidgetCache.publish(getApplication()) }
     }
 
     fun updateName(name: String) {
@@ -317,7 +349,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         _appearance.value = value
     }
 
-    private suspend fun connect(serverUrl: String, action: suspend () -> SessionDto) {
+    private suspend fun connect(serverUrl: String, householdCode: String? = null, action: suspend () -> SessionDto) {
         val url = ApiConfig.resolvedServerUrl(serverUrl)
         prefs.edit(commit = true) { putString("serverUrl", url) }
         _session.update { it.copy(serverUrl = url) }
@@ -326,6 +358,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             prefs.edit(commit = true) { putString("token", remote.token) }
             applyRemoteSession(remote)
             _session.update { it.copy(token = remote.token, householdCode = remote.householdCode) }
+            _joinPicker.value = null
             syncRequests()
             loadMonth(_selectedMonth.value)
             runCatching { syncWidget() }
@@ -333,7 +366,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             ReviewActivityWorker.enqueueSoon(getApplication())
             WidgetRefreshWorker.schedule(getApplication())
             WidgetRefreshWorker.enqueueSoon(getApplication())
-        }.onFailure { _statusMessage.value = it.message ?: "连接失败，请检查服务器地址" }
+        }.onFailure { error ->
+            if (error is HouseholdFullException && error.members.isNotEmpty()) {
+                _joinPicker.value = JoinMemberPicker(
+                    code = householdCode.orEmpty(),
+                    members = error.members,
+                )
+            } else {
+                _statusMessage.value = error.message ?: "连接失败，请检查服务器地址"
+            }
+        }
         _ready.value = _session.value.joined
     }
 
