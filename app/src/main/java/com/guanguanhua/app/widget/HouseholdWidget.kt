@@ -52,20 +52,20 @@ private fun WidgetCard(context: Context, state: WidgetState, cover: Bitmap?) {
         .putExtra(MainActivity.EXTRA_OPEN_WIDGET, true)
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
     val caption = WidgetCopy.clampCaption(state.caption)
-    val hasCover = cover != null && !state.localImagePath.isNullOrBlank()
-    val overlayText = caption.ifBlank { if (hasCover) "" else WidgetCopy.EMPTY_PHOTO }
+    val coverBitmap = cover.takeIf { !state.localImagePath.isNullOrBlank() }
+    val overlayText = caption.ifBlank { if (coverBitmap != null) "" else WidgetCopy.EMPTY_PHOTO }
     Box(
         modifier = GlanceModifier
             .fillMaxSize()
             .appWidgetBackground()
             .cornerRadius(20.dp)
-            .background(ColorProvider(if (hasCover) Color.White else Color(0xFFD7EAF3)))
+            .background(ColorProvider(if (coverBitmap != null) Color.White else Color(0xFFD7EAF3)))
             .clickable(actionStartActivity(open)),
         contentAlignment = Alignment.Center,
     ) {
-        if (hasCover && cover != null) {
+        if (coverBitmap != null) {
             Image(
-                provider = ImageProvider(cover),
+                provider = ImageProvider(coverBitmap),
                 contentDescription = overlayText.ifBlank { context.getString(R.string.widget_name) },
                 contentScale = ContentScale.Crop,
                 modifier = GlanceModifier.fillMaxSize().cornerRadius(20.dp),
