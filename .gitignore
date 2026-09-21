@@ -13,6 +13,8 @@ local.properties
 *.apk
 *.aab
 *.aab
+*.jks
+*.keystore
 *.log
 /backend/data
 /backend/node_modules

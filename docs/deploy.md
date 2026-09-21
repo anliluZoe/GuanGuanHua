@@ -3,7 +3,7 @@
 推送到 `main`（或在 Actions 里手动 **Run workflow**）后，GitHub Actions 会：
 
 1. SSH 到阿里云：`git pull`（没有仓库则 clone）→ 构建并重启 `savemoney-api` 容器 → 检查 `http://127.0.0.1:8080/api/health`
-2. 用 JDK 21 + Android SDK 打 debug APK（`setup-android` 只装 `platform-tools`、`build-tools;35.0.0`、`platforms;android-35`，**不装**已下线的 `tools` 包，并用 `yes | sdkmanager --licenses` 非交互接受许可），`versionCode = 1000 + github.run_number`，`versionName = 1.2.{run_number}`，输出改名为 `saveMoney.apk`
+2. 用 JDK 21 + Android SDK 打 debug APK（`setup-android` 只装 `platform-tools`、`build-tools;35.0.0`、`platforms;android-35`，**不装**已下线的 `tools` 包，并用 `yes | sdkmanager --licenses` 非交互接受许可），用仓库 Secrets 里的 **upload keystore** 签名（避免每次 runner 默认 `debug.keystore` 不同导致无法覆盖安装），`versionCode = 1000 + github.run_number`，`versionName = 1.2.{run_number}`，输出改名为 `saveMoney.apk`
 3. `scp` 到服务器，再 `docker cp` 进容器，执行 `/app/scripts/publish-update.sh`，核对 `http://127.0.0.1:8080/api/update/latest` 已是新版本
 
 `applicationId` 现为 `com.guanguanhua.app`。这是新的应用身份，**不能覆盖安装**旧的 `com.savemoney.app`；用户需装新包，旧 App 可自行卸载。CI 打出的包仍改名为 **`saveMoney.apk`**，发布路径仍是 `/api/update/download/saveMoney.apk`，不要改文件名，以免应用内更新失效。
@@ -20,8 +20,40 @@
 | `DEPLOY_USER` | 是 | SSH 用户名（能跑 `docker` 的那个，常见是 `root` 或已加入 docker 组的普通用户） |
 | `DEPLOY_SSH_KEY` | 是 | **私钥全文**，包含 `-----BEGIN … PRIVATE KEY-----` 和结尾行。对应服务器 `~/.ssh/authorized_keys` 里的公钥 |
 | `DEPLOY_PATH` | 否 | 服务器上 git 仓库的绝对路径。不设则按下面规则自动检测 |
+| `ANDROID_KEYSTORE_BASE64` | 是 | **upload keystore 文件**（`.jks` / `.keystore`）的 **base64 编码**。建议单行、不要换行；workflow 会去掉空白后再解码到 `$RUNNER_TEMP/upload.jks`。不要把 `.jks`、密码或这段 base64 提交进仓库 |
+| `ANDROID_KEYSTORE_PASSWORD` | 是 | keystore 密码（`storePassword`） |
+| `ANDROID_KEY_ALIAS` | 是 | 密钥别名（`keyAlias`） |
+| `ANDROID_KEY_PASSWORD` | 是 | 密钥密码（`keyPassword`，可与 store 密码相同） |
 
-缺必填项时，workflow 会在「检查 Secrets」这一步直接失败，并在日志里列出缺哪些名字。
+缺必填项时，workflow 会在「检查 Secrets」或打 APK 前直接失败，并在日志里列出缺哪些名字。本地 `./gradlew assembleDebug` **不需要**这些变量，会回退到默认 debug 签名。
+
+### Android 发布包固定签名（覆盖安装）
+
+GitHub Actions 的 runner 每次都是新机器，默认 `~/.android/debug.keystore` 每次都不同。用它签出来的 debug APK 无法覆盖安装上一轮 CI 包，手机会报 `INSTALL_FAILED_UPDATE_INCOMPATIBLE`（签名冲突）。
+
+CI 的 `assembleDebug` 在上述四个 `ANDROID_*` 环境变量齐全时，改用 **upload** `signingConfig`，这样每一轮 Actions 打出来的包签名相同，可以覆盖安装。
+
+在自己电脑上生成一次 keystore（只做一次，以后覆盖安装必须用同一把钥匙）：
+
+```bash
+keytool -genkeypair -v \
+  -keystore upload.jks \
+  -keyalg RSA -keysize 2048 -validity 10000 \
+  -alias upload
+```
+
+再编成 **单行** base64（避免换行导致解码失败）：
+
+```bash
+# Linux
+base64 -w 0 upload.jks
+# macOS
+base64 -i upload.jks | tr -d '\n'
+```
+
+把输出整段贴进 Secret `ANDROID_KEYSTORE_BASE64`（不要夹杂 `-----BEGIN`、注释或换行）。`ANDROID_KEY_ALIAS` 填上面的 `-alias`（示例是 `upload`）。生成后妥善保存 `upload.jks` 和密码；丢失后已经装过 CI 包的手机只能先卸载再装。
+
+已经用「每轮随机 debug 签名」装过的手机，**第一次**换成固定 upload 签名时仍会冲突，需要卸载一次；之后的 CI 包之间可以互相覆盖。
 
 ### `DEPLOY_PATH` 自动检测
 
@@ -145,7 +177,9 @@ curl -sS http://8.153.195.112:8080/api/update/latest
 
 ## 常见失败
 
-- **缺少 Secrets**：把上面四格名字配全（最后一项可选）。
+- **缺少 Secrets**：把上面表格里的必填项配全（`DEPLOY_PATH` 可选）。Android 签名四项缺一则不会打出发布 APK。
+- **`INSTALL_FAILED_UPDATE_INCOMPATIBLE`**：多半是签名不一致。确认 CI 已用同一把 `ANDROID_KEYSTORE_*` 签名；从旧的随机 debug 包切过来时先卸载再装。
+- **`ANDROID_KEYSTORE_BASE64` 解码失败**：Secret 必须是 keystore **文件**的 base64，不是密码、不是 PEM。用 `base64 -w 0`（Linux）或 `base64 -i file | tr -d '\n'`（macOS）生成单行再粘贴。
 - **SSH 失败**：公钥是否在 `authorized_keys`，私钥是否完整，安全组是否放行 22。
 - **docker 权限**：`DEPLOY_USER` 不在 `docker` 组。
 - **没有 `/data/savemoney`**：按首次准备创建。
