@@ -3,7 +3,14 @@ const assert = require("node:assert/strict");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
-const { Store, approvedAmountsOk, MAX_WIDGET_CAPTION } = require("./store");
+const { DatabaseSync } = require("node:sqlite");
+const {
+  Store,
+  approvedAmountsOk,
+  MAX_WIDGET_CAPTION,
+  DEFAULT_WIDGET_CAPTION_COLOR,
+  normalizeWidgetCaptionColor,
+} = require("./store");
 
 test("3×10=30 allows 2×15=30 and higher qty at same total", () => {
   assert.equal(approvedAmountsOk(3, 10, 2, 15), true);
@@ -112,6 +119,7 @@ test("widget starts empty and is shared for the household", () => {
     const empty = store.getWidget(alice.household_id);
     assert.equal(empty.imageFile, null);
     assert.equal(empty.caption, "");
+    assert.equal(empty.captionColor, "#FFFFFF");
     assert.equal(empty.updatedBy, null);
     assert.equal(empty.updatedAt, null);
 
@@ -121,6 +129,7 @@ test("widget starts empty and is shared for the household", () => {
     const bobView = store.getWidget(bob.household_id);
     assert.equal(aliceView.imageFile, first);
     assert.equal(aliceView.caption, "周末去看海");
+    assert.equal(aliceView.captionColor, "#FFFFFF");
     assert.equal(aliceView.updatedBy, "Alice");
     assert.equal(typeof aliceView.updatedAt, "number");
     assert.deepEqual(bobView, aliceView);
@@ -139,6 +148,7 @@ test("widget caption is trimmed and capped, image replace deletes the old file",
     store.setWidget(alice.household_id, bob.id, { caption: long });
     const afterCaption = store.getWidget(alice.household_id);
     assert.equal(afterCaption.caption, "啊".repeat(MAX_WIDGET_CAPTION));
+    assert.equal(afterCaption.captionColor, "#FFFFFF");
     assert.equal(afterCaption.imageFile, first);
     assert.equal(afterCaption.updatedBy, "Bob");
 
@@ -165,8 +175,71 @@ test("widget state is per household", () => {
     store.setWidget(cara.household_id, cara.id, { caption: "另一家" });
     assert.equal(store.getWidget(alice.household_id).caption, "我们的");
     assert.equal(store.getWidget(cara.household_id).caption, "另一家");
+    assert.equal(store.getWidget(cara.household_id).captionColor, "#FFFFFF");
     assert.equal(store.getWidget(cara.household_id).imageFile, null);
   });
+});
+
+test("widget caption color persists, normalizes hex, and survives image replace", () => {
+  withStore((store) => {
+    const { alice, bob } = twoMembers(store);
+    store.setWidget(alice.household_id, alice.id, { caption: "想吃火锅", captionColor: "#f07" });
+    const afterPreset = store.getWidget(alice.household_id);
+    assert.equal(afterPreset.caption, "想吃火锅");
+    assert.equal(afterPreset.captionColor, "#FF0077");
+
+    store.setWidget(alice.household_id, bob.id, { captionColor: "7eb8d8" });
+    const afterColor = store.getWidget(alice.household_id);
+    assert.equal(afterColor.caption, "想吃火锅");
+    assert.equal(afterColor.captionColor, "#7EB8D8");
+    assert.equal(afterColor.updatedBy, "Bob");
+
+    const cover = store.savePhoto(Buffer.from("cover"), ".jpg");
+    store.setWidget(alice.household_id, alice.id, { imageFile: cover });
+    assert.equal(store.getWidget(alice.household_id).captionColor, "#7EB8D8");
+    assert.equal(store.getWidget(alice.household_id).caption, "想吃火锅");
+  });
+});
+
+test("widget caption color migrates onto older households tables", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "save-money-widget-color-"));
+  try {
+    const db = new DatabaseSync(path.join(root, "save_money.db"));
+    db.exec(`
+      CREATE TABLE households (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        code TEXT UNIQUE NOT NULL,
+        widget_image_file TEXT,
+        widget_caption TEXT,
+        widget_updated_by INTEGER,
+        widget_updated_at INTEGER
+      );
+      CREATE TABLE members (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        household_id INTEGER NOT NULL,
+        token TEXT UNIQUE NOT NULL,
+        name TEXT NOT NULL
+      );
+    `);
+    db.prepare("INSERT INTO households(code) VALUES (?)").run("OLD123");
+    db.close();
+    const store = new Store(root);
+    const columns = store.db.prepare("PRAGMA table_info(households)").all().map((c) => c.name);
+    assert.ok(columns.includes("widget_caption_color"));
+    assert.equal(store.getWidget(1).captionColor, DEFAULT_WIDGET_CAPTION_COLOR);
+    store.db.close();
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("normalizeWidgetCaptionColor expands short hex and rejects junk", () => {
+  assert.equal(normalizeWidgetCaptionColor(null), "#FFFFFF");
+  assert.equal(normalizeWidgetCaptionColor("  "), "#FFFFFF");
+  assert.equal(normalizeWidgetCaptionColor("#fff"), "#FFFFFF");
+  assert.equal(normalizeWidgetCaptionColor("f07a5c"), "#F07A5C");
+  assert.equal(normalizeWidgetCaptionColor("#GG0000"), null);
+  assert.equal(normalizeWidgetCaptionColor("red"), null);
 });
 
 function insertPending(store, alice, { quantity, unitPriceCents }) {

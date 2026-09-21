@@ -2,7 +2,7 @@ const path = require("path");
 const express = require("express");
 const cors = require("cors");
 const multer = require("multer");
-const { Store } = require("./store");
+const { Store, normalizeWidgetCaptionColor } = require("./store");
 const { UpdateStore } = require("./updates");
 
 const DATA_ROOT = process.env.SAVE_MONEY_DATA || path.join(__dirname, "data");
@@ -117,6 +117,7 @@ function widgetJson(req, householdId) {
   return {
     widgetImageUrl: fileUrl(req, row.imageFile),
     widgetCaption: row.caption,
+    widgetCaptionColor: row.captionColor,
     widgetUpdatedBy: row.updatedBy,
     widgetUpdatedAt: row.updatedAt,
   };
@@ -127,10 +128,20 @@ app.get("/api/widget", requireMember, (req, res) => {
 });
 
 app.patch("/api/widget", requireMember, (req, res) => {
-  if (!Object.prototype.hasOwnProperty.call(req.body || {}, "widgetCaption")) {
-    return res.status(400).json({ detail: "请填写说明" });
+  const body = req.body || {};
+  const hasCaption = Object.prototype.hasOwnProperty.call(body, "widgetCaption");
+  const hasColor = Object.prototype.hasOwnProperty.call(body, "widgetCaptionColor");
+  if (!hasCaption && !hasColor) {
+    return res.status(400).json({ detail: "请填写说明或颜色" });
   }
-  store.setWidget(req.member.household_id, req.member.id, { caption: req.body.widgetCaption });
+  const fields = {};
+  if (hasCaption) fields.caption = body.widgetCaption;
+  if (hasColor) {
+    const captionColor = normalizeWidgetCaptionColor(body.widgetCaptionColor);
+    if (!captionColor) return res.status(400).json({ detail: "颜色格式不对，请用 #RRGGBB" });
+    fields.captionColor = captionColor;
+  }
+  store.setWidget(req.member.household_id, req.member.id, fields);
   res.json(widgetJson(req, req.member.household_id));
 });
 

@@ -288,11 +288,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun saveWidgetCaption(caption: String) {
+    fun saveWidgetCaption(caption: String, captionColor: String) {
         viewModelScope.launch {
             track(_busyCount) {
-                runCatching { applyWidget(repo.updateWidgetCaption(WidgetCopy.clampCaption(caption))) }
-                    .onFailure { _statusMessage.value = it.message ?: "说明保存失败" }
+                runCatching {
+                    applyWidget(
+                        repo.updateWidgetCaption(
+                            WidgetCopy.clampCaption(caption),
+                            WidgetCopy.normalizeCaptionColor(captionColor),
+                        ),
+                    )
+                }.onFailure { _statusMessage.value = it.message ?: "说明保存失败" }
             }
         }
     }
