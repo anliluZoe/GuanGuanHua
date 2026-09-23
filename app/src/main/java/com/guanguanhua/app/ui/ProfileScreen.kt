@@ -36,17 +36,18 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.guanguanhua.app.AppViewModel
+import com.guanguanhua.app.GuanGuanHuaApp
 import com.guanguanhua.app.data.ApiConfig
 import com.guanguanhua.app.ui.theme.QTheme
 import com.guanguanhua.app.update.AppUpdates
 import com.guanguanhua.app.update.AvailableUpdate
 import com.guanguanhua.app.update.UpdateCheckResult
+import com.guanguanhua.app.update.UpdatePresentation
+import com.guanguanhua.app.update.presentUpdate
 import com.guanguanhua.app.widget.WidgetCopy
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -183,15 +184,9 @@ fun ProfileScreen(viewModel: AppViewModel, onOpenWidget: () -> Unit = {}, onOpen
             Spacer(Modifier.height(16.dp))
             Text("家庭码", color = QTheme.colors.muted, style = MaterialTheme.typography.labelMedium)
             Spacer(Modifier.height(4.dp))
-            Text(
-                session.householdCode.ifBlank { "还未加入" },
-                style = MaterialTheme.typography.displaySmall.copy(
-                    fontFeatureSettings = "tnum",
-                    letterSpacing = 6.sp,
-                    fontWeight = FontWeight.Medium,
-                ),
-                color = QTheme.colors.sky,
-            )
+            CopyableHouseholdCode(session.householdCode) {
+                viewModel.postStatus(HouseholdCodeCopy.SNACKBAR)
+            }
             Spacer(Modifier.height(16.dp))
             PillButton("编辑资料", filled = false, onClick = onOpenEdit)
         }
@@ -302,45 +297,27 @@ fun ProfileScreen(viewModel: AppViewModel, onOpenWidget: () -> Unit = {}, onOpen
     }
 }
 
-private sealed interface UpdateUi {
-    data object Idle : UpdateUi
-    data object Checking : UpdateUi
-    data object UpToDate : UpdateUi
-    data class Available(val update: AvailableUpdate) : UpdateUi
-    data class Downloading(val progress: Float?) : UpdateUi
-    data class Error(val message: String) : UpdateUi
-}
-
 @Composable
 private fun UpdateCard() {
     val context = LocalContext.current
     val colors = QTheme.colors
     val scope = rememberCoroutineScope()
+    val downloads = (context.applicationContext as GuanGuanHuaApp).updateDownloads
+    val phase by downloads.phase.collectAsStateWithLifecycle()
     val installed = remember { AppUpdates.installedVersion(context) }
-    var ui by remember { mutableStateOf<UpdateUi>(UpdateUi.Idle) }
+    var ui by remember { mutableStateOf<UpdatePresentation>(UpdatePresentation.Idle) }
     var confirmUpdate by remember { mutableStateOf<AvailableUpdate?>(null) }
     var needInstallPermission by remember { mutableStateOf<AvailableUpdate?>(null) }
     var awaitingInstallPermission by remember { mutableStateOf(false) }
     var pendingDownload by remember { mutableStateOf<AvailableUpdate?>(null) }
     var resumeDownload by remember { mutableStateOf(false) }
-    val busy = ui is UpdateUi.Checking || ui is UpdateUi.Downloading
-
-    fun downloadAndInstall(update: AvailableUpdate) {
-        scope.launch {
-            ui = UpdateUi.Downloading(null)
-            runCatching {
-                val file = AppUpdates.apkFile(context)
-                AppUpdates.downloadApk(update.apkUrl, file) { downloaded, total ->
-                    ui = UpdateUi.Downloading(if (total > 0) downloaded.toFloat() / total else null)
-                }
-                AppUpdates.installApk(context, file)
-                ui = UpdateUi.Available(update)
-            }.onFailure { error ->
-                if (error is CancellationException) throw error
-                ui = UpdateUi.Error(error.message ?: "下载失败")
-            }
-        }
+    val shown = presentUpdate(ui, phase)
+    val offer = when (shown) {
+        is UpdatePresentation.Available -> shown.update
+        is UpdatePresentation.Error -> shown.retry
+        else -> null
     }
+    val busy = shown is UpdatePresentation.Checking || shown is UpdatePresentation.Downloading
 
     fun startInstall(update: AvailableUpdate) {
         if (!AppUpdates.canInstallPackages(context)) {
@@ -348,13 +325,13 @@ private fun UpdateCard() {
             needInstallPermission = update
             return
         }
-        downloadAndInstall(update)
+        downloads.request(update)
     }
 
     LaunchedEffect(Unit) {
         AppUpdates.cachedAvailable(context)?.let { cached ->
             if (cached.versionCode > installed.versionCode) {
-                ui = UpdateUi.Available(cached)
+                ui = UpdatePresentation.Available(cached)
             }
         }
     }
@@ -368,7 +345,7 @@ private fun UpdateCard() {
     LaunchedEffect(resumeDownload) {
         if (!resumeDownload) return@LaunchedEffect
         resumeDownload = false
-        pendingDownload?.let { downloadAndInstall(it) }
+        pendingDownload?.let { startInstall(it) }
         pendingDownload = null
     }
 
@@ -382,25 +359,25 @@ private fun UpdateCard() {
         )
         Spacer(Modifier.height(4.dp))
         Text(
-            when (val state = ui) {
-                UpdateUi.Idle -> "有新版本时会从当前服务器下载安装包。"
-                UpdateUi.Checking -> "正在看看有没有新版本…"
-                UpdateUi.UpToDate -> "已经是最新的啦。"
-                is UpdateUi.Available -> "发现新版本 ${state.update.versionName}（内部号 ${state.update.versionCode}）"
-                is UpdateUi.Downloading -> {
+            when (val state = shown) {
+                UpdatePresentation.Idle -> "有新版本时会从当前服务器下载安装包。"
+                UpdatePresentation.Checking -> "正在看看有没有新版本…"
+                UpdatePresentation.UpToDate -> "已经是最新的啦。"
+                is UpdatePresentation.Available -> "发现新版本 ${state.update.versionName}（内部号 ${state.update.versionCode}）"
+                is UpdatePresentation.Downloading -> {
                     val percent = state.progress?.let { "${(it * 100).toInt()}%" }
                     if (percent == null) "正在下载…" else "正在下载 $percent"
                 }
-                is UpdateUi.Error -> state.message
+                is UpdatePresentation.Error -> state.message
             },
             style = MaterialTheme.typography.bodySmall,
-            color = when (ui) {
-                is UpdateUi.Error -> if (colors.isDark) colors.rose else colors.coral
-                is UpdateUi.Available -> colors.sky
+            color = when (shown) {
+                is UpdatePresentation.Error -> if (colors.isDark) colors.rose else colors.coral
+                is UpdatePresentation.Available -> colors.sky
                 else -> colors.muted
             },
         )
-        val notes = (ui as? UpdateUi.Available)?.update?.notes
+        val notes = (shown as? UpdatePresentation.Available)?.update?.notes
         if (!notes.isNullOrBlank()) {
             Spacer(Modifier.height(4.dp))
             Text(
@@ -409,9 +386,9 @@ private fun UpdateCard() {
                 color = colors.muted,
             )
         }
-        if (ui is UpdateUi.Downloading) {
+        if (shown is UpdatePresentation.Downloading) {
             Spacer(Modifier.height(12.dp))
-            val progress = (ui as UpdateUi.Downloading).progress
+            val progress = shown.progress
             if (progress == null) {
                 LinearProgressIndicator(
                     modifier = Modifier.fillMaxWidth().height(4.dp),
@@ -428,25 +405,25 @@ private fun UpdateCard() {
             }
         }
         Spacer(Modifier.height(14.dp))
-        if (ui is UpdateUi.Available) {
+        if (offer != null) {
             PillButton(
                 "下载并安装",
                 enabled = !busy,
-                onClick = { confirmUpdate = (ui as UpdateUi.Available).update },
+                onClick = { confirmUpdate = offer },
             )
             Spacer(Modifier.height(10.dp))
         }
         PillButton(
-            if (ui is UpdateUi.Checking) "正在检查…" else "检查更新",
-            filled = ui !is UpdateUi.Available,
+            if (shown is UpdatePresentation.Checking) "正在检查…" else "检查更新",
+            filled = offer == null,
             enabled = !busy,
             onClick = {
                 scope.launch {
-                    ui = UpdateUi.Checking
+                    ui = UpdatePresentation.Checking
                     ui = when (val result = AppUpdates.checkLatest(context)) {
-                        is UpdateCheckResult.Available -> UpdateUi.Available(result.update)
-                        UpdateCheckResult.UpToDate -> UpdateUi.UpToDate
-                        is UpdateCheckResult.Failed -> UpdateUi.Error(result.message)
+                        is UpdateCheckResult.Available -> UpdatePresentation.Available(result.update)
+                        UpdateCheckResult.UpToDate -> UpdatePresentation.UpToDate
+                        is UpdateCheckResult.Failed -> UpdatePresentation.Error(result.message)
                     }
                 }
             },

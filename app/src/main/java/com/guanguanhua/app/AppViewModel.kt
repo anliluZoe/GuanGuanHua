@@ -308,6 +308,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun postStatus(message: String) {
+        val text = message.trim()
+        if (text.isNotEmpty()) _statusMessage.value = text
+    }
+
     fun consumeStatus() {
         _statusMessage.value = null
     }
