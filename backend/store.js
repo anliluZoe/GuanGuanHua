@@ -61,6 +61,29 @@ class Store {
     this.migrateFromFixedRoles();
     this.migrateAvatars();
     this.migrateWidget();
+    this.migrateCycles();
+  }
+
+  /** 经期记录和设置按成员隔离。已有库只补表，不改申请/账本。 */
+  migrateCycles() {
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS cycle_records (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+        start_date TEXT NOT NULL,
+        end_date TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        UNIQUE (member_id, start_date)
+      );
+      CREATE TABLE IF NOT EXISTS cycle_settings (
+        member_id INTEGER PRIMARY KEY REFERENCES members(id) ON DELETE CASCADE,
+        reference_cycle_days INTEGER,
+        period_days INTEGER NOT NULL DEFAULT 5,
+        remind_enabled INTEGER NOT NULL DEFAULT 1,
+        remind_days INTEGER NOT NULL DEFAULT 2
+      );
+    `);
   }
 
   /** 早期版本每个成员有固定的申请人/审核人角色；现在谁都能申请，由对方审核。 */
@@ -235,11 +258,105 @@ class Store {
       .run(householdId, token, name, preset);
   }
 
-  /** 退出家庭：删掉这条成员，名额腾出来。历史申请/账本仍按当时写上的名字保留。 */
+  /** 退出家庭：删掉这条成员，名额腾出来。历史申请/账本仍按当时写上的名字保留。经期记录随成员级联删除。 */
   leaveHousehold(memberId) {
     const row = this.db.prepare("SELECT avatar_file FROM members WHERE id = ?").get(memberId);
     this.db.prepare("DELETE FROM members WHERE id = ?").run(memberId);
     if (row?.avatar_file) this.deletePhoto(row.avatar_file);
+  }
+
+  listCycles(memberId) {
+    return this.db
+      .prepare(
+        `SELECT id, member_id, start_date, end_date, created_at, updated_at
+         FROM cycle_records WHERE member_id = ? ORDER BY start_date DESC, id DESC`
+      )
+      .all(memberId);
+  }
+
+  getCycle(memberId, cycleId) {
+    return this.db
+      .prepare(
+        `SELECT id, member_id, start_date, end_date, created_at, updated_at
+         FROM cycle_records WHERE member_id = ? AND id = ?`
+      )
+      .get(memberId, cycleId);
+  }
+
+  /** 成功返回行；同一成员开始日重复返回 { error: "duplicate" }。 */
+  createCycle(memberId, start, end, now = Date.now()) {
+    try {
+      const id = Number(
+        this.db
+          .prepare(
+            `INSERT INTO cycle_records(member_id, start_date, end_date, created_at, updated_at)
+             VALUES (?,?,?,?,?)`
+          )
+          .run(memberId, start, end, now, now).lastInsertRowid
+      );
+      return this.getCycle(memberId, id);
+    } catch (error) {
+      if (String(error.message).includes("UNIQUE")) return { error: "duplicate" };
+      throw error;
+    }
+  }
+
+  /** 找不到该成员的记录返回 null；开始日撞车返回 { error: "duplicate" }。 */
+  updateCycle(memberId, cycleId, start, end, now = Date.now()) {
+    const existing = this.getCycle(memberId, cycleId);
+    if (!existing) return null;
+    try {
+      this.db
+        .prepare(
+          `UPDATE cycle_records SET start_date = ?, end_date = ?, updated_at = ? WHERE member_id = ? AND id = ?`
+        )
+        .run(start, end, now, memberId, cycleId);
+      return this.getCycle(memberId, cycleId);
+    } catch (error) {
+      if (String(error.message).includes("UNIQUE")) return { error: "duplicate" };
+      throw error;
+    }
+  }
+
+  getCycleSettings(memberId) {
+    const row = this.db
+      .prepare(
+        `SELECT reference_cycle_days, period_days, remind_enabled, remind_days
+         FROM cycle_settings WHERE member_id = ?`
+      )
+      .get(memberId);
+    return (
+      row || {
+        reference_cycle_days: null,
+        period_days: 5,
+        remind_enabled: 1,
+        remind_days: 2,
+      }
+    );
+  }
+
+  patchCycleSettings(memberId, fields) {
+    const current = this.getCycleSettings(memberId);
+    const reference = Object.prototype.hasOwnProperty.call(fields, "reference_cycle_days")
+      ? fields.reference_cycle_days
+      : current.reference_cycle_days;
+    const period = Object.prototype.hasOwnProperty.call(fields, "period_days") ? fields.period_days : current.period_days;
+    const remindEnabled = Object.prototype.hasOwnProperty.call(fields, "remind_enabled")
+      ? fields.remind_enabled
+      : current.remind_enabled;
+    const remindDays = Object.prototype.hasOwnProperty.call(fields, "remind_days") ? fields.remind_days : current.remind_days;
+    this.db
+      .prepare(
+        `INSERT INTO cycle_settings(member_id, reference_cycle_days, period_days, remind_enabled, remind_days)
+         VALUES (?,?,?,?,?)
+         ON CONFLICT(member_id) DO UPDATE SET
+           reference_cycle_days = excluded.reference_cycle_days,
+           period_days = excluded.period_days,
+           remind_enabled = excluded.remind_enabled,
+           remind_days = excluded.remind_days`
+      )
+      .run(memberId, reference, period, remindEnabled ? 1 : 0, remindDays);
+    return this.getCycleSettings(memberId);
   }
 
   membersForHousehold(householdId) {

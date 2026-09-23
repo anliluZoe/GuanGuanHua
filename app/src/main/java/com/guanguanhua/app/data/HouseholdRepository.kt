@@ -12,6 +12,7 @@ import okhttp3.ResponseBody
 import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import com.google.gson.GsonBuilder
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
@@ -159,7 +160,34 @@ interface GuanGuanHuaApi {
 
     @DELETE("api/widget/image")
     suspend fun deleteWidgetImage(@Header("Authorization") authorization: String): WidgetDto
+
+    @GET("api/cycles")
+    suspend fun listCycles(@Header("Authorization") authorization: String): List<CycleRecord>
+
+    @POST("api/cycles")
+    suspend fun createCycle(
+        @Header("Authorization") authorization: String,
+        @Body body: okhttp3.RequestBody,
+    ): Response<CycleRecord>
+
+    @PATCH("api/cycles/{id}")
+    suspend fun updateCycle(
+        @Header("Authorization") authorization: String,
+        @Path("id") id: Long,
+        @Body body: okhttp3.RequestBody,
+    ): Response<CycleRecord>
+
+    @GET("api/cycle-settings")
+    suspend fun getCycleSettings(@Header("Authorization") authorization: String): CycleSettings
+
+    @PATCH("api/cycle-settings")
+    suspend fun patchCycleSettings(
+        @Header("Authorization") authorization: String,
+        @Body body: okhttp3.RequestBody,
+    ): Response<CycleSettings>
 }
+
+private data class CycleWriteBody(val start: String, val end: String?)
 
 class HouseholdRepository(private val app: Application) {
     private val prefs = app.getSharedPreferences("session", Context.MODE_PRIVATE)
@@ -280,6 +308,29 @@ class HouseholdRepository(private val app: Application) {
         )
 
     suspend fun clearWidgetImage(): WidgetDto = api().deleteWidgetImage(bearer())
+
+    suspend fun listCycles(): List<CycleRecord> = api().listCycles(bearer())
+
+    suspend fun createCycle(start: String, end: String?): CycleRecord =
+        unwrap(api().createCycle(bearer(), jsonBody(CycleWriteBody(start, end))), "没记上")
+
+    suspend fun updateCycle(id: Long, start: String, end: String?): CycleRecord =
+        unwrap(api().updateCycle(bearer(), id, jsonBody(CycleWriteBody(start, end))), "没改成")
+
+    suspend fun getCycleSettings(): CycleSettings = api().getCycleSettings(bearer())
+
+    suspend fun updateCycleSettings(settings: CycleSettings): CycleSettings =
+        unwrap(api().patchCycleSettings(bearer(), jsonBody(settings)), "设置没保存上")
+
+    private val cycleJson = GsonBuilder().serializeNulls().create()
+
+    private fun jsonBody(value: Any): okhttp3.RequestBody =
+        cycleJson.toJson(value).toRequestBody("application/json".toMediaType())
+
+    private fun <T> unwrap(response: Response<T>, fallback: String): T {
+        if (response.isSuccessful) return response.body() ?: throw IOException(fallback)
+        throw apiFailure(response.code(), response.errorBody()?.string().orEmpty(), fallback)
+    }
 
     private suspend fun jpegPart(uri: Uri, field: String, filename: String, maxEdge: Int): MultipartBody.Part =
         withContext(Dispatchers.IO) {

@@ -280,6 +280,108 @@ app.put("/api/budget", requireMember, (req, res) => {
   res.json({ yearMonth, amountCents });
 });
 
+function parseIsoDate(value) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const [year, month, day] = value.split("-").map(Number);
+  const dt = new Date(Date.UTC(year, month - 1, day));
+  if (dt.getUTCFullYear() !== year || dt.getUTCMonth() !== month - 1 || dt.getUTCDate() !== day) return null;
+  return value;
+}
+
+function readInt(value) {
+  if (typeof value === "number" && Number.isInteger(value)) return value;
+  if (typeof value === "string" && /^-?\d+$/.test(value.trim())) return Number(value.trim());
+  return null;
+}
+
+function cycleJson(row) {
+  return { id: Number(row.id), start: row.start_date, end: row.end_date ?? null };
+}
+
+function settingsJson(row) {
+  return {
+    referenceCycleDays: row.reference_cycle_days ?? null,
+    periodDays: row.period_days,
+    remindEnabled: Boolean(row.remind_enabled),
+    remindDays: row.remind_days,
+  };
+}
+
+function readCycleSpan(body, fallback) {
+  const start = body?.start != null ? parseIsoDate(String(body.start).trim()) : fallback?.start || null;
+  if (!start) return { error: "开始日要填成 YYYY-MM-DD" };
+  const hasEnd = body != null && Object.prototype.hasOwnProperty.call(body, "end");
+  let end = fallback ? fallback.end : null;
+  if (hasEnd) {
+    if (body.end == null || String(body.end).trim() === "") end = null;
+    else {
+      end = parseIsoDate(String(body.end).trim());
+      if (!end) return { error: "结束日要填成 YYYY-MM-DD" };
+    }
+  }
+  if (end && end < start) return { error: "结束日不能早于开始日哦" };
+  return { start, end };
+}
+
+app.get("/api/cycles", requireMember, (req, res) => {
+  res.json(store.listCycles(req.member.id).map(cycleJson));
+});
+
+app.post("/api/cycles", requireMember, (req, res) => {
+  const span = readCycleSpan(req.body || {}, null);
+  if (span.error) return res.status(400).json({ detail: span.error });
+  const created = store.createCycle(req.member.id, span.start, span.end);
+  if (created?.error === "duplicate") return res.status(409).json({ detail: "这一天已经是开始日啦" });
+  res.json(cycleJson(created));
+});
+
+app.patch("/api/cycles/:id", requireMember, (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id < 1) return res.status(404).json({ detail: "记录不存在" });
+  const existing = store.getCycle(req.member.id, id);
+  if (!existing) return res.status(404).json({ detail: "记录不存在" });
+  const span = readCycleSpan(req.body || {}, { start: existing.start_date, end: existing.end_date });
+  if (span.error) return res.status(400).json({ detail: span.error });
+  const updated = store.updateCycle(req.member.id, id, span.start, span.end);
+  if (!updated) return res.status(404).json({ detail: "记录不存在" });
+  if (updated.error === "duplicate") return res.status(409).json({ detail: "这一天已经是开始日啦" });
+  res.json(cycleJson(updated));
+});
+
+app.get("/api/cycle-settings", requireMember, (req, res) => {
+  res.json(settingsJson(store.getCycleSettings(req.member.id)));
+});
+
+app.patch("/api/cycle-settings", requireMember, (req, res) => {
+  const body = req.body || {};
+  const patch = {};
+  if (Object.prototype.hasOwnProperty.call(body, "referenceCycleDays")) {
+    if (body.referenceCycleDays == null || body.referenceCycleDays === "") {
+      patch.reference_cycle_days = null;
+    } else {
+      const n = readInt(body.referenceCycleDays);
+      if (n == null || n < 18 || n > 45) return res.status(400).json({ detail: "参考天数请填 18–45" });
+      patch.reference_cycle_days = n;
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(body, "periodDays")) {
+    const n = readInt(body.periodDays);
+    if (n == null || n < 1 || n > 14) return res.status(400).json({ detail: "经期天数请填 1–14" });
+    patch.period_days = n;
+  }
+  if (Object.prototype.hasOwnProperty.call(body, "remindEnabled")) {
+    if (typeof body.remindEnabled !== "boolean") return res.status(400).json({ detail: "提醒开关不对" });
+    patch.remind_enabled = body.remindEnabled;
+  }
+  if (Object.prototype.hasOwnProperty.call(body, "remindDays")) {
+    const n = readInt(body.remindDays);
+    if (n == null || n < 1 || n > 7) return res.status(400).json({ detail: "提醒天数请填 1–7" });
+    patch.remind_days = n;
+  }
+  if (!Object.keys(patch).length) return res.status(400).json({ detail: "没有要改的设置" });
+  res.json(settingsJson(store.patchCycleSettings(req.member.id, patch)));
+});
+
 app.get("/api/files/:filename", (req, res) => {
   const filePath = store.photoPath(req.params.filename);
   if (!filePath) return res.status(404).json({ detail: "没有这张图" });
