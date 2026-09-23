@@ -27,10 +27,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -50,7 +52,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -84,6 +85,7 @@ fun ProfileEditScreen(viewModel: AppViewModel, onBack: () -> Unit) {
         }
     }
     var showPicker by remember { mutableStateOf(false) }
+    var confirmLeave by remember { mutableStateOf(false) }
     val avatarPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) {
             viewModel.updateAvatarPhoto(uri)
@@ -135,15 +137,9 @@ fun ProfileEditScreen(viewModel: AppViewModel, onBack: () -> Unit) {
         SoftCard(modifier = Modifier.fillMaxWidth()) {
             Text("家庭码", style = MaterialTheme.typography.titleMedium, color = QTheme.colors.muted)
             Spacer(Modifier.height(6.dp))
-            Text(
-                session.householdCode.ifBlank { "还未加入" },
-                style = MaterialTheme.typography.displaySmall.copy(
-                    fontFeatureSettings = "tnum",
-                    letterSpacing = 6.sp,
-                    fontWeight = FontWeight.Medium,
-                ),
-                color = QTheme.colors.sky,
-            )
+            CopyableHouseholdCode(session.householdCode) {
+                viewModel.postStatus(HouseholdCodeCopy.SNACKBAR)
+            }
             Spacer(Modifier.height(8.dp))
             Text(
                 "家庭码不能改。把码发给另一半，打开「我们」页加入。已经有两个人时，对方会选一个身份进入。",
@@ -211,10 +207,42 @@ fun ProfileEditScreen(viewModel: AppViewModel, onBack: () -> Unit) {
         }
         if (session.joined) {
             PillButton("退出这个家庭账本", filled = false, enabled = !isBusy, onClick = {
-                viewModel.leaveHome(onSuccess = onBack)
+                confirmLeave = true
             })
         }
         Spacer(Modifier.height(24.dp))
+    }
+
+    if (confirmLeave) {
+        val colors = QTheme.colors
+        AlertDialog(
+            onDismissRequest = { if (!isBusy) confirmLeave = false },
+            title = { Text(LeaveHouseholdPrompt.TITLE) },
+            text = { Text(LeaveHouseholdPrompt.BODY) },
+            confirmButton = {
+                TextButton(
+                    enabled = !isBusy,
+                    onClick = {
+                        confirmLeave = false
+                        if (LeaveHouseholdPrompt.afterChoice(confirmed = true) == LeaveHouseholdChoice.Leave) {
+                            viewModel.leaveHome(onSuccess = onBack)
+                        }
+                    },
+                ) {
+                    Text(
+                        LeaveHouseholdPrompt.CONFIRM,
+                        color = if (colors.isDark) colors.rose else colors.coral,
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(enabled = !isBusy, onClick = { confirmLeave = false }) {
+                    Text(LeaveHouseholdPrompt.CANCEL)
+                }
+            },
+            containerColor = MaterialTheme.colorScheme.surface,
+            shape = MaterialTheme.shapes.large,
+        )
     }
 
     if (showPicker) {

@@ -8,10 +8,28 @@ import androidx.core.content.edit
 import com.guanguanhua.app.data.ApiConfig
 import com.guanguanhua.app.data.HouseholdRepository
 import com.guanguanhua.app.notify.ReviewActivityWorker
+import com.guanguanhua.app.update.ApkDownloadCoordinator
+import com.guanguanhua.app.update.AppUpdates
 import com.guanguanhua.app.widget.WidgetRefreshWorker
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 
 class GuanGuanHuaApp : Application() {
     val repository: HouseholdRepository by lazy { HouseholdRepository(this) }
+
+    /** 跟进程走，切换底部 Tab 或进入编辑页时下载不会被取消。 */
+    val updateDownloads: ApkDownloadCoordinator by lazy {
+        ApkDownloadCoordinator(
+            scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
+            download = { update, onProgress ->
+                AppUpdates.downloadApk(update.apkUrl, AppUpdates.apkFile(this@GuanGuanHuaApp), onProgress)
+            },
+            install = { _ ->
+                AppUpdates.installApk(this@GuanGuanHuaApp, AppUpdates.apkFile(this@GuanGuanHuaApp))
+            },
+        )
+    }
 
     @Volatile
     var inForeground: Boolean = false
