@@ -105,6 +105,9 @@ fun MemberAvatar(
     }
 }
 
+/** 对方头像相对「我」向右露出的比例。越小，顶栏双头像叠得越紧。 */
+internal const val STACKED_AVATAR_SHIFT_FRACTION = 0.28f
+
 @Composable
 fun StackedAvatars(
     meName: String,
@@ -116,7 +119,7 @@ fun StackedAvatars(
     modifier: Modifier = Modifier,
     size: Dp = 56.dp,
 ) {
-    val overlap = if (partnerName == null) 0.dp else size * 0.42f
+    val overlap = if (partnerName == null) 0.dp else size * STACKED_AVATAR_SHIFT_FRACTION
     Box(modifier.size(width = size + overlap, height = size)) {
         if (partnerName != null) {
             MemberAvatar(

@@ -11,8 +11,10 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -43,6 +45,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
@@ -130,6 +133,51 @@ fun SoftCard(
 }
 
 @Composable
+private fun RoundBackButton(onClick: () -> Unit) {
+    val colors = QTheme.colors
+    Box(
+        modifier = Modifier
+            .size(40.dp)
+            .clip(CircleShape)
+            .clickable(onClick = onClick)
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, colors.lineStrong, CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回", tint = colors.ink)
+    }
+}
+
+/** 二级页紧凑顶栏：返回 + 标题，不放叠放头像。外层 Scaffold 已经处理过系统栏。 */
+@Composable
+fun SubpageScaffold(
+    title: String,
+    onBack: () -> Unit,
+    content: @Composable (PaddingValues) -> Unit,
+) {
+    Scaffold(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(QTheme.colors.screenGlow),
+        containerColor = Color.Transparent,
+        contentWindowInsets = WindowInsets(0.dp, 0.dp, 0.dp, 0.dp),
+        topBar = {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                RoundBackButton(onBack)
+                Spacer(Modifier.width(12.dp))
+                Text(title, style = MaterialTheme.typography.titleLarge, color = QTheme.colors.ink)
+            }
+        },
+        content = content,
+    )
+}
+
+@Composable
 fun PageHeader(
     title: String,
     subtitle: String,
@@ -137,19 +185,6 @@ fun PageHeader(
     leading: (@Composable () -> Unit)? = null,
 ) {
     val colors = QTheme.colors
-    val backButton: @Composable () -> Unit = {
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .clickable(onClick = onBack ?: {})
-                .background(MaterialTheme.colorScheme.surface)
-                .border(1.dp, colors.lineStrong, CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回", tint = colors.ink)
-        }
-    }
     val useInlineRow = leading != null || (onBack != null && colors.isDark)
     if (useInlineRow) {
         Row(
@@ -157,7 +192,7 @@ fun PageHeader(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (onBack != null) {
-                backButton()
+                RoundBackButton(onBack)
                 Spacer(Modifier.width(12.dp))
             }
             if (leading != null) {
@@ -173,7 +208,7 @@ fun PageHeader(
     } else {
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp)) {
             if (onBack != null) {
-                backButton()
+                RoundBackButton(onBack)
                 Spacer(Modifier.height(14.dp))
             }
             Text(title, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onBackground)

@@ -97,15 +97,15 @@ fun ProfileEditScreen(viewModel: AppViewModel, onBack: () -> Unit) {
         onPauseOrDispose { }
     }
 
+    SubpageScaffold(title = "编辑资料", onBack = onBack) { innerPadding ->
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(QTheme.colors.screenGlow)
             .verticalScroll(rememberScrollState())
+            .padding(innerPadding)
             .padding(horizontal = 20.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        PageHeader("编辑资料", "改头像和名字，保存后回到「我们」", onBack = onBack)
         SoftCard(modifier = Modifier.fillMaxWidth()) {
             Text("我的头像", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(12.dp))
@@ -114,10 +114,12 @@ fun ProfileEditScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                     name = profile.name,
                     presetId = profile.avatarPreset,
                     photoUrl = profile.avatarUrl,
-                    size = 56.dp,
+                    size = 72.dp,
                 )
                 Spacer(Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
+                    Text("我的", color = QTheme.colors.muted, style = MaterialTheme.typography.labelMedium)
+                    Spacer(Modifier.height(2.dp))
                     Text(profile.name.ifBlank { "还没起名" }, style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(2.dp))
                     Text(
@@ -211,6 +213,7 @@ fun ProfileEditScreen(viewModel: AppViewModel, onBack: () -> Unit) {
             })
         }
         Spacer(Modifier.height(24.dp))
+    }
     }
 
     if (confirmLeave) {
