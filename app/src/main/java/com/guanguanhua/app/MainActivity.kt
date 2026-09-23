@@ -29,8 +29,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Assignment
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
+import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.People
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
@@ -47,6 +49,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -60,8 +63,10 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.guanguanhua.app.notify.CycleReminder
 import com.guanguanhua.app.notify.ReviewActivityWorker
 import com.guanguanhua.app.ui.ExpensesScreen
+import com.guanguanhua.app.ui.CycleScreen
 import com.guanguanhua.app.ui.LoadingScrim
 import com.guanguanhua.app.ui.NewRequestScreen
 import com.guanguanhua.app.ui.ProfileEditScreen
@@ -84,6 +89,7 @@ private data class Tab(val route: String, val label: String, val icon: ImageVect
 private val TABS = listOf(
     Tab("requests", "申请", Icons.AutoMirrored.Outlined.Assignment),
     Tab("expenses", "账本", Icons.AutoMirrored.Outlined.MenuBook),
+    Tab("cycle", "周期", Icons.Outlined.CalendarMonth),
     Tab("profile", "我们", Icons.Outlined.People),
 )
 
@@ -95,8 +101,14 @@ class MainActivity : ComponentActivity() {
     /** 从桌面组件点进来，打开「我们 → 桌面组件」。 */
     private val openWidget = mutableStateOf(false)
 
+    /** 从经期提醒点进来，打开周期页。 */
+    private val openCycle = mutableStateOf(false)
+
     private val requestNotifications = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) ReviewActivityWorker.enqueueSoon(this)
+        if (granted) {
+            ReviewActivityWorker.enqueueSoon(this)
+            CycleReminder.scheduleFromCache(this)
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -104,6 +116,7 @@ class MainActivity : ComponentActivity() {
         setIntent(intent)
         openRequestId.longValue = intent.getLongExtra(EXTRA_REQUEST_ID, 0L)
         openWidget.value = wantsWidget(intent)
+        openCycle.value = wantsCycle(intent)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -111,6 +124,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         openRequestId.longValue = intent.getLongExtra(EXTRA_REQUEST_ID, 0L)
         openWidget.value = wantsWidget(intent)
+        openCycle.value = wantsCycle(intent)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) {
@@ -184,6 +198,19 @@ class MainActivity : ComponentActivity() {
                         openWidget.value = false
                     }
 
+                    val pendingCycle = openCycle.value
+                    LaunchedEffect(pendingCycle) {
+                        if (!pendingCycle) return@LaunchedEffect
+                        navController.navigate("cycle") {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                        openCycle.value = false
+                    }
+
                     Scaffold(
                         containerColor = QTheme.colors.canvas,
                         snackbarHost = { SnackbarHost(snackbar) },
@@ -193,18 +220,19 @@ class MainActivity : ComponentActivity() {
                                 Row(
                                     modifier = Modifier
                                         .windowInsetsPadding(WindowInsets.navigationBars)
-                                        .padding(horizontal = 20.dp, vertical = 10.dp)
+                                        .padding(horizontal = 12.dp, vertical = 10.dp)
                                         .clip(RoundedCornerShape(28.dp))
                                         .background(q.paper)
                                         .border(1.dp, q.lineStrong, RoundedCornerShape(28.dp))
-                                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                                        .padding(horizontal = 6.dp, vertical = 6.dp)
                                         .fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceEvenly,
+                                    horizontalArrangement = Arrangement.spacedBy(2.dp),
                                 ) {
                                     TABS.forEach { tab ->
                                         val selected = currentRoute == tab.route
                                         Column(
                                             modifier = Modifier
+                                                .weight(1f)
                                                 .clip(RoundedCornerShape(22.dp))
                                                 .background(if (selected) q.skySoft else Color.Transparent)
                                                 .clickable {
@@ -216,18 +244,20 @@ class MainActivity : ComponentActivity() {
                                                         restoreState = true
                                                     }
                                                 }
-                                                .padding(horizontal = 22.dp, vertical = 8.dp),
+                                                .padding(horizontal = 2.dp, vertical = 6.dp),
                                             horizontalAlignment = Alignment.CenterHorizontally,
                                         ) {
                                             Icon(
                                                 tab.icon,
                                                 contentDescription = tab.label,
                                                 tint = if (selected) q.sky else q.muted,
-                                                modifier = Modifier.size(22.dp),
+                                                modifier = Modifier.size(20.dp),
                                             )
                                             Text(
                                                 tab.label,
                                                 color = if (selected) q.sky else q.muted,
+                                                style = MaterialTheme.typography.labelMedium,
+                                                fontSize = 11.sp,
                                             )
                                         }
                                     }
@@ -261,6 +291,7 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
                             composable("expenses") { ExpensesScreen(viewModel = viewModel) }
+                            composable("cycle") { CycleScreen(viewModel = viewModel) }
                             composable("profile") {
                                 ProfileScreen(
                                     viewModel = viewModel,
@@ -303,9 +334,12 @@ class MainActivity : ComponentActivity() {
     companion object {
         const val EXTRA_REQUEST_ID = "requestId"
         const val EXTRA_OPEN_WIDGET = "openWidget"
+        const val EXTRA_OPEN_CYCLE = "openCycle"
         const val ACTION_OPEN_WIDGET = "com.guanguanhua.app.OPEN_WIDGET"
 
         fun wantsWidget(intent: Intent?): Boolean =
             intent?.getBooleanExtra(EXTRA_OPEN_WIDGET, false) == true || intent?.action == ACTION_OPEN_WIDGET
+
+        fun wantsCycle(intent: Intent?): Boolean = intent?.getBooleanExtra(EXTRA_OPEN_CYCLE, false) == true
     }
 }

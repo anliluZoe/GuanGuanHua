@@ -7,6 +7,7 @@ import android.content.Context
 import androidx.core.content.edit
 import com.guanguanhua.app.data.ApiConfig
 import com.guanguanhua.app.data.HouseholdRepository
+import com.guanguanhua.app.notify.CycleReminder
 import com.guanguanhua.app.notify.ReviewActivityWorker
 import com.guanguanhua.app.update.ApkDownloadCoordinator
 import com.guanguanhua.app.update.AppUpdates
@@ -41,7 +42,9 @@ class GuanGuanHuaApp : Application() {
             putString("serverUrl", ApiConfig.resolvedServerUrl(prefs.getString("serverUrl", null)))
         }
         ensureReviewChannel()
+        ensureCycleChannel()
         ReviewActivityWorker.schedule(this)
+        CycleReminder.scheduleFromCache(this)
         WidgetRefreshWorker.schedule(this)
     }
 
@@ -53,6 +56,16 @@ class GuanGuanHuaApp : Application() {
                 enableLights(true)
                 setShowBadge(true)
                 lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+            },
+        )
+    }
+
+    fun ensureCycleChannel() {
+        getSystemService(NotificationManager::class.java).createNotificationChannel(
+            NotificationChannel(CycleReminder.CHANNEL_ID, "经期提醒", NotificationManager.IMPORTANCE_DEFAULT).apply {
+                description = "在预测的下次经期之前轻轻提醒你"
+                enableVibration(true)
+                lockscreenVisibility = android.app.Notification.VISIBILITY_PRIVATE
             },
         )
     }

@@ -6,7 +6,12 @@ import android.net.Uri
 import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.guanguanhua.app.cycle.CycleCache
+import com.guanguanhua.app.cycle.CycleMath
 import com.guanguanhua.app.data.ApiConfig
+import com.guanguanhua.app.data.CycleRecord
+import com.guanguanhua.app.data.CycleSettings
+import com.guanguanhua.app.data.CycleState
 import com.guanguanhua.app.data.ExpenseRecord
 import com.guanguanhua.app.data.HouseholdFullException
 import com.guanguanhua.app.data.MemberDto
@@ -14,6 +19,7 @@ import com.guanguanhua.app.data.MonthlyBudget
 import com.guanguanhua.app.data.PurchaseRequest
 import com.guanguanhua.app.data.SessionDto
 import com.guanguanhua.app.data.WidgetDto
+import com.guanguanhua.app.notify.CycleReminder
 import com.guanguanhua.app.notify.ReviewActivity
 import com.guanguanhua.app.notify.ReviewActivityWorker
 import com.guanguanhua.app.ui.theme.Appearance
@@ -30,6 +36,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 import java.time.YearMonth
 
 /** 我叫什么、另一半叫什么。谁都能发申请，由对方来审。头像跟「我的头像」同步。 */
@@ -120,9 +127,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val _widget = MutableStateFlow(WidgetCache.read(app))
     val widget: StateFlow<WidgetState> = _widget.asStateFlow()
 
+    private val _cycle = MutableStateFlow(CycleState())
+    val cycle: StateFlow<CycleState> = _cycle.asStateFlow()
+
     init {
         prefs.edit(commit = true) { putString("serverUrl", _session.value.serverUrl) }
-        if (_session.value.joined) refresh() else _ready.value = true
+        if (_session.value.joined) {
+            val memberId = prefs.getLong(PREF_MEMBER_ID, 0L)
+            val cached = CycleCache.read(app)?.takeIf { it.memberId == memberId }
+            if (cached != null) _cycle.value = cached
+            refresh()
+        } else {
+            _ready.value = true
+        }
     }
 
     fun observeRequest(id: Long): Flow<PurchaseRequest?> =
@@ -141,6 +158,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     loadMonth(_selectedMonth.value)
                 }.onFailure { _statusMessage.value = it.message ?: "同步失败" }
                 runCatching { syncWidget() }
+                runCatching { syncCycles() }.onFailure { error ->
+                    if (!quiet && !_cycle.value.loaded) {
+                        _statusMessage.value = error.message ?: "周期同步失败"
+                    }
+                }
                 _ready.value = true
             }
         }
@@ -184,11 +206,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     .onSuccess {
                         ReviewActivityWorker.cancel(getApplication())
                         WidgetRefreshWorker.cancel(getApplication())
+                        CycleReminder.cancel(getApplication())
                         WidgetCache.clear(getApplication())
+                        CycleCache.clear(getApplication())
                         _widget.value = WidgetState()
+                        _cycle.value = CycleState()
                         prefs.edit {
                             remove("token")
                             remove("householdCode")
+                            remove(PREF_MEMBER_ID)
                             remove(ReviewActivity.PREF_SINCE)
                         }
                         _session.update { it.copy(token = "", householdCode = "") }
@@ -360,6 +386,78 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun recordCycleStart(iso: String) {
+        if (!_session.value.joined) {
+            _statusMessage.value = "先加入家庭再记"
+            return
+        }
+        if (_cycle.value.cycles.any { it.start == iso }) {
+            _statusMessage.value = "这一天已经是开始日啦"
+            return
+        }
+        val start = CycleMath.parse(iso) ?: return
+        val period = CycleMath.periodDays(_cycle.value.settings)
+        val end = CycleMath.prefillEnd(start, period)
+        viewModelScope.launch {
+            track(_busyCount) {
+                runCatching { repo.createCycle(start.toString(), end.toString()) }
+                    .onSuccess {
+                        runCatching { syncCycles() }
+                        _statusMessage.value = "已记开始 · 按经期 $period 天填到 ${CycleMath.formatCn(end)}（可再改）"
+                    }
+                    .onFailure { _statusMessage.value = it.message ?: "没记上" }
+            }
+        }
+    }
+
+    fun recordCycleEnd(iso: String) {
+        val cycles = _cycle.value.cycles
+        val open = cycles.filter { it.end.isNullOrBlank() }.maxByOrNull { it.start } ?: cycles.maxByOrNull { it.start }
+        if (open == null) {
+            _statusMessage.value = "先记一个开始日吧"
+            return
+        }
+        if (iso < open.start) {
+            _statusMessage.value = "结束日不能早于开始日哦"
+            return
+        }
+        saveCycle(open.id, open.start, iso, "已记结束日 · ${CycleMath.formatCn(LocalDate.parse(iso))}")
+    }
+
+    fun saveCycle(id: Long, start: String, end: String?, success: String = "改好啦") {
+        if (start.isBlank()) {
+            _statusMessage.value = "开始日要填一下"
+            return
+        }
+        if (!end.isNullOrBlank() && end < start) {
+            _statusMessage.value = "结束日不能早于开始日哦"
+            return
+        }
+        viewModelScope.launch {
+            track(_busyCount) {
+                runCatching { repo.updateCycle(id, start, end?.takeIf { it.isNotBlank() }) }
+                    .onSuccess {
+                        runCatching { syncCycles() }
+                        _statusMessage.value = success
+                    }
+                    .onFailure { _statusMessage.value = it.message ?: "没改成" }
+            }
+        }
+    }
+
+    fun setCycleReference(days: Int?) {
+        val next = days?.coerceIn(CycleMath.REF_MIN, CycleMath.REF_MAX)
+        patchCycleSettings(_cycle.value.settings.copy(referenceCycleDays = next))
+    }
+
+    fun setCyclePeriodDays(days: Int) {
+        patchCycleSettings(_cycle.value.settings.copy(periodDays = days.coerceIn(CycleMath.PERIOD_MIN, CycleMath.PERIOD_MAX)))
+    }
+
+    fun setCycleRemind(enabled: Boolean) {
+        patchCycleSettings(_cycle.value.settings.copy(remindEnabled = enabled))
+    }
+
     fun setAppearance(value: Appearance) {
         prefs.edit { putString(PREF_APPEARANCE, value.prefValue) }
         _appearance.value = value
@@ -378,6 +476,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             syncRequests()
             loadMonth(_selectedMonth.value)
             runCatching { syncWidget() }
+            runCatching { syncCycles() }
             ReviewActivityWorker.schedule(getApplication())
             ReviewActivityWorker.enqueueSoon(getApplication())
             WidgetRefreshWorker.schedule(getApplication())
@@ -458,6 +557,41 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             putString("partnerAvatarUrl", partner?.avatarUrl)
         }
         _session.update { it.copy(householdCode = remote.householdCode) }
+        val previousId = prefs.getLong(PREF_MEMBER_ID, 0L)
+        if (previousId != 0L && previousId != remote.memberId) {
+            CycleCache.clear(getApplication())
+            CycleReminder.cancel(getApplication())
+            _cycle.value = CycleState()
+        }
+        prefs.edit { putLong(PREF_MEMBER_ID, remote.memberId) }
+    }
+
+    private suspend fun syncCycles() {
+        if (!_session.value.joined) return
+        publishCycles(repo.listCycles(), repo.getCycleSettings())
+    }
+
+    private fun publishCycles(cycles: List<CycleRecord>, settings: CycleSettings) {
+        val memberId = prefs.getLong(PREF_MEMBER_ID, 0L)
+        val state = CycleState(memberId, cycles, settings, loaded = true)
+        _cycle.value = state
+        if (memberId != 0L) {
+            CycleCache.write(getApplication(), state)
+            CycleReminder.schedule(getApplication(), state)
+        }
+    }
+
+    private fun patchCycleSettings(next: CycleSettings) {
+        if (!_session.value.joined) {
+            _statusMessage.value = "先加入家庭再改"
+            return
+        }
+        viewModelScope.launch {
+            track(_busyCount) {
+                runCatching { publishCycles(_cycle.value.cycles, repo.updateCycleSettings(next)) }
+                    .onFailure { _statusMessage.value = it.message ?: "设置没保存上" }
+            }
+        }
     }
 
     private suspend fun track(count: MutableStateFlow<Int>, enabled: Boolean = true, block: suspend () -> Unit) {
@@ -475,5 +609,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     companion object {
         private const val PREF_APPEARANCE = "appearance"
+        const val PREF_MEMBER_ID = "memberId"
     }
 }
