@@ -33,6 +33,12 @@ class AvatarResolveTest {
     }
 
     @Test
+    fun stackedHeaderAvatarsOverlapTighterThanTheOldGap() {
+        assertTrue(STACKED_AVATAR_SHIFT_FRACTION < 0.42f)
+        assertTrue(STACKED_AVATAR_SHIFT_FRACTION >= 0.2f)
+    }
+
+    @Test
     fun unknownOrBlankPresetFallsBack() {
         assertEquals(AvatarView.Preset(AvatarIds.DOG), resolveAvatar(null, "dragon", AvatarIds.DOG))
         assertEquals(AvatarView.Preset(AvatarIds.CAT), resolveAvatar("  ", "  ", AvatarIds.CAT))

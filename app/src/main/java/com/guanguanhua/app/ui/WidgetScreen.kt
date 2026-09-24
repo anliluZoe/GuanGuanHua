@@ -73,15 +73,20 @@ fun WidgetScreen(viewModel: AppViewModel, onBack: () -> Unit) {
         if (session.joined) viewModel.refreshWidget()
     }
 
+    SubpageScaffold(title = "桌面组件", onBack = onBack) { innerPadding ->
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(QTheme.colors.screenGlow)
             .verticalScroll(rememberScrollState())
+            .padding(innerPadding)
             .padding(horizontal = 20.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        PageHeader("桌面组件", "一张合照、一句说明叠在正中间，两部手机一起换", onBack = onBack)
+        Text(
+            "一张合照、一句说明叠在正中间，两部手机一起换",
+            color = QTheme.colors.muted,
+            style = MaterialTheme.typography.bodySmall,
+        )
         if (!session.joined) {
             SoftCard(modifier = Modifier.fillMaxWidth()) {
                 Text("先加入家庭账本，才能设置桌面照片。", color = QTheme.colors.muted)
@@ -271,6 +276,7 @@ fun WidgetScreen(viewModel: AppViewModel, onBack: () -> Unit) {
         }
         Spacer(Modifier.height(24.dp))
         }
+    }
     }
 
     if (pickingCustom) {

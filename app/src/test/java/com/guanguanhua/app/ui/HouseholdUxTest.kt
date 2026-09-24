@@ -19,6 +19,14 @@ class HouseholdUxTest {
     }
 
     @Test
+    fun householdPairTitleFallsBackWhenNamesMissing() {
+        assertEquals("我 × 另一半", householdPairTitle("", null))
+        assertEquals("我 × 另一半", householdPairTitle("   ", null))
+        assertEquals("小明 × 小红", householdPairTitle("小明", "小红"))
+        assertEquals("小明 × 另一半", householdPairTitle("小明", null))
+    }
+
+    @Test
     fun householdCodeCopiesTrimmedTextAndSkipsBlank() {
         assertEquals("AB12CD", HouseholdCodeCopy.clipText(" AB12CD "))
         assertNull(HouseholdCodeCopy.clipText("  "))

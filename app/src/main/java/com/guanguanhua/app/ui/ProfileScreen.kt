@@ -50,6 +50,9 @@ import com.guanguanhua.app.update.presentUpdate
 import com.guanguanhua.app.widget.WidgetCopy
 import kotlinx.coroutines.launch
 
+internal fun householdPairTitle(name: String, partnerName: String?): String =
+    "${name.ifBlank { "我" }} × ${partnerName ?: "另一半"}"
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(viewModel: AppViewModel, onOpenWidget: () -> Unit = {}, onOpenEdit: () -> Unit = {}) {
@@ -84,7 +87,7 @@ fun ProfileScreen(viewModel: AppViewModel, onOpenWidget: () -> Unit = {}, onOpen
         PageHeader(
             title = "我们",
             subtitle = if (session.joined) {
-                "${profile.name.ifBlank { "我" }} × ${profile.partnerName ?: "另一半"}"
+                householdPairTitle(profile.name, profile.partnerName)
             } else {
                 "两个人的小金库 · 才不是腻歪呢"
             },
@@ -139,48 +142,11 @@ fun ProfileScreen(viewModel: AppViewModel, onOpenWidget: () -> Unit = {}, onOpen
             }
         } else {
         SoftCard(modifier = Modifier.fillMaxWidth()) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Column(
-                    modifier = Modifier.weight(1f),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    MemberAvatar(
-                        name = profile.name,
-                        presetId = profile.avatarPreset,
-                        photoUrl = profile.avatarUrl,
-                        size = 56.dp,
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        profile.name.ifBlank { "还没起名" },
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Spacer(Modifier.height(2.dp))
-                    Text("我", color = QTheme.colors.muted, style = MaterialTheme.typography.labelMedium)
-                }
-                Column(
-                    modifier = Modifier.weight(1f),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    MemberAvatar(
-                        name = profile.partnerName ?: "另一半",
-                        presetId = profile.partnerAvatarPreset,
-                        photoUrl = profile.partnerAvatarUrl,
-                        fallbackPreset = AvatarIds.DOG,
-                        size = 56.dp,
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        profile.partnerName ?: "还没加入",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (profile.partnerName == null) QTheme.colors.muted else QTheme.colors.ink,
-                    )
-                    Spacer(Modifier.height(2.dp))
-                    Text("另一半", color = QTheme.colors.muted, style = MaterialTheme.typography.labelMedium)
-                }
-            }
+            Text(
+                householdPairTitle(profile.name, profile.partnerName),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
             Spacer(Modifier.height(16.dp))
             Text("家庭码", color = QTheme.colors.muted, style = MaterialTheme.typography.labelMedium)
             Spacer(Modifier.height(4.dp))
