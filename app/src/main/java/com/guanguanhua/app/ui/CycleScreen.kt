@@ -358,7 +358,8 @@ private fun CalendarCard(
         val padded = cells + List((7 - cells.size % 7) % 7) { null }
         BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
             val cell = maxWidth / 7
-            padded.chunked(7).forEach { week ->
+            Column(modifier = Modifier.fillMaxWidth()) {
+                padded.chunked(7).forEach { week ->
                 Row(modifier = Modifier.fillMaxWidth()) {
                     week.forEach { date ->
                         if (date == null) {
@@ -406,6 +407,7 @@ private fun CalendarCard(
                                 }
                             }
                         }
+                    }
                     }
                 }
             }
