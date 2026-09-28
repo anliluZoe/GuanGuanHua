@@ -229,6 +229,11 @@ class Store {
     }
     return this.withTransaction(() => {
       const members = this.membersForHousehold(house.id);
+      const trimmed = String(name || "").trim();
+      const sameName = trimmed
+        ? this.db.prepare("SELECT token FROM members WHERE household_id = ? AND name = ?").get(house.id, trimmed)
+        : null;
+      if (sameName) return this.sessionPayload(sameName.token);
       if (members.length >= MAX_HOUSEHOLD_MEMBERS) {
         return { householdFull: true, members };
       }
@@ -258,12 +263,8 @@ class Store {
       .run(householdId, token, name, preset);
   }
 
-  /** 退出家庭：删掉这条成员，名额腾出来。历史申请/账本仍按当时写上的名字保留。经期记录随成员级联删除。 */
-  leaveHousehold(memberId) {
-    const row = this.db.prepare("SELECT avatar_file FROM members WHERE id = ?").get(memberId);
-    this.db.prepare("DELETE FROM members WHERE id = ?").run(memberId);
-    if (row?.avatar_file) this.deletePhoto(row.avatar_file);
-  }
+  /** 退出只让这台手机登出。成员、经期、头像都留在服务器，用家庭码还能回这个身份。 */
+  leaveHousehold(_memberId) {}
 
   listCycles(memberId) {
     return this.db

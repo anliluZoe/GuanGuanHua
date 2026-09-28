@@ -296,22 +296,38 @@ test("join as an existing member returns that identity when the household is ful
   });
 });
 
-test("leave frees a slot so the next join creates a member", () => {
+test("leave keeps the member so a later join can come back", () => {
   withStore((store) => {
     const { alice, bob } = twoMembers(store);
     const filename = store.savePhoto(Buffer.from("face"), ".png");
     store.setAvatarFile(bob.id, filename);
+    store.createCycle(bob.id, "2026-09-18", "2026-09-22");
     store.leaveHousehold(bob.id);
-    assert.equal(store.memberByToken(bob.token), undefined);
-    assert.equal(store.photoPath(filename), null);
-    assert.equal(store.sessionPayload(alice.token).members.length, 1);
+    assert.equal(store.memberByToken(bob.token).id, bob.id);
+    assert.ok(store.photoPath(filename));
+    assert.equal(store.listCycles(bob.id).length, 1);
+    assert.equal(store.sessionPayload(alice.token).members.length, 2);
 
-    const again = store.joinHousehold(alice.code, "Cara");
-    assert.ok(again.token);
-    assert.notEqual(again.token, bob.token);
-    assert.equal(again.name, "Cara");
+    const again = store.joinHousehold(alice.code, "Bob");
+    assert.equal(again.token, bob.token);
+    assert.equal(again.memberId, bob.id);
+    assert.equal(again.name, "Bob");
     assert.equal(again.members.length, 2);
-    assert.ok(again.members.some((member) => member.name === "Cara"));
+
+    const cara = store.joinHousehold(alice.code, "Cara");
+    assert.equal(cara.householdFull, true);
+  });
+});
+
+test("joining with the same name comes back as that member", () => {
+  withStore((store) => {
+    const created = store.createHousehold("Alice");
+    const alice = store.memberByToken(created.token);
+    store.leaveHousehold(alice.id);
+    const again = store.joinHousehold(created.householdCode, "Alice");
+    assert.equal(again.token, created.token);
+    assert.equal(again.memberId, alice.id);
+    assert.equal(again.members.length, 1);
   });
 });
 

@@ -6,7 +6,7 @@ import com.google.gson.Gson
 import com.guanguanhua.app.data.CycleState
 import java.time.LocalDate
 
-/** 上次同步成功的周期，按成员 id 存。换身份或退出时整段清掉。 */
+/** 上次同步成功的周期，按成员 id 存。换到另一个身份时整段清掉。 */
 object CycleCache {
     private const val PREFS = "cycle"
     private const val KEY_STATE = "state"

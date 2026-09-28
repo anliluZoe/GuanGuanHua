@@ -156,7 +156,7 @@ test("cycle dates, duplicates, and settings validation", async () => {
   });
 });
 
-test("opening an older database adds cycle tables and leaving removes that member's rows", () => {
+test("opening an older database adds cycle tables and leaving keeps that member's rows", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "cycle-migrate-"));
   const db = new DatabaseSync(path.join(root, "save_money.db"));
   db.exec(`
@@ -191,11 +191,11 @@ test("opening an older database adds cycle tables and leaving removes that membe
     const cycle = store.createCycle(ada.id, "2026-09-18", "2026-09-22");
     store.patchCycleSettings(ada.id, { reference_cycle_days: 30, period_days: 4 });
     store.leaveHousehold(ada.id);
-    assert.equal(store.listCycles(ada.id).length, 0);
-    assert.equal(store.getCycle(ada.id, cycle.id), undefined);
+    assert.equal(store.listCycles(ada.id).length, 1);
+    assert.equal(store.getCycle(ada.id, cycle.id).id, cycle.id);
     const settings = store.getCycleSettings(ada.id);
-    assert.equal(settings.reference_cycle_days, null);
-    assert.equal(settings.period_days, 5);
+    assert.equal(settings.reference_cycle_days, 30);
+    assert.equal(settings.period_days, 4);
   } finally {
     store.db.close();
     fs.rmSync(root, { recursive: true, force: true });

@@ -14,8 +14,8 @@ class HouseholdUxTest {
         assertEquals("退出家庭", LeaveHouseholdPrompt.TITLE)
         assertEquals("取消", LeaveHouseholdPrompt.CANCEL)
         assertEquals("退出", LeaveHouseholdPrompt.CONFIRM)
-        assertTrue(LeaveHouseholdPrompt.BODY.contains("离开这个家庭"))
-        assertTrue(LeaveHouseholdPrompt.BODY.contains("名额"))
+        assertTrue(LeaveHouseholdPrompt.BODY.contains("退出登录"))
+        assertTrue(LeaveHouseholdPrompt.BODY.contains("还在"))
     }
 
     @Test
