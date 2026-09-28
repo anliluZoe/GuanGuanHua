@@ -202,31 +202,25 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun leaveHome(onSuccess: () -> Unit = {}) {
         viewModelScope.launch {
             track(_busyCount) {
-                runCatching { repo.leaveHousehold() }
-                    .onSuccess {
-                        ReviewActivityWorker.cancel(getApplication())
-                        WidgetRefreshWorker.cancel(getApplication())
-                        CycleReminder.cancel(getApplication())
-                        WidgetCache.clear(getApplication())
-                        CycleCache.clear(getApplication())
-                        _widget.value = WidgetState()
-                        _cycle.value = CycleState()
-                        prefs.edit {
-                            remove("token")
-                            remove("householdCode")
-                            remove(PREF_MEMBER_ID)
-                            remove(ReviewActivity.PREF_SINCE)
-                        }
-                        _session.update { it.copy(token = "", householdCode = "") }
-                        _joinPicker.value = null
-                        _requests.value = emptyList()
-                        _monthExpenses.value = emptyList()
-                        _monthBudget.value = null
-                        _ready.value = true
-                        WidgetCache.publish(getApplication())
-                        onSuccess()
-                    }
-                    .onFailure { _statusMessage.value = it.message ?: "退出失败，请检查网络后再试" }
+                ReviewActivityWorker.cancel(getApplication())
+                WidgetRefreshWorker.cancel(getApplication())
+                CycleReminder.cancel(getApplication())
+                WidgetCache.clear(getApplication())
+                _widget.value = WidgetState()
+                _cycle.value = CycleState()
+                prefs.edit {
+                    remove("token")
+                    remove("householdCode")
+                    remove(ReviewActivity.PREF_SINCE)
+                }
+                _session.update { it.copy(token = "", householdCode = "") }
+                _joinPicker.value = null
+                _requests.value = emptyList()
+                _monthExpenses.value = emptyList()
+                _monthBudget.value = null
+                _ready.value = true
+                WidgetCache.publish(getApplication())
+                onSuccess()
             }
         }
     }

@@ -53,7 +53,7 @@ test("join is capped at two members and can enter as an existing person", async 
   });
 });
 
-test("leaving frees a slot so the next join creates a new member", async () => {
+test("leaving keeps the member so the same name can come back", async () => {
   await withServer(async ({ base }) => {
     const alice = await json(base, "POST", "/api/households", { name: "Alice" });
     const bob = await json(base, "POST", "/api/households/join", {
@@ -68,26 +68,24 @@ test("leaving frees a slot so the next join creates a new member", async () => {
     assert.equal(left.status, 200);
     assert.equal((await left.json()).ok, true);
 
-    const stale = await fetch(`${base}/api/session`, {
-      headers: { Authorization: `Bearer ${bob.token}` },
-    });
-    assert.equal(stale.status, 401);
+    const stillBob = await json(base, "GET", "/api/session", null, bob.token);
+    assert.equal(stillBob.memberId, bob.memberId);
+    assert.equal(stillBob.members.length, 2);
 
-    const stillAlice = await json(base, "GET", "/api/session", null, alice.token);
-    assert.equal(stillAlice.members.length, 1);
-    assert.equal(stillAlice.members[0].name, "Alice");
-
-    const cara = await json(base, "POST", "/api/households/join", {
-      name: "Cara",
+    const again = await json(base, "POST", "/api/households/join", {
+      name: "Bob",
       code: alice.householdCode,
     });
-    assert.equal(cara.name, "Cara");
-    assert.notEqual(cara.token, bob.token);
-    assert.equal(cara.members.length, 2);
-    assert.deepEqual(
-      cara.members.map((member) => member.name).sort(),
-      ["Alice", "Cara"],
-    );
+    assert.equal(again.token, bob.token);
+    assert.equal(again.memberId, bob.memberId);
+
+    const cara = await fetch(`${base}/api/households/join`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "Cara", code: alice.householdCode }),
+    });
+    assert.equal(cara.status, 409);
+    assert.equal((await cara.json()).code, "household_full");
   });
 });
 
