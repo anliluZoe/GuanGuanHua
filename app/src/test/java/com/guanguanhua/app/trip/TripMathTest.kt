@@ -1,11 +1,9 @@
 package com.guanguanhua.app.trip
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.io.File
 import java.time.LocalDate
 import java.time.ZoneOffset
 
@@ -52,11 +50,23 @@ class TripMathTest {
     }
 
     @Test
-    fun routeMapUsesBundledLeaflet() {
-        val html = File("src/main/assets/trip_map.html").readText()
-        assertTrue(html.contains("leaflet/leaflet.js"))
-        assertFalse(html.contains("unpkg.com"))
-        assertTrue(File("src/main/assets/leaflet/leaflet.js").exists())
-        assertTrue(File("src/main/assets/leaflet/leaflet.css").exists())
+    fun routeMapFitsGuilinStopsInsideTheView() {
+        val guilin = 25.273 to 110.290
+        val yangshuo = 24.778 to 110.496
+        val one = TripMath.mapFrame(listOf(guilin), 512, 260)
+        val pixel = TripMath.mapPixel(guilin.first, guilin.second, one)
+        assertTrue(pixel.first in 0f..512f)
+        assertTrue(pixel.second in 0f..260f)
+        val tiles = TripMath.mapTiles(one)
+        assertTrue(tiles.isNotEmpty())
+        assertTrue(tiles.first().url.contains("autonavi.com"))
+        val two = TripMath.mapFrame(listOf(guilin, yangshuo), 800, 400)
+        val start = TripMath.mapPixel(guilin.first, guilin.second, two)
+        val end = TripMath.mapPixel(yangshuo.first, yangshuo.second, two)
+        assertTrue(start.first in 0f..800f)
+        assertTrue(end.first in 0f..800f)
+        assertTrue(start.second in 0f..400f)
+        assertTrue(end.second in 0f..400f)
+        assertTrue(TripMath.mapTiles(TripMath.mapFrame(emptyList(), 400, 260)).isNotEmpty())
     }
 }
