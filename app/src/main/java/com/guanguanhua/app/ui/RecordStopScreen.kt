@@ -55,6 +55,7 @@ fun RecordStopScreen(viewModel: AppViewModel, onBack: () -> Unit, onOpenRoute: (
     var name by rememberSaveable { mutableStateOf("") }
     var kind by rememberSaveable { mutableStateOf("") }
     var rating by rememberSaveable { mutableStateOf(0) }
+    var amountText by rememberSaveable { mutableStateOf("") }
     var visitedOn by rememberSaveable { mutableStateOf(LocalDate.now().toString()) }
     var lat by rememberSaveable { mutableStateOf<String?>(null) }
     var lng by rememberSaveable { mutableStateOf<String?>(null) }
@@ -136,6 +137,7 @@ fun RecordStopScreen(viewModel: AppViewModel, onBack: () -> Unit, onOpenRoute: (
                 TripKindChips(kind.ifBlank { null }) { kind = it }
                 Text("评分", style = MaterialTheme.typography.labelLarge)
                 TripStars(rating.takeIf { it > 0 }) { rating = it ?: 0 }
+                TripAmountField(amountText) { amountText = it }
                 Text(
                     if (visitedOn == LocalDate.now().toString()) "不是今天" else "记在 $visitedOn",
                     color = QTheme.colors.sky,
@@ -143,7 +145,8 @@ fun RecordStopScreen(viewModel: AppViewModel, onBack: () -> Unit, onOpenRoute: (
                 )
                 PillButton(
                     "记下",
-                    enabled = !isBusy && name.trim().isNotBlank() && TripMath.knownKind(kind),
+                    enabled = !isBusy && name.trim().isNotBlank() && TripMath.knownKind(kind) &&
+                        (amountText.isBlank() || amountText.yuanToCentsOrNull() != null),
                     onClick = {
                         if (lat == null || lng == null) {
                             NearbyPlaces.lastLocation(context)?.let { location ->
@@ -158,10 +161,12 @@ fun RecordStopScreen(viewModel: AppViewModel, onBack: () -> Unit, onOpenRoute: (
                             lat = lat?.toDoubleOrNull(),
                             lng = lng?.toDoubleOrNull(),
                             visitedOn = visitedOn,
+                            amountCents = amountText.yuanToCentsOrNull(),
                             onSuccess = {
                                 name = ""
                                 kind = ""
                                 rating = 0
+                                amountText = ""
                                 lat = null
                                 lng = null
                                 picked = false
@@ -175,6 +180,7 @@ fun RecordStopScreen(viewModel: AppViewModel, onBack: () -> Unit, onOpenRoute: (
                     lat = null
                     lng = null
                     rating = 0
+                    amountText = ""
                     picked = false
                 })
             }
@@ -182,7 +188,8 @@ fun RecordStopScreen(viewModel: AppViewModel, onBack: () -> Unit, onOpenRoute: (
                 Text("今天记下的", style = MaterialTheme.typography.titleMedium)
                 active.stops.filter { it.visitedOn == LocalDate.now().toString() }.asReversed().forEach { stop ->
                     Text(
-                        listOfNotNull(stop.rating?.let { "★$it" }, stop.kind, stop.name).joinToString(" · "),
+                        listOfNotNull(stop.amountCents?.toYuan(), stop.rating?.let { "★$it" }, stop.kind, stop.name)
+                            .joinToString(" · "),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }

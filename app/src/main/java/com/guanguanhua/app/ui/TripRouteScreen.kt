@@ -91,7 +91,7 @@ fun TripRouteScreen(viewModel: AppViewModel, tripId: Long, onBack: () -> Unit) {
                 return@Column
             }
             Text(
-                "${TripMath.formatRange(trip.startedAt, trip.endedAt)} · ${trip.stops.size} 站",
+                "${TripMath.formatRange(trip.startedAt, trip.endedAt)} · ${tripStopsLine(trip.stops.size, trip.spentCents)}",
                 color = QTheme.colors.muted,
             )
             TripMap(shown)
@@ -127,6 +127,9 @@ fun TripRouteScreen(viewModel: AppViewModel, tripId: Long, onBack: () -> Unit) {
                                 color = QTheme.colors.muted,
                                 style = MaterialTheme.typography.bodySmall,
                             )
+                            stop.amountCents?.let { cents ->
+                                Text(cents.toYuan(), color = QTheme.colors.coral, style = MaterialTheme.typography.bodySmall)
+                            }
                         }
                         if (trip.active) {
                             Spacer(Modifier.height(8.dp))
@@ -148,8 +151,8 @@ fun TripRouteScreen(viewModel: AppViewModel, tripId: Long, onBack: () -> Unit) {
         StopEditSheet(
             stop = editing,
             busy = isBusy,
-            onSave = { name, kind, rating ->
-                viewModel.updateTripStop(routeTrip.id, editing.id, name, kind, rating, editing.visitedOn)
+            onSave = { name, kind, rating, amountCents ->
+                viewModel.updateTripStop(routeTrip.id, editing.id, name, kind, rating, editing.visitedOn, amountCents)
                 editingId = 0L
             },
             onClose = { editingId = 0L },
@@ -253,12 +256,15 @@ private fun TripMap(stops: List<TripStop>) {
 private fun StopEditSheet(
     stop: TripStop,
     busy: Boolean,
-    onSave: (String, String, Int?) -> Unit,
+    onSave: (String, String, Int?, Long?) -> Unit,
     onClose: () -> Unit,
 ) {
     var name by rememberSaveable(stop.id) { mutableStateOf(stop.name) }
     var kind by rememberSaveable(stop.id) { mutableStateOf(stop.kind) }
     var rating by rememberSaveable(stop.id) { mutableStateOf(stop.rating ?: 0) }
+    var amountText by rememberSaveable(stop.id) {
+        mutableStateOf(stop.amountCents?.toYuan()?.removePrefix("¥") ?: "")
+    }
     ModalBottomSheet(
         onDismissRequest = onClose,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -269,9 +275,15 @@ private fun StopEditSheet(
             SoftField(value = name, onValueChange = { name = it }, label = "名字")
             TripKindChips(kind) { kind = it }
             TripStars(rating.takeIf { it > 0 }) { rating = it ?: 0 }
-            PillButton("保存", enabled = !busy && name.trim().isNotBlank() && TripMath.knownKind(kind), onClick = {
-                onSave(name, kind, TripMath.ratingOrNull(rating.takeIf { it > 0 }))
-            })
+            TripAmountField(amountText) { amountText = it }
+            PillButton(
+                "保存",
+                enabled = !busy && name.trim().isNotBlank() && TripMath.knownKind(kind) &&
+                    (amountText.isBlank() || amountText.yuanToCentsOrNull() != null),
+                onClick = {
+                    onSave(name, kind, TripMath.ratingOrNull(rating.takeIf { it > 0 }), amountText.yuanToCentsOrNull())
+                },
+            )
             PillButton("先不了", filled = false, onClick = onClose)
         }
     }

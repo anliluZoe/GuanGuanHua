@@ -48,6 +48,7 @@ test("trips are shared by the household and only one can be active", async () =>
     );
     assert.equal(stop.kind, "美食");
     assert.equal(stop.rating, 5);
+    assert.equal(stop.amountCents, null);
 
     const listed = await json(base, "GET", `/api/trips/${started.id}`, null, alice.token);
     assert.equal(listed.stops.length, 1);
@@ -96,23 +97,42 @@ test("stop kinds ratings reorder and isolation", async () => {
       base,
       "POST",
       `/api/trips/${trip.id}/stops`,
-      { name: "客栈", kind: "住宿", visitedOn: "2026-10-01" },
+      { name: "客栈", kind: "住宿", visitedOn: "2026-10-01", amountCents: 28000 },
       ada.token
     );
+    assert.equal(first.amountCents, 28000);
     const second = await json(
       base,
       "POST",
       `/api/trips/${trip.id}/stops`,
-      { name: "米粉", kind: "美食", rating: 4, visitedOn: "2026-10-01" },
+      { name: "米粉", kind: "美食", rating: 4, visitedOn: "2026-10-01", amountCents: 1800 },
       ada.token
     );
     await json(
       base,
       "PATCH",
       `/api/trips/${trip.id}/stops/${first.id}`,
-      { rating: 3, kind: "住宿" },
+      { rating: 3, kind: "住宿", amountCents: 26000 },
       ada.token
     );
+    const listed = await json(base, "GET", `/api/trips/${trip.id}`, null, ada.token);
+    assert.equal(listed.spentCents, 27800);
+    const cleared = await json(
+      base,
+      "PATCH",
+      `/api/trips/${trip.id}/stops/${second.id}`,
+      { amountCents: null },
+      ada.token
+    );
+    assert.equal(cleared.amountCents, null);
+    const afterClear = await json(base, "GET", `/api/trips/${trip.id}`, null, ada.token);
+    assert.equal(afterClear.spentCents, 26000);
+    const badAmount = await fetch(`${base}/api/trips/${trip.id}/stops/${first.id}`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${ada.token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ amountCents: 0 }),
+    });
+    assert.equal(badAmount.status, 400);
     const reordered = await json(
       base,
       "PATCH",
@@ -146,6 +166,30 @@ test("opening an older database adds trip tables", () => {
       token TEXT UNIQUE NOT NULL,
       name TEXT NOT NULL
     );
+    CREATE TABLE trips (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      household_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      started_at INTEGER NOT NULL,
+      ended_at INTEGER,
+      planned_end TEXT,
+      created_by INTEGER NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+    CREATE TABLE trip_stops (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      trip_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      rating INTEGER,
+      lat REAL,
+      lng REAL,
+      visited_on TEXT NOT NULL,
+      sort_order INTEGER NOT NULL,
+      created_by INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
   `);
   old.prepare("INSERT INTO households(code) VALUES ('111111')").run();
   old.prepare("INSERT INTO members(household_id, token, name) VALUES (1, 'tok', 'Ada')").run();
@@ -155,6 +199,8 @@ test("opening an older database adds trip tables", () => {
     const tables = store.db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map((row) => row.name);
     assert.ok(tables.includes("trips"));
     assert.ok(tables.includes("trip_stops"));
+    const columns = store.db.prepare("PRAGMA table_info(trip_stops)").all().map((row) => row.name);
+    assert.ok(columns.includes("amount_cents"));
     const started = store.startTrip(1, 1, "桂林", "2026-10-07");
     assert.equal(started.name, "桂林");
     assert.equal(store.activeTrip(1).id, started.id);

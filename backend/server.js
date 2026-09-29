@@ -392,6 +392,7 @@ function tripJson(row, stops) {
     createdBy: Number(row.created_by),
     createdByName: row.created_by_name,
     stopCount: Number(row.stop_count || 0),
+    spentCents: Number(row.spent_cents || 0),
   };
   if (stops) payload.stops = stops.map(stopJson);
   return payload;
@@ -403,6 +404,7 @@ function stopJson(row) {
     name: row.name,
     kind: row.kind,
     rating: row.rating == null ? null : Number(row.rating),
+    amountCents: row.amount_cents == null ? null : Number(row.amount_cents),
     lat: row.lat == null ? null : Number(row.lat),
     lng: row.lng == null ? null : Number(row.lng),
     visitedOn: row.visited_on,
@@ -442,6 +444,15 @@ function readStopBody(body, fallback) {
       rating = n;
     }
   }
+  let amountCents = fallback ? fallback.amountCents : null;
+  if (body != null && Object.prototype.hasOwnProperty.call(body, "amountCents")) {
+    if (body.amountCents == null || body.amountCents === "") amountCents = null;
+    else {
+      const n = readInt(body.amountCents);
+      if (n == null || n < 1) return { error: "金额请填正数，单位是分" };
+      amountCents = n;
+    }
+  }
   const visitedOn = body?.visitedOn != null ? parseIsoDate(String(body.visitedOn).trim()) : fallback?.visitedOn;
   if (!visitedOn) return { error: "日期要填成 YYYY-MM-DD" };
   const lat = body?.lat == null || body.lat === "" ? fallback?.lat ?? null : Number(body.lat);
@@ -449,7 +460,7 @@ function readStopBody(body, fallback) {
   if ((lat != null && !Number.isFinite(lat)) || (lng != null && !Number.isFinite(lng))) {
     return { error: "位置不对" };
   }
-  return { name: name.slice(0, 80), kind, rating, visitedOn, lat, lng };
+  return { name: name.slice(0, 80), kind, rating, amountCents, visitedOn, lat, lng };
 }
 
 function tripWriteError(result, res) {
@@ -460,6 +471,7 @@ function tripWriteError(result, res) {
   if (result.error === "name") return res.status(400).json({ detail: "先给这段旅程起个名字" });
   if (result.error === "kind") return res.status(400).json({ detail: "类型选住宿、美食、风景、博物馆或杂物店" });
   if (result.error === "rating") return res.status(400).json({ detail: "评分请选 1–5 星" });
+  if (result.error === "amount") return res.status(400).json({ detail: "金额请填正数，单位是分" });
   if (result.error === "order") return res.status(400).json({ detail: "顺序不对" });
   return null;
 }
@@ -537,6 +549,7 @@ app.patch("/api/trips/:id/stops/:stopId", requireMember, (req, res) => {
     name: existing.name,
     kind: existing.kind,
     rating: existing.rating,
+    amountCents: existing.amount_cents,
     visitedOn: existing.visited_on,
     lat: existing.lat,
     lng: existing.lng,

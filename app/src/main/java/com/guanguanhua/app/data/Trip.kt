@@ -9,6 +9,7 @@ data class TripSummary(
     val createdBy: Long = 0,
     val createdByName: String? = null,
     val stopCount: Int = 0,
+    val spentCents: Long = 0,
 ) {
     val active: Boolean get() = endedAt == null
 }
@@ -18,6 +19,7 @@ data class TripStop(
     val name: String = "",
     val kind: String = "",
     val rating: Int? = null,
+    val amountCents: Long? = null,
     val lat: Double? = null,
     val lng: Double? = null,
     val visitedOn: String = "",
@@ -35,12 +37,14 @@ data class TripDetail(
     val createdBy: Long = 0,
     val createdByName: String? = null,
     val stopCount: Int = 0,
+    val spentCents: Long = 0,
     val stops: List<TripStop> = emptyList(),
 ) {
     val active: Boolean get() = endedAt == null
     fun asSummary(): TripSummary = TripSummary(
         id, name, startedAt, endedAt, plannedEnd, createdBy, createdByName,
         stopCount.takeIf { it > 0 } ?: stops.size,
+        spentCents.takeIf { it > 0 } ?: stops.mapNotNull { it.amountCents }.sum(),
     )
 }
 
@@ -57,6 +61,7 @@ data class TripStopWrite(
     val lat: Double? = null,
     val lng: Double? = null,
     val visitedOn: String,
+    val amountCents: Long? = null,
 )
 
 data class NearbyPlace(
