@@ -69,7 +69,17 @@ class TripMathTest {
         assertTrue(end.first in 0f..800f)
         assertTrue(start.second in 0f..400f)
         assertTrue(end.second in 0f..400f)
-        assertTrue(TripMath.mapTiles(TripMath.mapFrame(emptyList(), 400, 260)).isNotEmpty())
+        val chengdu = 30.67 to 104.06
+        val chengduFrame = TripMath.mapFrame(listOf(chengdu), 512, 260)
+        val chengduPixel = TripMath.mapPixel(chengdu.first, chengdu.second, chengduFrame)
+        assertTrue(chengduPixel.first in 0f..512f)
+        assertTrue(chengduPixel.second in 0f..260f)
+        assertTrue(chengduFrame.left != one.left || chengduFrame.top != one.top)
+    }
+
+    @Test(expected = IllegalStateException::class)
+    fun emptyRouteDoesNotFallBackToGuilin() {
+        TripMath.mapFrame(emptyList(), 400, 260)
     }
 
     @Test

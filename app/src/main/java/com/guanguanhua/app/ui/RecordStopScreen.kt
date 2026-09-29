@@ -66,8 +66,12 @@ fun RecordStopScreen(viewModel: AppViewModel, onBack: () -> Unit, onOpenRoute: (
     var nearbyHint by rememberSaveable { mutableStateOf("正在找附近…") }
     var pickingDate by rememberSaveable { mutableStateOf(false) }
     var picked by rememberSaveable { mutableStateOf(false) }
-    val askLocation = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+    fun findNearby() {
+        nearbyHint = "正在找附近…"
         scope.launch { loadNearby(context) { places, hint -> nearby = places; nearbyHint = hint } }
+    }
+    val askLocation = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        findNearby()
     }
     val photoPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.PickMultipleVisualMedia(TripMath.MAX_PHOTOS),
@@ -81,7 +85,7 @@ fun RecordStopScreen(viewModel: AppViewModel, onBack: () -> Unit, onOpenRoute: (
             ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) ==
             PackageManager.PERMISSION_GRANTED
         if (granted) {
-            loadNearby(context) { places, hint -> nearby = places; nearbyHint = hint }
+            findNearby()
         } else {
             nearbyHint = "打不开定位，也可以先写店名"
             askLocation.launch(
@@ -110,7 +114,20 @@ fun RecordStopScreen(viewModel: AppViewModel, onBack: () -> Unit, onOpenRoute: (
             Text("${active.name} · 第 $day 天", color = QTheme.colors.muted, style = MaterialTheme.typography.bodyMedium)
             Text("今天 ${active.stops.count { it.visitedOn == LocalDate.now().toString() }} 站", color = QTheme.colors.secondary)
             if (!picked) {
-                Text(nearbyHint, color = QTheme.colors.muted, style = MaterialTheme.typography.bodySmall)
+                Text(
+                    nearbyHint,
+                    color = QTheme.colors.muted,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.clickable {
+                        val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
+                            PackageManager.PERMISSION_GRANTED ||
+                            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) ==
+                            PackageManager.PERMISSION_GRANTED
+                        if (granted) findNearby() else askLocation.launch(
+                            arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
+                        )
+                    },
+                )
                 nearby.forEach { place ->
                     SoftCard(modifier = Modifier.fillMaxWidth(), onClick = {
                         name = place.name
@@ -246,14 +263,19 @@ private suspend fun loadNearby(
     context: android.content.Context,
     onResult: (List<NearbyPlace>, String) -> Unit,
 ) {
-    val location = NearbyPlaces.lastLocation(context)
+    val location = NearbyPlaces.locate(context)
     if (location == null) {
-        onResult(emptyList(), "打不开定位，也可以先写店名")
+        onResult(emptyList(), "打不开定位，点这里再试，也可以先写店名")
         return
     }
-    val places = runCatching { NearbyPlaces.search(location.latitude, location.longitude) }.getOrElse { emptyList() }
+    val places = runCatching { NearbyPlaces.search(location.latitude, location.longitude) }
+    val found = places.getOrDefault(emptyList())
     onResult(
-        places,
-        if (places.isEmpty()) "附近没找到，自己写" else "点下面一家，或自己写店名",
+        found,
+        when {
+            places.isFailure -> "附近这会儿连不上，点这里再找一次"
+            found.isEmpty() -> "附近没找到，自己写，或点这里再找一次"
+            else -> "点下面一家，或自己写店名"
+        },
     )
 }

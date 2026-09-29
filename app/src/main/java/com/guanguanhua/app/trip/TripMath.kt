@@ -60,7 +60,8 @@ object TripMath {
     fun mapFrame(points: List<Pair<Double, Double>>, widthPx: Int, heightPx: Int, tileSize: Int = 256): MapFrame {
         val width = widthPx.coerceAtLeast(1)
         val height = heightPx.coerceAtLeast(1)
-        val located = points.ifEmpty { listOf(25.27 to 110.29) }
+        check(points.isNotEmpty()) { "没有带位置的站点时不画地图" }
+        val located = points
         var minLat = located.minOf { it.first }
         var maxLat = located.maxOf { it.first }
         var minLng = located.minOf { it.second }

@@ -154,6 +154,42 @@ test("stop kinds ratings reorder and isolation", async () => {
   });
 });
 
+test("saving a stop without coords keeps Chengdu instead of wiping it", async () => {
+  await withServer(async ({ base }) => {
+    const ada = await json(base, "POST", "/api/households", { name: "Ada" });
+    const trip = await json(base, "POST", "/api/trips", { name: "成都" }, ada.token);
+    const stop = await json(
+      base,
+      "POST",
+      `/api/trips/${trip.id}/stops`,
+      { name: "宽窄巷子", kind: "风景", visitedOn: "2026-10-02", lat: 30.67, lng: 104.06 },
+      ada.token
+    );
+    assert.equal(stop.lat, 30.67);
+    assert.equal(stop.lng, 104.06);
+
+    const patched = await json(
+      base,
+      "PATCH",
+      `/api/trips/${trip.id}/stops/${stop.id}`,
+      { name: "宽窄巷子", kind: "风景", rating: 4, lat: null, lng: null, amountCents: null },
+      ada.token
+    );
+    assert.equal(patched.lat, 30.67);
+    assert.equal(patched.lng, 104.06);
+    assert.equal(patched.rating, 4);
+
+    const uploaded = await uploadStopPhoto(base, ada.token, trip.id, stop.id, "chengdu-stop");
+    assert.equal(uploaded.lat, 30.67);
+    assert.equal(uploaded.lng, 104.06);
+    assert.equal(uploaded.photos.length, 1);
+
+    const listed = await json(base, "GET", `/api/trips/${trip.id}`, null, ada.token);
+    assert.equal(listed.stops[0].lat, 30.67);
+    assert.equal(listed.stops[0].lng, 104.06);
+  });
+});
+
 test("stop photos are household scoped and capped at six", async () => {
   await withServer(async ({ base }) => {
     const ada = await json(base, "POST", "/api/households", { name: "Ada" });

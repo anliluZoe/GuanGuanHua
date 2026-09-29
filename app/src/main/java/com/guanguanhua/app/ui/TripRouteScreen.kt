@@ -222,17 +222,21 @@ private fun TripMap(stops: List<TripStop>, selectedId: Long, onSelect: (Long) ->
         val widthPx = with(density) { maxWidth.roundToPx() }
         val heightPx = with(density) { maxHeight.roundToPx() }
         val coords = located.map { it.lat as Double to it.lng as Double }
-        val frame = remember(coords, widthPx, heightPx) { TripMath.mapFrame(coords, widthPx, heightPx) }
-        val tiles = remember(frame) { TripMath.mapTiles(frame) }
-        val tileDp = with(density) { frame.tileSize.toDp() }
+        val frame = remember(coords, widthPx, heightPx) {
+            if (coords.isEmpty()) null else TripMath.mapFrame(coords, widthPx, heightPx)
+        }
+        val tiles = remember(frame) { frame?.let { TripMath.mapTiles(it) }.orEmpty() }
+        val tileDp = with(density) { (frame?.tileSize ?: 256).toDp() }
         val hitRadius = with(density) { 14.dp.roundToPx() }
         val minMarkerDist = with(density) { 20.dp.toPx() }
         val pixels = remember(located, frame, minMarkerDist) {
+            val shown = frame ?: return@remember emptyList()
             TripMath.spreadOverlapping(
-                located.map { TripMath.mapPixel(it.lat as Double, it.lng as Double, frame) },
+                located.map { TripMath.mapPixel(it.lat as Double, it.lng as Double, shown) },
                 minMarkerDist,
             )
         }
+        if (frame == null) return@BoxWithConstraints
         tiles.forEach { tile ->
             AsyncImage(
                 model = ImageRequest.Builder(context)
