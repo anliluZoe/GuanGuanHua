@@ -94,6 +94,15 @@ class Store {
         updated_at INTEGER NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_trips_household_active ON trips(household_id, ended_at);
+      CREATE TABLE IF NOT EXISTS trip_stop_photos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        stop_id INTEGER NOT NULL REFERENCES trip_stops(id) ON DELETE CASCADE,
+        filename TEXT NOT NULL,
+        sort_order INTEGER NOT NULL,
+        created_by INTEGER NOT NULL REFERENCES members(id),
+        created_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_trip_stop_photos_stop ON trip_stop_photos(stop_id, sort_order);
     `);
     const stopColumns = this.db.prepare("PRAGMA table_info(trip_stops)").all().map((c) => c.name);
     if (!stopColumns.includes("amount_cents")) {
@@ -289,9 +298,65 @@ class Store {
     const existing = this.getStop(householdId, tripId, stopId);
     if (!existing) return null;
     const trip = this.tripById(householdId, tripId);
+    const photos = this.listStopPhotos(stopId);
     if (trip?.ended_at != null) return { error: "ended" };
     this.db.prepare("DELETE FROM trip_stops WHERE id = ? AND trip_id = ?").run(stopId, tripId);
+    for (const photo of photos) this.deletePhoto(photo.filename);
     return { ok: true };
+  }
+
+  listStopPhotos(stopId) {
+    return this.db
+      .prepare(
+        `SELECT id, stop_id, filename, sort_order, created_by, created_at
+         FROM trip_stop_photos WHERE stop_id = ? ORDER BY sort_order ASC, id ASC`
+      )
+      .all(stopId);
+  }
+
+  listStopPhotosForTrip(tripId) {
+    return this.db
+      .prepare(
+        `SELECT p.id, p.stop_id, p.filename, p.sort_order, p.created_by, p.created_at
+         FROM trip_stop_photos p
+         JOIN trip_stops s ON s.id = p.stop_id
+         WHERE s.trip_id = ?
+         ORDER BY p.stop_id ASC, p.sort_order ASC, p.id ASC`
+      )
+      .all(tripId);
+  }
+
+  addStopPhoto(householdId, memberId, tripId, stopId, filename, now = Date.now()) {
+    const trip = this.tripById(householdId, tripId);
+    if (!trip) return null;
+    if (trip.ended_at != null) return { error: "ended" };
+    const stop = this.getStop(householdId, tripId, stopId);
+    if (!stop) return null;
+    const existing = this.listStopPhotos(stopId);
+    if (existing.length >= TRIP_STOP_PHOTO_MAX) return { error: "full" };
+    const sortOrder = existing.length === 0 ? 0 : existing[existing.length - 1].sort_order + 1;
+    this.db
+      .prepare(
+        `INSERT INTO trip_stop_photos(stop_id, filename, sort_order, created_by, created_at)
+         VALUES (?,?,?,?,?)`
+      )
+      .run(stopId, filename, sortOrder, memberId, now);
+    return this.getStop(householdId, tripId, stopId);
+  }
+
+  deleteStopPhoto(householdId, tripId, stopId, photoId) {
+    const trip = this.tripById(householdId, tripId);
+    if (!trip) return null;
+    if (trip.ended_at != null) return { error: "ended" };
+    const stop = this.getStop(householdId, tripId, stopId);
+    if (!stop) return null;
+    const photo = this.db
+      .prepare("SELECT id, filename FROM trip_stop_photos WHERE id = ? AND stop_id = ?")
+      .get(photoId, stopId);
+    if (!photo) return { error: "photo" };
+    this.db.prepare("DELETE FROM trip_stop_photos WHERE id = ? AND stop_id = ?").run(photoId, stopId);
+    this.deletePhoto(photo.filename);
+    return this.getStop(householdId, tripId, stopId);
   }
 
   reorderStops(householdId, tripId, orderedIds) {
@@ -843,6 +908,7 @@ const AVATAR_PRESETS = [
 const MAX_WIDGET_CAPTION = 40;
 const DEFAULT_WIDGET_CAPTION_COLOR = "#FFFFFF";
 const TRIP_KINDS = ["住宿", "美食", "风景", "博物馆", "杂物店"];
+const TRIP_STOP_PHOTO_MAX = 6;
 
 function normalizeWidgetCaptionColor(value) {
   if (value == null || String(value).trim() === "") return DEFAULT_WIDGET_CAPTION_COLOR;
@@ -866,5 +932,6 @@ module.exports = {
   MAX_WIDGET_CAPTION,
   DEFAULT_WIDGET_CAPTION_COLOR,
   TRIP_KINDS,
+  TRIP_STOP_PHOTO_MAX,
   normalizeWidgetCaptionColor,
 };

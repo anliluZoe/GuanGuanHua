@@ -15,6 +15,7 @@ class TripMathTest {
         assertTrue(TripMath.knownKind("杂物店"))
         assertNull(TripMath.ratingOrNull(0))
         assertEquals(5, TripMath.ratingOrNull(5))
+        assertEquals(6, TripMath.MAX_PHOTOS)
     }
 
     @Test

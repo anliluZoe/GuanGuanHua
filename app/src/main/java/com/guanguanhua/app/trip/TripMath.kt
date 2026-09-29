@@ -11,6 +11,7 @@ import kotlin.math.sin
 
 object TripMath {
     val KINDS = listOf("住宿", "美食", "风景", "博物馆", "杂物店")
+    const val MAX_PHOTOS = 6
 
     fun knownKind(kind: String): Boolean = kind in KINDS
 

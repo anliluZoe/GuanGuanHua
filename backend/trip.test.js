@@ -154,6 +154,78 @@ test("stop kinds ratings reorder and isolation", async () => {
   });
 });
 
+test("stop photos are household scoped and capped at six", async () => {
+  await withServer(async ({ base }) => {
+    const ada = await json(base, "POST", "/api/households", { name: "Ada" });
+    const other = await json(base, "POST", "/api/households", { name: "Other" });
+    const trip = await json(base, "POST", "/api/trips", { name: "广西" }, ada.token);
+    const stop = await json(
+      base,
+      "POST",
+      `/api/trips/${trip.id}/stops`,
+      { name: "漓江", kind: "风景", visitedOn: "2026-10-02" },
+      ada.token
+    );
+    assert.deepEqual(stop.photos, []);
+
+    const stolen = await fetch(`${base}/api/trips/${trip.id}/stops/${stop.id}/photos`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${other.token}` },
+      body: (() => {
+        const form = new FormData();
+        form.append("image", new Blob(["nope"]), "x.jpg");
+        return form;
+      })(),
+    });
+    assert.equal(stolen.status, 404);
+
+    const uploaded = await uploadStopPhoto(base, ada.token, trip.id, stop.id, "photo-one");
+    assert.equal(uploaded.photos.length, 1);
+    assert.match(uploaded.photos[0].url, /\/api\/files\/.+\.jpg$/);
+    const file = await fetch(uploaded.photos[0].url);
+    assert.equal(file.status, 200);
+    assert.equal(Buffer.from(await file.arrayBuffer()).toString(), "photo-one");
+
+    for (let i = 0; i < 5; i += 1) {
+      await uploadStopPhoto(base, ada.token, trip.id, stop.id, `photo-${i + 2}`);
+    }
+    const seventh = await fetch(`${base}/api/trips/${trip.id}/stops/${stop.id}/photos`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${ada.token}` },
+      body: (() => {
+        const form = new FormData();
+        form.append("image", new Blob(["overflow"]), "x.jpg");
+        return form;
+      })(),
+    });
+    assert.equal(seventh.status, 400);
+
+    const detail = await json(base, "GET", `/api/trips/${trip.id}`, null, ada.token);
+    assert.equal(detail.stops[0].photos.length, 6);
+    const photoId = detail.stops[0].photos[0].id;
+    const afterDelete = await json(
+      base,
+      "DELETE",
+      `/api/trips/${trip.id}/stops/${stop.id}/photos/${photoId}`,
+      null,
+      ada.token
+    );
+    assert.equal(afterDelete.photos.length, 5);
+
+    await json(base, "POST", `/api/trips/${trip.id}/end`, {}, ada.token);
+    const late = await fetch(`${base}/api/trips/${trip.id}/stops/${stop.id}/photos`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${ada.token}` },
+      body: (() => {
+        const form = new FormData();
+        form.append("image", new Blob(["late"]), "x.jpg");
+        return form;
+      })(),
+    });
+    assert.equal(late.status, 409);
+  });
+});
+
 test("opening an older database adds trip tables", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "trip-migrate-"));
   const dbPath = path.join(root, "save_money.db");
@@ -199,6 +271,7 @@ test("opening an older database adds trip tables", () => {
     const tables = store.db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map((row) => row.name);
     assert.ok(tables.includes("trips"));
     assert.ok(tables.includes("trip_stops"));
+    assert.ok(tables.includes("trip_stop_photos"));
     const columns = store.db.prepare("PRAGMA table_info(trip_stops)").all().map((row) => row.name);
     assert.ok(columns.includes("amount_cents"));
     const started = store.startTrip(1, 1, "桂林", "2026-10-07");
@@ -221,6 +294,19 @@ async function json(base, method, pathname, body, token) {
     method,
     headers,
     body: body == null ? undefined : JSON.stringify(body),
+  });
+  const payload = await res.json();
+  assert.equal(res.status, 200, JSON.stringify(payload));
+  return payload;
+}
+
+async function uploadStopPhoto(base, token, tripId, stopId, bytes) {
+  const form = new FormData();
+  form.append("image", new Blob([bytes]), "stop.jpg");
+  const res = await fetch(`${base}/api/trips/${tripId}/stops/${stopId}/photos`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
   });
   const payload = await res.json();
   assert.equal(res.status, 200, JSON.stringify(payload));
