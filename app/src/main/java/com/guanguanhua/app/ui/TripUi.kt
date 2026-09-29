@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -19,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.guanguanhua.app.trip.TripMath
 import com.guanguanhua.app.ui.theme.QTheme
@@ -46,6 +48,23 @@ fun TripBanner(name: String, onRecord: () -> Unit, onOpen: () -> Unit) {
                 .padding(start = 8.dp),
         )
     }
+}
+
+fun tripStopsLine(stopCount: Int, spentCents: Long): String =
+    listOfNotNull("$stopCount 站", spentCents.takeIf { it > 0 }?.toYuan()).joinToString(" · ")
+
+@Composable
+fun TripAmountField(value: String, onValueChange: (String) -> Unit) {
+    val invalid = value.isNotBlank() && value.yuanToCentsOrNull() == null
+    SoftField(
+        value = value,
+        onValueChange = onValueChange,
+        label = "这一站花了多少（可选）",
+        prefix = "¥",
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+        isError = invalid,
+        supportingText = if (invalid) "最多两位小数" else "不进账本，只记在这一站上",
+    )
 }
 
 @OptIn(ExperimentalLayoutApi::class)

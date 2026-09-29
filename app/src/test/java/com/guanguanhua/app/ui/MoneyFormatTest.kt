@@ -30,4 +30,10 @@ class MoneyFormatTest {
         assertNull("-5".yuanToCentsOrNull())
         assertNull("1.234".yuanToCentsOrNull())
     }
+
+    @Test
+    fun tripStopsLineAddsSpentWhenPresent() {
+        assertEquals("3 站", tripStopsLine(3, 0))
+        assertEquals("3 站 · ¥28.00", tripStopsLine(3, 2800))
+    }
 }

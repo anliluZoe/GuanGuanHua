@@ -73,7 +73,7 @@ fun TripListScreen(
                         Text("旅行中 · ${active.name}", style = MaterialTheme.typography.titleMedium)
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            "${TripMath.formatRange(active.startedAt, null)} · ${active.stops.size} 站",
+                            "${TripMath.formatRange(active.startedAt, null)} · ${tripStopsLine(active.stops.size, active.spentCents)}",
                             color = QTheme.colors.muted,
                             style = MaterialTheme.typography.bodySmall,
                         )
@@ -141,7 +141,7 @@ private fun PastTripCard(trip: TripSummary, onClick: () -> Unit) {
         Text(trip.name, style = MaterialTheme.typography.titleMedium)
         Spacer(Modifier.height(4.dp))
         Text(
-            "${TripMath.formatRange(trip.startedAt, trip.endedAt)} · ${trip.stopCount} 站",
+            "${TripMath.formatRange(trip.startedAt, trip.endedAt)} · ${tripStopsLine(trip.stopCount, trip.spentCents)}",
             color = QTheme.colors.muted,
             style = MaterialTheme.typography.bodySmall,
         )

@@ -529,6 +529,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         lat: Double?,
         lng: Double?,
         visitedOn: String,
+        amountCents: Long? = null,
         onSuccess: () -> Unit = {},
     ) {
         val tripId = _trips.value.active?.id
@@ -541,7 +542,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 runCatching {
                     repo.addTripStop(
                         tripId,
-                        TripStopWrite(name.trim(), kind, rating, lat, lng, visitedOn),
+                        TripStopWrite(name.trim(), kind, rating, lat, lng, visitedOn, amountCents),
                     )
                 }.onSuccess {
                     runCatching { syncTrips() }
@@ -552,11 +553,23 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun updateTripStop(tripId: Long, stopId: Long, name: String, kind: String, rating: Int?, visitedOn: String) {
+    fun updateTripStop(
+        tripId: Long,
+        stopId: Long,
+        name: String,
+        kind: String,
+        rating: Int?,
+        visitedOn: String,
+        amountCents: Long? = null,
+    ) {
         viewModelScope.launch {
             track(_busyCount) {
                 runCatching {
-                    repo.updateTripStop(tripId, stopId, TripStopWrite(name.trim(), kind, rating, visitedOn = visitedOn))
+                    repo.updateTripStop(
+                        tripId,
+                        stopId,
+                        TripStopWrite(name.trim(), kind, rating, visitedOn = visitedOn, amountCents = amountCents),
+                    )
                 }.onSuccess { runCatching { syncTrips() } }
                     .onFailure { _statusMessage.value = it.message ?: "没改成" }
             }

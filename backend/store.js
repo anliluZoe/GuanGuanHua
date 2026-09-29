@@ -84,6 +84,7 @@ class Store {
         name TEXT NOT NULL,
         kind TEXT NOT NULL,
         rating INTEGER,
+        amount_cents INTEGER,
         lat REAL,
         lng REAL,
         visited_on TEXT NOT NULL,
@@ -94,6 +95,10 @@ class Store {
       );
       CREATE INDEX IF NOT EXISTS idx_trips_household_active ON trips(household_id, ended_at);
     `);
+    const stopColumns = this.db.prepare("PRAGMA table_info(trip_stops)").all().map((c) => c.name);
+    if (!stopColumns.includes("amount_cents")) {
+      this.db.exec("ALTER TABLE trip_stops ADD COLUMN amount_cents INTEGER");
+    }
   }
 
   tripById(householdId, tripId) {
@@ -101,7 +106,8 @@ class Store {
       .prepare(
         `SELECT t.id, t.household_id, t.name, t.started_at, t.ended_at, t.planned_end,
                 t.created_by, t.created_at, m.name AS created_by_name,
-                (SELECT COUNT(*) FROM trip_stops s WHERE s.trip_id = t.id) AS stop_count
+                (SELECT COUNT(*) FROM trip_stops s WHERE s.trip_id = t.id) AS stop_count,
+                (SELECT COALESCE(SUM(s.amount_cents), 0) FROM trip_stops s WHERE s.trip_id = t.id) AS spent_cents
          FROM trips t
          JOIN members m ON m.id = t.created_by
          WHERE t.household_id = ? AND t.id = ?`
@@ -114,7 +120,8 @@ class Store {
       .prepare(
         `SELECT t.id, t.household_id, t.name, t.started_at, t.ended_at, t.planned_end,
                 t.created_by, t.created_at, m.name AS created_by_name,
-                (SELECT COUNT(*) FROM trip_stops s WHERE s.trip_id = t.id) AS stop_count
+                (SELECT COUNT(*) FROM trip_stops s WHERE s.trip_id = t.id) AS stop_count,
+                (SELECT COALESCE(SUM(s.amount_cents), 0) FROM trip_stops s WHERE s.trip_id = t.id) AS spent_cents
          FROM trips t
          JOIN members m ON m.id = t.created_by
          WHERE t.household_id = ?
@@ -128,7 +135,8 @@ class Store {
       .prepare(
         `SELECT t.id, t.household_id, t.name, t.started_at, t.ended_at, t.planned_end,
                 t.created_by, t.created_at, m.name AS created_by_name,
-                (SELECT COUNT(*) FROM trip_stops s WHERE s.trip_id = t.id) AS stop_count
+                (SELECT COUNT(*) FROM trip_stops s WHERE s.trip_id = t.id) AS stop_count,
+                (SELECT COALESCE(SUM(s.amount_cents), 0) FROM trip_stops s WHERE s.trip_id = t.id) AS spent_cents
          FROM trips t
          JOIN members m ON m.id = t.created_by
          WHERE t.household_id = ? AND t.ended_at IS NULL
@@ -163,7 +171,7 @@ class Store {
   listStops(tripId) {
     return this.db
       .prepare(
-        `SELECT s.id, s.trip_id, s.name, s.kind, s.rating, s.lat, s.lng, s.visited_on,
+        `SELECT s.id, s.trip_id, s.name, s.kind, s.rating, s.amount_cents, s.lat, s.lng, s.visited_on,
                 s.sort_order, s.created_by, s.created_at, s.updated_at, m.name AS created_by_name
          FROM trip_stops s
          JOIN members m ON m.id = s.created_by
@@ -178,7 +186,7 @@ class Store {
     if (!trip) return null;
     return this.db
       .prepare(
-        `SELECT s.id, s.trip_id, s.name, s.kind, s.rating, s.lat, s.lng, s.visited_on,
+        `SELECT s.id, s.trip_id, s.name, s.kind, s.rating, s.amount_cents, s.lat, s.lng, s.visited_on,
                 s.sort_order, s.created_by, s.created_at, s.updated_at, m.name AS created_by_name
          FROM trip_stops s
          JOIN members m ON m.id = s.created_by
@@ -203,19 +211,22 @@ class Store {
     if (!TRIP_KINDS.includes(fields.kind)) return { error: "kind" };
     const rating = fields.rating == null ? null : fields.rating;
     if (rating != null && (!Number.isInteger(rating) || rating < 1 || rating > 5)) return { error: "rating" };
+    const amountCents = fields.amountCents == null ? null : fields.amountCents;
+    if (amountCents != null && (!Number.isInteger(amountCents) || amountCents < 1)) return { error: "amount" };
     const visitedOn = fields.visitedOn;
     const sortOrder = this.nextSortOrder(tripId, visitedOn);
     const id = Number(
       this.db
         .prepare(
-          `INSERT INTO trip_stops(trip_id, name, kind, rating, lat, lng, visited_on, sort_order, created_by, created_at, updated_at)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?)`
+          `INSERT INTO trip_stops(trip_id, name, kind, rating, amount_cents, lat, lng, visited_on, sort_order, created_by, created_at, updated_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`
         )
         .run(
           tripId,
           name,
           fields.kind,
           rating,
+          amountCents,
           fields.lat ?? null,
           fields.lng ?? null,
           visitedOn,
@@ -242,6 +253,11 @@ class Store {
       rating = fields.rating == null ? null : fields.rating;
       if (rating != null && (!Number.isInteger(rating) || rating < 1 || rating > 5)) return { error: "rating" };
     }
+    let amountCents = existing.amount_cents;
+    if (Object.prototype.hasOwnProperty.call(fields, "amountCents")) {
+      amountCents = fields.amountCents == null ? null : fields.amountCents;
+      if (amountCents != null && (!Number.isInteger(amountCents) || amountCents < 1)) return { error: "amount" };
+    }
     const visitedOn = fields.visitedOn != null ? fields.visitedOn : existing.visited_on;
     let sortOrder = existing.sort_order;
     if (visitedOn !== existing.visited_on) {
@@ -250,13 +266,14 @@ class Store {
     this.db
       .prepare(
         `UPDATE trip_stops
-         SET name = ?, kind = ?, rating = ?, lat = ?, lng = ?, visited_on = ?, sort_order = ?, updated_at = ?
+         SET name = ?, kind = ?, rating = ?, amount_cents = ?, lat = ?, lng = ?, visited_on = ?, sort_order = ?, updated_at = ?
          WHERE id = ? AND trip_id = ?`
       )
       .run(
         name,
         kind,
         rating,
+        amountCents,
         fields.lat !== undefined ? fields.lat : existing.lat,
         fields.lng !== undefined ? fields.lng : existing.lng,
         visitedOn,
