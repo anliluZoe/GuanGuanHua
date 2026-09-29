@@ -5,10 +5,13 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.ImageDecoder
 import android.graphics.Matrix
 import android.media.ExifInterface
 import android.net.Uri
+import android.os.Build
 import java.io.ByteArrayOutputStream
+import java.io.File
 import kotlin.math.max
 import kotlin.math.roundToInt
 
@@ -43,43 +46,66 @@ object ImageCompress {
     }
 
     fun compress(context: Context, uri: Uri, maxEdge: Int, filename: String): JpegUpload {
-        val resolver = context.contentResolver
+        // 相册选择器的 content URI 往往只能读一次，而且相机 JPEG 的 EXIF 经常超过
+        // BitmapFactory.decodeStream 的 16KB 缓冲，直接解码会得到 0×0，于是报「读不到这张照片」。
+        val temp = File.createTempFile("upload-", ".img", context.cacheDir)
+        try {
+            val copied = runCatching {
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    temp.outputStream().use { output -> input.copyTo(output) }
+                }
+            }.getOrNull()
+            if (copied == null || temp.length() <= 0L) error("读不到这张照片")
+            val bitmap = decodeUploadBitmap(temp, maxEdge) ?: error("读不到这张照片")
+            val opaque = flattenOnWhite(bitmap)
+            if (opaque !== bitmap) bitmap.recycle()
+            val out = ByteArrayOutputStream()
+            val ok = opaque.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, out)
+            opaque.recycle()
+            if (!ok || out.size() == 0) error("照片压缩失败")
+            return JpegUpload(bytes = out.toByteArray(), filename = filename)
+        } finally {
+            temp.delete()
+        }
+    }
+
+    private fun decodeUploadBitmap(file: File, maxEdge: Int): Bitmap? {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
-            ?: error("读不到这张照片")
+        BitmapFactory.decodeFile(file.absolutePath, bounds)
         val srcW = bounds.outWidth
         val srcH = bounds.outHeight
-        if (srcW <= 0 || srcH <= 0) error("读不到这张照片")
-        val orientation = readOrientation(context, uri)
+        val mime = bounds.outMimeType.orEmpty().lowercase()
+        if (srcW <= 0 || srcH <= 0 || mime.contains("heif") || mime.contains("heic")) {
+            return decodeWithImageDecoder(file, maxEdge)
+        }
+        val orientation = readOrientation(file)
         val swapped = orientation == 90 || orientation == 270
         val (orientedW, orientedH) = if (swapped) srcH to srcW else srcW to srcH
         val (targetW, targetH) = scaledSize(orientedW, orientedH, maxEdge)
-        val decoded = resolver.openInputStream(uri)?.use { stream ->
-            BitmapFactory.decodeStream(
-                stream,
-                null,
-                BitmapFactory.Options().apply {
-                    inSampleSize = decodeSampleSize(srcW, srcH, maxEdge)
-                    inPreferredConfig = Bitmap.Config.ARGB_8888
-                },
-            )
-        } ?: error("读不到这张照片")
+        val decoded = BitmapFactory.decodeFile(
+            file.absolutePath,
+            BitmapFactory.Options().apply {
+                inSampleSize = decodeSampleSize(srcW, srcH, maxEdge)
+                inPreferredConfig = Bitmap.Config.ARGB_8888
+            },
+        ) ?: return decodeWithImageDecoder(file, maxEdge)
         val oriented = applyOrientation(decoded, orientation)
         if (oriented !== decoded) decoded.recycle()
-        val sized = if (oriented.width == targetW && oriented.height == targetH) {
-            oriented
-        } else {
-            Bitmap.createScaledBitmap(oriented, targetW, targetH, true).also { scaled ->
-                if (scaled !== oriented) oriented.recycle()
-            }
+        if (oriented.width == targetW && oriented.height == targetH) return oriented
+        return Bitmap.createScaledBitmap(oriented, targetW, targetH, true).also { scaled ->
+            if (scaled !== oriented) oriented.recycle()
         }
-        val opaque = flattenOnWhite(sized)
-        if (opaque !== sized) sized.recycle()
-        val out = ByteArrayOutputStream()
-        val ok = opaque.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, out)
-        opaque.recycle()
-        if (!ok) error("照片压缩失败")
-        return JpegUpload(bytes = out.toByteArray(), filename = filename)
+    }
+
+    private fun decodeWithImageDecoder(file: File, maxEdge: Int): Bitmap? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return null
+        return runCatching {
+            ImageDecoder.decodeBitmap(ImageDecoder.createSource(file)) { decoder, info, _ ->
+                val (width, height) = scaledSize(info.size.width, info.size.height, maxEdge)
+                decoder.setTargetSize(width, height)
+                decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+            }
+        }.getOrNull()
     }
 
     internal fun flattenOnWhite(src: Bitmap): Bitmap {
@@ -91,8 +117,8 @@ object ImageCompress {
         return flat
     }
 
-    private fun readOrientation(context: Context, uri: Uri): Int {
-        val exif = context.contentResolver.openInputStream(uri)?.use { ExifInterface(it) } ?: return 0
+    private fun readOrientation(file: File): Int {
+        val exif = runCatching { ExifInterface(file.absolutePath) }.getOrNull() ?: return 0
         return when (exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)) {
             ExifInterface.ORIENTATION_ROTATE_90 -> 90
             ExifInterface.ORIENTATION_ROTATE_180 -> 180
