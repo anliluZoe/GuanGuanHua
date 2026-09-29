@@ -62,6 +62,237 @@ class Store {
     this.migrateAvatars();
     this.migrateWidget();
     this.migrateCycles();
+    this.migrateTrips();
+  }
+
+  /** 旅行跟家庭走：两个人共用一段进行中的旅程。 */
+  migrateTrips() {
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS trips (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        household_id INTEGER NOT NULL REFERENCES households(id),
+        name TEXT NOT NULL,
+        started_at INTEGER NOT NULL,
+        ended_at INTEGER,
+        planned_end TEXT,
+        created_by INTEGER NOT NULL REFERENCES members(id),
+        created_at INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS trip_stops (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        trip_id INTEGER NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        rating INTEGER,
+        lat REAL,
+        lng REAL,
+        visited_on TEXT NOT NULL,
+        sort_order INTEGER NOT NULL,
+        created_by INTEGER NOT NULL REFERENCES members(id),
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_trips_household_active ON trips(household_id, ended_at);
+    `);
+  }
+
+  tripById(householdId, tripId) {
+    return this.db
+      .prepare(
+        `SELECT t.id, t.household_id, t.name, t.started_at, t.ended_at, t.planned_end,
+                t.created_by, t.created_at, m.name AS created_by_name,
+                (SELECT COUNT(*) FROM trip_stops s WHERE s.trip_id = t.id) AS stop_count
+         FROM trips t
+         JOIN members m ON m.id = t.created_by
+         WHERE t.household_id = ? AND t.id = ?`
+      )
+      .get(householdId, tripId);
+  }
+
+  listTrips(householdId) {
+    return this.db
+      .prepare(
+        `SELECT t.id, t.household_id, t.name, t.started_at, t.ended_at, t.planned_end,
+                t.created_by, t.created_at, m.name AS created_by_name,
+                (SELECT COUNT(*) FROM trip_stops s WHERE s.trip_id = t.id) AS stop_count
+         FROM trips t
+         JOIN members m ON m.id = t.created_by
+         WHERE t.household_id = ?
+         ORDER BY t.started_at DESC, t.id DESC`
+      )
+      .all(householdId);
+  }
+
+  activeTrip(householdId) {
+    return this.db
+      .prepare(
+        `SELECT t.id, t.household_id, t.name, t.started_at, t.ended_at, t.planned_end,
+                t.created_by, t.created_at, m.name AS created_by_name,
+                (SELECT COUNT(*) FROM trip_stops s WHERE s.trip_id = t.id) AS stop_count
+         FROM trips t
+         JOIN members m ON m.id = t.created_by
+         WHERE t.household_id = ? AND t.ended_at IS NULL
+         ORDER BY t.id DESC`
+      )
+      .get(householdId);
+  }
+
+  startTrip(householdId, memberId, name, plannedEnd, now = Date.now()) {
+    const trimmed = String(name || "").trim().slice(0, 40);
+    if (!trimmed) return { error: "name" };
+    if (this.activeTrip(householdId)) return { error: "already_active" };
+    const id = Number(
+      this.db
+        .prepare(
+          `INSERT INTO trips(household_id, name, started_at, ended_at, planned_end, created_by, created_at)
+           VALUES (?,?,?,?,?,?,?)`
+        )
+        .run(householdId, trimmed, now, null, plannedEnd || null, memberId, now).lastInsertRowid
+    );
+    return this.tripById(householdId, id);
+  }
+
+  endTrip(householdId, tripId, now = Date.now()) {
+    const trip = this.tripById(householdId, tripId);
+    if (!trip) return null;
+    if (trip.ended_at != null) return { error: "already_ended" };
+    this.db.prepare("UPDATE trips SET ended_at = ? WHERE id = ? AND household_id = ?").run(now, tripId, householdId);
+    return this.tripById(householdId, tripId);
+  }
+
+  listStops(tripId) {
+    return this.db
+      .prepare(
+        `SELECT s.id, s.trip_id, s.name, s.kind, s.rating, s.lat, s.lng, s.visited_on,
+                s.sort_order, s.created_by, s.created_at, s.updated_at, m.name AS created_by_name
+         FROM trip_stops s
+         JOIN members m ON m.id = s.created_by
+         WHERE s.trip_id = ?
+         ORDER BY s.visited_on ASC, s.sort_order ASC, s.id ASC`
+      )
+      .all(tripId);
+  }
+
+  getStop(householdId, tripId, stopId) {
+    const trip = this.tripById(householdId, tripId);
+    if (!trip) return null;
+    return this.db
+      .prepare(
+        `SELECT s.id, s.trip_id, s.name, s.kind, s.rating, s.lat, s.lng, s.visited_on,
+                s.sort_order, s.created_by, s.created_at, s.updated_at, m.name AS created_by_name
+         FROM trip_stops s
+         JOIN members m ON m.id = s.created_by
+         WHERE s.trip_id = ? AND s.id = ?`
+      )
+      .get(tripId, stopId);
+  }
+
+  nextSortOrder(tripId, visitedOn) {
+    const row = this.db
+      .prepare("SELECT MAX(sort_order) AS n FROM trip_stops WHERE trip_id = ? AND visited_on = ?")
+      .get(tripId, visitedOn);
+    return (row?.n == null ? -1 : row.n) + 1;
+  }
+
+  addStop(householdId, memberId, tripId, fields, now = Date.now()) {
+    const trip = this.tripById(householdId, tripId);
+    if (!trip) return null;
+    if (trip.ended_at != null) return { error: "ended" };
+    const name = String(fields.name || "").trim().slice(0, 80);
+    if (!name) return { error: "name" };
+    if (!TRIP_KINDS.includes(fields.kind)) return { error: "kind" };
+    const rating = fields.rating == null ? null : fields.rating;
+    if (rating != null && (!Number.isInteger(rating) || rating < 1 || rating > 5)) return { error: "rating" };
+    const visitedOn = fields.visitedOn;
+    const sortOrder = this.nextSortOrder(tripId, visitedOn);
+    const id = Number(
+      this.db
+        .prepare(
+          `INSERT INTO trip_stops(trip_id, name, kind, rating, lat, lng, visited_on, sort_order, created_by, created_at, updated_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?)`
+        )
+        .run(
+          tripId,
+          name,
+          fields.kind,
+          rating,
+          fields.lat ?? null,
+          fields.lng ?? null,
+          visitedOn,
+          sortOrder,
+          memberId,
+          now,
+          now
+        ).lastInsertRowid
+    );
+    return this.getStop(householdId, tripId, id);
+  }
+
+  updateStop(householdId, tripId, stopId, fields, now = Date.now()) {
+    const existing = this.getStop(householdId, tripId, stopId);
+    if (!existing) return null;
+    const trip = this.tripById(householdId, tripId);
+    if (trip?.ended_at != null) return { error: "ended" };
+    const name = fields.name != null ? String(fields.name).trim().slice(0, 80) : existing.name;
+    if (!name) return { error: "name" };
+    const kind = fields.kind != null ? fields.kind : existing.kind;
+    if (!TRIP_KINDS.includes(kind)) return { error: "kind" };
+    let rating = existing.rating;
+    if (Object.prototype.hasOwnProperty.call(fields, "rating")) {
+      rating = fields.rating == null ? null : fields.rating;
+      if (rating != null && (!Number.isInteger(rating) || rating < 1 || rating > 5)) return { error: "rating" };
+    }
+    const visitedOn = fields.visitedOn != null ? fields.visitedOn : existing.visited_on;
+    let sortOrder = existing.sort_order;
+    if (visitedOn !== existing.visited_on) {
+      sortOrder = this.nextSortOrder(tripId, visitedOn);
+    }
+    this.db
+      .prepare(
+        `UPDATE trip_stops
+         SET name = ?, kind = ?, rating = ?, lat = ?, lng = ?, visited_on = ?, sort_order = ?, updated_at = ?
+         WHERE id = ? AND trip_id = ?`
+      )
+      .run(
+        name,
+        kind,
+        rating,
+        fields.lat !== undefined ? fields.lat : existing.lat,
+        fields.lng !== undefined ? fields.lng : existing.lng,
+        visitedOn,
+        sortOrder,
+        now,
+        stopId,
+        tripId
+      );
+    return this.getStop(householdId, tripId, stopId);
+  }
+
+  deleteStop(householdId, tripId, stopId) {
+    const existing = this.getStop(householdId, tripId, stopId);
+    if (!existing) return null;
+    const trip = this.tripById(householdId, tripId);
+    if (trip?.ended_at != null) return { error: "ended" };
+    this.db.prepare("DELETE FROM trip_stops WHERE id = ? AND trip_id = ?").run(stopId, tripId);
+    return { ok: true };
+  }
+
+  reorderStops(householdId, tripId, orderedIds) {
+    const trip = this.tripById(householdId, tripId);
+    if (!trip) return null;
+    if (trip.ended_at != null) return { error: "ended" };
+    const ids = orderedIds.map(Number).filter((id) => Number.isSafeInteger(id) && id > 0);
+    if (!ids.length) return { error: "order" };
+    const existing = this.listStops(tripId);
+    if (ids.length !== existing.length || ids.some((id) => !existing.some((stop) => Number(stop.id) === id))) {
+      return { error: "order" };
+    }
+    this.withTransaction(() => {
+      ids.forEach((id, index) => {
+        this.db.prepare("UPDATE trip_stops SET sort_order = ? WHERE id = ? AND trip_id = ?").run(index, id, tripId);
+      });
+    });
+    return this.listStops(tripId);
   }
 
   /** 经期记录和设置按成员隔离。已有库只补表，不改申请/账本。 */
@@ -594,6 +825,7 @@ const AVATAR_PRESETS = [
 
 const MAX_WIDGET_CAPTION = 40;
 const DEFAULT_WIDGET_CAPTION_COLOR = "#FFFFFF";
+const TRIP_KINDS = ["住宿", "美食", "风景", "博物馆", "杂物店"];
 
 function normalizeWidgetCaptionColor(value) {
   if (value == null || String(value).trim() === "") return DEFAULT_WIDGET_CAPTION_COLOR;
@@ -616,5 +848,6 @@ module.exports = {
   MAX_HOUSEHOLD_MEMBERS,
   MAX_WIDGET_CAPTION,
   DEFAULT_WIDGET_CAPTION_COLOR,
+  TRIP_KINDS,
   normalizeWidgetCaptionColor,
 };

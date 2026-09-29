@@ -8,6 +8,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.guanguanhua.app.cycle.CycleCache
 import com.guanguanhua.app.cycle.CycleMath
+import com.guanguanhua.app.trip.TripCache
 import com.guanguanhua.app.data.ApiConfig
 import com.guanguanhua.app.data.CycleRecord
 import com.guanguanhua.app.data.CycleSettings
@@ -18,10 +19,15 @@ import com.guanguanhua.app.data.MemberDto
 import com.guanguanhua.app.data.MonthlyBudget
 import com.guanguanhua.app.data.PurchaseRequest
 import com.guanguanhua.app.data.SessionDto
+import com.guanguanhua.app.data.TripDetail
+import com.guanguanhua.app.data.TripState
+import com.guanguanhua.app.data.TripStopWrite
 import com.guanguanhua.app.data.WidgetDto
 import com.guanguanhua.app.notify.CycleReminder
 import com.guanguanhua.app.notify.ReviewActivity
 import com.guanguanhua.app.notify.ReviewActivityWorker
+import com.guanguanhua.app.notify.TripEndReminderWorker
+import com.guanguanhua.app.notify.TripOngoing
 import com.guanguanhua.app.ui.theme.Appearance
 import com.guanguanhua.app.widget.WidgetCache
 import com.guanguanhua.app.widget.WidgetCopy
@@ -130,12 +136,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val _cycle = MutableStateFlow(CycleState())
     val cycle: StateFlow<CycleState> = _cycle.asStateFlow()
 
+    private val _trips = MutableStateFlow(TripState())
+    val trips: StateFlow<TripState> = _trips.asStateFlow()
+
+    private val _openedTrip = MutableStateFlow<TripDetail?>(null)
+    val openedTrip: StateFlow<TripDetail?> = _openedTrip.asStateFlow()
+
     init {
         prefs.edit(commit = true) { putString("serverUrl", _session.value.serverUrl) }
         if (_session.value.joined) {
             val memberId = prefs.getLong(PREF_MEMBER_ID, 0L)
             val cached = CycleCache.read(app)?.takeIf { it.memberId == memberId }
             if (cached != null) _cycle.value = cached
+            TripCache.read(app)?.let { _trips.value = it }
             refresh()
         } else {
             _ready.value = true
@@ -161,6 +174,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 runCatching { syncCycles() }.onFailure { error ->
                     if (!quiet && !_cycle.value.loaded) {
                         _statusMessage.value = error.message ?: "周期同步失败"
+                    }
+                }
+                runCatching { syncTrips() }.onFailure { error ->
+                    if (!quiet && !_trips.value.loaded) {
+                        _statusMessage.value = error.message ?: "旅程同步失败"
                     }
                 }
                 _ready.value = true
@@ -205,9 +223,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 ReviewActivityWorker.cancel(getApplication())
                 WidgetRefreshWorker.cancel(getApplication())
                 CycleReminder.cancel(getApplication())
+                TripEndReminderWorker.cancel(getApplication())
+                TripOngoing.refresh(getApplication(), null)
+                TripCache.clear(getApplication())
                 WidgetCache.clear(getApplication())
                 _widget.value = WidgetState()
                 _cycle.value = CycleState()
+                _trips.value = TripState()
                 prefs.edit {
                     remove("token")
                     remove("householdCode")
@@ -452,6 +474,124 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         patchCycleSettings(_cycle.value.settings.copy(remindEnabled = enabled))
     }
 
+    fun openTrip(id: Long) {
+        val active = _trips.value.active
+        if (active?.id == id) {
+            _openedTrip.value = active
+            return
+        }
+        viewModelScope.launch {
+            runCatching { repo.getTrip(id) }
+                .onSuccess { _openedTrip.value = it }
+                .onFailure { _statusMessage.value = it.message ?: "打不开这次路线" }
+        }
+    }
+
+    fun startTrip(name: String, plannedEnd: String?, onSuccess: () -> Unit = {}) {
+        val trimmed = name.trim()
+        if (trimmed.isBlank()) {
+            _statusMessage.value = "先给这段旅程起个名字"
+            return
+        }
+        viewModelScope.launch {
+            track(_busyCount) {
+                runCatching { repo.startTrip(trimmed, plannedEnd) }
+                    .onSuccess {
+                        runCatching { syncTrips() }
+                        _statusMessage.value = "开始了 · $trimmed"
+                        onSuccess()
+                    }
+                    .onFailure { _statusMessage.value = it.message ?: "没开始成" }
+            }
+        }
+    }
+
+    fun endTrip(onSuccess: () -> Unit = {}) {
+        val id = _trips.value.active?.id ?: return
+        viewModelScope.launch {
+            track(_busyCount) {
+                runCatching { repo.endTrip(id) }
+                    .onSuccess {
+                        TripCache.setLastReminded(getApplication(), null)
+                        runCatching { syncTrips() }
+                        _statusMessage.value = "这段旅程结束了"
+                        onSuccess()
+                    }
+                    .onFailure { _statusMessage.value = it.message ?: "没结束成" }
+            }
+        }
+    }
+
+    fun addTripStop(
+        name: String,
+        kind: String,
+        rating: Int?,
+        lat: Double?,
+        lng: Double?,
+        visitedOn: String,
+        onSuccess: () -> Unit = {},
+    ) {
+        val tripId = _trips.value.active?.id
+        if (tripId == null) {
+            _statusMessage.value = "这段旅程已经结束了"
+            return
+        }
+        viewModelScope.launch {
+            track(_busyCount) {
+                runCatching {
+                    repo.addTripStop(
+                        tripId,
+                        TripStopWrite(name.trim(), kind, rating, lat, lng, visitedOn),
+                    )
+                }.onSuccess {
+                    runCatching { syncTrips() }
+                    _statusMessage.value = "已记下 · ${name.trim()}"
+                    onSuccess()
+                }.onFailure { _statusMessage.value = it.message ?: "没记下" }
+            }
+        }
+    }
+
+    fun updateTripStop(tripId: Long, stopId: Long, name: String, kind: String, rating: Int?, visitedOn: String) {
+        viewModelScope.launch {
+            track(_busyCount) {
+                runCatching {
+                    repo.updateTripStop(tripId, stopId, TripStopWrite(name.trim(), kind, rating, visitedOn = visitedOn))
+                }.onSuccess { runCatching { syncTrips() } }
+                    .onFailure { _statusMessage.value = it.message ?: "没改成" }
+            }
+        }
+    }
+
+    fun deleteTripStop(tripId: Long, stopId: Long) {
+        viewModelScope.launch {
+            track(_busyCount) {
+                runCatching { repo.deleteTripStop(tripId, stopId) }
+                    .onSuccess { runCatching { syncTrips() } }
+                    .onFailure { _statusMessage.value = it.message ?: "没删掉" }
+            }
+        }
+    }
+
+    fun moveTripStop(stopId: Long, direction: Int) {
+        val trip = _trips.value.active ?: return
+        val list = trip.stops.toMutableList()
+        val index = list.indexOfFirst { it.id == stopId }
+        val target = index + direction
+        if (index < 0 || target !in list.indices) return
+        if (list[index].visitedOn != list[target].visitedOn) return
+        val swapped = list[index]
+        list[index] = list[target]
+        list[target] = swapped
+        viewModelScope.launch {
+            track(_busyCount) {
+                runCatching { repo.reorderTripStops(trip.id, list.map { it.id }) }
+                    .onSuccess { runCatching { syncTrips() } }
+                    .onFailure { _statusMessage.value = it.message ?: "顺序没改成" }
+            }
+        }
+    }
+
     fun setAppearance(value: Appearance) {
         prefs.edit { putString(PREF_APPEARANCE, value.prefValue) }
         _appearance.value = value
@@ -471,6 +611,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             loadMonth(_selectedMonth.value)
             runCatching { syncWidget() }
             runCatching { syncCycles() }
+            runCatching { syncTrips() }
             ReviewActivityWorker.schedule(getApplication())
             ReviewActivityWorker.enqueueSoon(getApplication())
             WidgetRefreshWorker.schedule(getApplication())
@@ -558,6 +699,26 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             _cycle.value = CycleState()
         }
         prefs.edit { putLong(PREF_MEMBER_ID, remote.memberId) }
+    }
+
+    private suspend fun syncTrips() {
+        if (!_session.value.joined) return
+        val list = repo.listTrips()
+        val active = repo.activeTrip()
+        val state = TripState(trips = list, active = active, loaded = true)
+        _trips.value = state
+        TripCache.write(getApplication(), state)
+        TripOngoing.refresh(getApplication(), active)
+        if (active != null) TripEndReminderWorker.schedule(getApplication()) else {
+            TripEndReminderWorker.cancel(getApplication())
+            TripCache.setLastReminded(getApplication(), null)
+        }
+        val opened = _openedTrip.value
+        if (opened != null) {
+            _openedTrip.value = if (active?.id == opened.id) active else list.firstOrNull { it.id == opened.id }?.let {
+                runCatching { repo.getTrip(it.id) }.getOrNull() ?: opened
+            }
+        }
     }
 
     private suspend fun syncCycles() {

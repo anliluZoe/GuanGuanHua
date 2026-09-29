@@ -1,0 +1,94 @@
+package com.guanguanhua.app.ui
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import com.guanguanhua.app.trip.TripMath
+import com.guanguanhua.app.ui.theme.QTheme
+
+@Composable
+fun TripBanner(name: String, onRecord: () -> Unit, onOpen: () -> Unit) {
+    val q = QTheme.colors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 6.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(q.mintSoft)
+            .clickable(onClick = onOpen)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("旅行中 · $name", modifier = Modifier.weight(1f), color = q.ink, style = MaterialTheme.typography.titleSmall)
+        Text(
+            "记一站",
+            color = q.mint,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier
+                .clickable(onClick = onRecord)
+                .padding(start = 8.dp),
+        )
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun TripKindChips(selected: String?, onSelect: (String) -> Unit) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        TripMath.KINDS.forEach { kind ->
+            ChoiceChip(kind, selected == kind, onClick = { onSelect(kind) })
+        }
+    }
+}
+
+@Composable
+fun TripStars(rating: Int?, onChange: (Int?) -> Unit) {
+    val q = QTheme.colors
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        (1..5).forEach { star ->
+            val on = rating != null && star <= rating
+            Text(
+                "★",
+                color = if (on) q.gold else q.lineStrong,
+                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier
+                    .clickable { onChange(if (rating == star) null else star) }
+                    .padding(end = 4.dp),
+            )
+        }
+        if (rating == null) {
+            Spacer(Modifier.width(6.dp))
+            Text("未评分", color = q.muted, style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+@Composable
+fun TripKindLabel(kind: String) {
+    val q = QTheme.colors
+    Text(
+        kind,
+        color = q.ink,
+        style = MaterialTheme.typography.labelMedium,
+        modifier = Modifier
+            .border(1.dp, q.line, RoundedCornerShape(999.dp))
+            .padding(horizontal = 8.dp, vertical = 2.dp),
+    )
+}

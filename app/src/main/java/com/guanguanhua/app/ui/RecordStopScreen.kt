@@ -1,0 +1,213 @@
+package com.guanguanhua.app.ui
+
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.guanguanhua.app.AppViewModel
+import com.guanguanhua.app.data.NearbyPlace
+import com.guanguanhua.app.trip.NearbyPlaces
+import com.guanguanhua.app.trip.TripMath
+import com.guanguanhua.app.ui.theme.QTheme
+import kotlinx.coroutines.launch
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneOffset
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun RecordStopScreen(viewModel: AppViewModel, onBack: () -> Unit, onOpenRoute: (Long) -> Unit) {
+    val trips by viewModel.trips.collectAsStateWithLifecycle()
+    val isBusy by viewModel.isBusy.collectAsStateWithLifecycle()
+    val active = trips.active
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var name by rememberSaveable { mutableStateOf("") }
+    var kind by rememberSaveable { mutableStateOf("") }
+    var rating by rememberSaveable { mutableStateOf(0) }
+    var visitedOn by rememberSaveable { mutableStateOf(LocalDate.now().toString()) }
+    var lat by rememberSaveable { mutableStateOf<String?>(null) }
+    var lng by rememberSaveable { mutableStateOf<String?>(null) }
+    var nearby by remember { mutableStateOf<List<NearbyPlace>>(emptyList()) }
+    var nearbyHint by rememberSaveable { mutableStateOf("正在找附近…") }
+    var pickingDate by rememberSaveable { mutableStateOf(false) }
+    var picked by rememberSaveable { mutableStateOf(false) }
+    val askLocation = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        scope.launch { loadNearby(context) { places, hint -> nearby = places; nearbyHint = hint } }
+    }
+
+    LaunchedEffect(Unit) {
+        val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED ||
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED
+        if (granted) {
+            loadNearby(context) { places, hint -> nearby = places; nearbyHint = hint }
+        } else {
+            nearbyHint = "打不开定位，也可以先写店名"
+            askLocation.launch(
+                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
+            )
+        }
+    }
+
+    SubpageScaffold(title = "记一站", onBack = onBack) { inner ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(inner)
+                .padding(horizontal = 20.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            if (active == null) {
+                Text("这段旅程已经结束了", color = QTheme.colors.secondary)
+                PillButton("看这次路线", filled = false, onClick = {
+                    trips.trips.firstOrNull()?.let { onOpenRoute(it.id) } ?: onBack()
+                })
+                return@Column
+            }
+            val day = runCatching { TripMath.dayNumber(active.startedAt, LocalDate.parse(visitedOn)) }.getOrDefault(1)
+            Text("${active.name} · 第 $day 天", color = QTheme.colors.muted, style = MaterialTheme.typography.bodyMedium)
+            Text("今天 ${active.stops.count { it.visitedOn == LocalDate.now().toString() }} 站", color = QTheme.colors.secondary)
+            if (!picked) {
+                Text(nearbyHint, color = QTheme.colors.muted, style = MaterialTheme.typography.bodySmall)
+                nearby.forEach { place ->
+                    SoftCard(modifier = Modifier.fillMaxWidth(), onClick = {
+                        name = place.name
+                        kind = place.kind.orEmpty()
+                        lat = place.lat.toString()
+                        lng = place.lng.toString()
+                        picked = true
+                    }) {
+                        Text(place.name, style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            listOfNotNull(place.kind, "${place.meters} 米").joinToString(" · "),
+                            color = QTheme.colors.muted,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+                SoftField(value = name, onValueChange = { name = it }, label = "附近没找到，自己写")
+                if (name.isNotBlank()) {
+                    PillButton("用这个名字", filled = false, onClick = { picked = true })
+                }
+            } else {
+                SoftField(value = name, onValueChange = { name = it }, label = "名字")
+                Text("类型", style = MaterialTheme.typography.labelLarge)
+                TripKindChips(kind.ifBlank { null }) { kind = it }
+                Text("评分", style = MaterialTheme.typography.labelLarge)
+                TripStars(rating.takeIf { it > 0 }) { rating = it ?: 0 }
+                Text(
+                    if (visitedOn == LocalDate.now().toString()) "不是今天" else "记在 $visitedOn",
+                    color = QTheme.colors.sky,
+                    modifier = Modifier.clickable { pickingDate = true },
+                )
+                PillButton(
+                    "记下",
+                    enabled = !isBusy && name.trim().isNotBlank() && TripMath.knownKind(kind),
+                    onClick = {
+                        viewModel.addTripStop(
+                            name = name,
+                            kind = kind,
+                            rating = TripMath.ratingOrNull(rating.takeIf { it > 0 }),
+                            lat = lat?.toDoubleOrNull(),
+                            lng = lng?.toDoubleOrNull(),
+                            visitedOn = visitedOn,
+                            onSuccess = {
+                                name = ""
+                                kind = ""
+                                rating = 0
+                                lat = null
+                                lng = null
+                                picked = false
+                            },
+                        )
+                    },
+                )
+                PillButton("换一家", filled = false, enabled = !isBusy, onClick = {
+                    name = ""
+                    kind = ""
+                    lat = null
+                    lng = null
+                    rating = 0
+                    picked = false
+                })
+            }
+            if (active.stops.isNotEmpty()) {
+                Text("今天记下的", style = MaterialTheme.typography.titleMedium)
+                active.stops.filter { it.visitedOn == LocalDate.now().toString() }.asReversed().forEach { stop ->
+                    Text(
+                        listOfNotNull(stop.rating?.let { "★$it" }, stop.kind, stop.name).joinToString(" · "),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+        }
+    }
+    if (pickingDate) {
+        val state = rememberDatePickerState(
+            initialSelectedDateMillis = runCatching { LocalDate.parse(visitedOn).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli() }.getOrNull(),
+        )
+        DatePickerDialog(
+            onDismissRequest = { pickingDate = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    val millis = state.selectedDateMillis
+                    if (millis != null) {
+                        visitedOn = Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate().toString()
+                    }
+                    pickingDate = false
+                }) { Text("好") }
+            },
+            dismissButton = { TextButton(onClick = { pickingDate = false }) { Text("取消") } },
+        ) { DatePicker(state = state) }
+    }
+}
+
+private suspend fun loadNearby(
+    context: android.content.Context,
+    onResult: (List<NearbyPlace>, String) -> Unit,
+) {
+    val location = NearbyPlaces.lastLocation(context)
+    if (location == null) {
+        onResult(emptyList(), "打不开定位，也可以先写店名")
+        return
+    }
+    val places = runCatching { NearbyPlaces.search(location.latitude, location.longitude) }.getOrElse { emptyList() }
+    onResult(
+        places,
+        if (places.isEmpty()) "附近没找到，自己写" else "点下面一家，或自己写店名",
+    )
+}

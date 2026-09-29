@@ -39,6 +39,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -98,12 +99,19 @@ class MainActivity : ComponentActivity() {
     /** 从经期提醒点进来，打开周期页。 */
     private val openCycle = mutableStateOf(false)
 
+    private val openRecordStop = mutableStateOf(false)
+    private val confirmEndTrip = mutableStateOf(false)
+    private val keepTripGoing = mutableStateOf(false)
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         openRequestId.longValue = intent.getLongExtra(EXTRA_REQUEST_ID, 0L)
         openWidget.value = wantsWidget(intent)
         openCycle.value = wantsCycle(intent)
+        openRecordStop.value = intent.getBooleanExtra(EXTRA_OPEN_RECORD_STOP, false)
+        confirmEndTrip.value = intent.getBooleanExtra(EXTRA_CONFIRM_END_TRIP, false)
+        keepTripGoing.value = intent.getBooleanExtra(EXTRA_TRIP_KEEP_GOING, false)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -112,12 +120,16 @@ class MainActivity : ComponentActivity() {
         openRequestId.longValue = intent.getLongExtra(EXTRA_REQUEST_ID, 0L)
         openWidget.value = wantsWidget(intent)
         openCycle.value = wantsCycle(intent)
+        openRecordStop.value = intent.getBooleanExtra(EXTRA_OPEN_RECORD_STOP, false)
+        confirmEndTrip.value = intent.getBooleanExtra(EXTRA_CONFIRM_END_TRIP, false)
+        keepTripGoing.value = intent.getBooleanExtra(EXTRA_TRIP_KEEP_GOING, false)
         setContent {
             val viewModel: AppViewModel = viewModel()
             val appearance by viewModel.appearance.collectAsStateWithLifecycle()
             GuanGuanHuaTheme(darkTheme = appearance.isDark(isSystemInDarkTheme())) {
                 val navController = rememberNavController()
                 val session by viewModel.session.collectAsStateWithLifecycle()
+                val trips by viewModel.trips.collectAsStateWithLifecycle()
                 val status by viewModel.statusMessage.collectAsStateWithLifecycle()
                 val isBusy by viewModel.isBusy.collectAsStateWithLifecycle()
                 val backStackEntry by navController.currentBackStackEntryAsState()
@@ -125,6 +137,7 @@ class MainActivity : ComponentActivity() {
                 val showBottomBar = session.joined && TABS.any { it.route == currentRoute }
                 val startDestination = remember { if (session.joined) "requests" else "profile" }
                 val snackbar = remember { SnackbarHostState() }
+                var askEndOnList by remember { mutableStateOf(false) }
 
                 BackHandler(enabled = isBusy) { }
 
@@ -204,6 +217,25 @@ class MainActivity : ComponentActivity() {
                         openCycle.value = false
                     }
 
+                    val pendingRecord = openRecordStop.value
+                    LaunchedEffect(pendingRecord, session.joined) {
+                        if (!pendingRecord || !session.joined) return@LaunchedEffect
+                        navController.navigate("profile/trips/record") { launchSingleTop = true }
+                        openRecordStop.value = false
+                    }
+                    val pendingEnd = confirmEndTrip.value
+                    LaunchedEffect(pendingEnd, session.joined) {
+                        if (!pendingEnd || !session.joined) return@LaunchedEffect
+                        askEndOnList = true
+                        navController.navigate("profile/trips") { launchSingleTop = true }
+                        confirmEndTrip.value = false
+                    }
+                    LaunchedEffect(keepTripGoing.value) {
+                        if (!keepTripGoing.value) return@LaunchedEffect
+                        com.guanguanhua.app.notify.TripOngoing.cancelRemind(this@MainActivity)
+                        keepTripGoing.value = false
+                    }
+
                     Scaffold(
                         containerColor = QTheme.colors.canvas,
                         snackbarHost = { SnackbarHost(snackbar) },
@@ -258,10 +290,19 @@ class MainActivity : ComponentActivity() {
                             }
                         },
                     ) { padding ->
+                        Column(modifier = Modifier.padding(padding).fillMaxSize()) {
+                            val activeTrip = trips.active
+                            if (session.joined && activeTrip != null && currentRoute?.startsWith("profile/trips") != true) {
+                                com.guanguanhua.app.ui.TripBanner(
+                                    name = activeTrip.name,
+                                    onRecord = { navController.navigate("profile/trips/record") { launchSingleTop = true } },
+                                    onOpen = { navController.navigate("profile/trips") { launchSingleTop = true } },
+                                )
+                            }
                         NavHost(
                             navController = navController,
                             startDestination = startDestination,
-                            modifier = Modifier.padding(padding),
+                            modifier = Modifier.weight(1f).fillMaxWidth(),
                         ) {
                             composable("requests") {
                                 RequestListScreen(
@@ -295,6 +336,41 @@ class MainActivity : ComponentActivity() {
                                     viewModel = viewModel,
                                     onOpenWidget = { navController.navigate("profile/widget") },
                                     onOpenEdit = { navController.navigate("profile/edit") },
+                                    onOpenTrips = { navController.navigate("profile/trips") },
+                                )
+                            }
+                            composable("profile/trips") {
+                                com.guanguanhua.app.ui.TripListScreen(
+                                    viewModel = viewModel,
+                                    onBack = { navController.popBackStack() },
+                                    onStart = { navController.navigate("profile/trips/start") },
+                                    onRecord = { navController.navigate("profile/trips/record") },
+                                    onOpenRoute = { id -> navController.navigate("profile/trips/$id") },
+                                    askEnd = askEndOnList,
+                                    onAskEndConsumed = { askEndOnList = false },
+                                )
+                            }
+                            composable("profile/trips/start") {
+                                com.guanguanhua.app.ui.StartTripScreen(
+                                    viewModel = viewModel,
+                                    onBack = { navController.popBackStack() },
+                                )
+                            }
+                            composable("profile/trips/record") {
+                                com.guanguanhua.app.ui.RecordStopScreen(
+                                    viewModel = viewModel,
+                                    onBack = { navController.popBackStack() },
+                                    onOpenRoute = { id -> navController.navigate("profile/trips/$id") },
+                                )
+                            }
+                            composable(
+                                route = "profile/trips/{id}",
+                                arguments = listOf(navArgument("id") { type = NavType.LongType }),
+                            ) { entry ->
+                                com.guanguanhua.app.ui.TripRouteScreen(
+                                    viewModel = viewModel,
+                                    tripId = entry.arguments?.getLong("id") ?: 0L,
+                                    onBack = { navController.popBackStack() },
                                 )
                             }
                             composable("profile/edit") {
@@ -303,6 +379,7 @@ class MainActivity : ComponentActivity() {
                             composable("profile/widget") {
                                 WidgetScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
                             }
+                        }
                         }
                     }
                     LoadingScrim(visible = isBusy)
@@ -333,6 +410,9 @@ class MainActivity : ComponentActivity() {
         const val EXTRA_REQUEST_ID = "requestId"
         const val EXTRA_OPEN_WIDGET = "openWidget"
         const val EXTRA_OPEN_CYCLE = "openCycle"
+        const val EXTRA_OPEN_RECORD_STOP = "openRecordStop"
+        const val EXTRA_CONFIRM_END_TRIP = "confirmEndTrip"
+        const val EXTRA_TRIP_KEEP_GOING = "tripKeepGoing"
         const val ACTION_OPEN_WIDGET = "com.guanguanhua.app.OPEN_WIDGET"
 
         fun wantsWidget(intent: Intent?): Boolean =

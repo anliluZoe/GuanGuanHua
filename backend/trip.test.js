@@ -1,0 +1,199 @@
+const { test, after } = require("node:test");
+const assert = require("node:assert/strict");
+const fs = require("fs");
+const http = require("node:http");
+const os = require("os");
+const path = require("path");
+const { DatabaseSync } = require("node:sqlite");
+
+const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "save-money-trip-api-"));
+process.env.SAVE_MONEY_DATA = dataRoot;
+const { app } = require("./server");
+const { Store } = require("./store");
+
+test("trips are shared by the household and only one can be active", async () => {
+  await withServer(async ({ base }) => {
+    const alice = await json(base, "POST", "/api/households", { name: "Alice" });
+    const bob = await json(base, "POST", "/api/households/join", {
+      name: "Bob",
+      code: alice.householdCode,
+    });
+
+    const anon = await fetch(`${base}/api/trips`);
+    assert.equal(anon.status, 401);
+
+    const started = await json(base, "POST", "/api/trips", { name: "桂林阳朔", plannedEnd: "2026-10-07" }, alice.token);
+    assert.equal(started.name, "桂林阳朔");
+    assert.equal(started.endedAt, null);
+    assert.equal(started.plannedEnd, "2026-10-07");
+    assert.equal(started.stopCount, 0);
+
+    const again = await fetch(`${base}/api/trips`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${bob.token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "再开一段" }),
+    });
+    assert.equal(again.status, 409);
+
+    const active = await json(base, "GET", "/api/trips/active", null, bob.token);
+    assert.equal(active.id, started.id);
+    assert.equal(active.name, "桂林阳朔");
+
+    const stop = await json(
+      base,
+      "POST",
+      `/api/trips/${started.id}/stops`,
+      { name: "某某粉店", kind: "美食", rating: 5, visitedOn: "2026-10-02", lat: 25.27, lng: 110.29 },
+      bob.token
+    );
+    assert.equal(stop.kind, "美食");
+    assert.equal(stop.rating, 5);
+
+    const listed = await json(base, "GET", `/api/trips/${started.id}`, null, alice.token);
+    assert.equal(listed.stops.length, 1);
+    assert.equal(listed.stops[0].name, "某某粉店");
+
+    const ended = await json(base, "POST", `/api/trips/${started.id}/end`, {}, alice.token);
+    assert.ok(ended.endedAt);
+
+    const late = await fetch(`${base}/api/trips/${started.id}/stops`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${alice.token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "补记", kind: "风景", visitedOn: "2026-10-03" }),
+    });
+    assert.equal(late.status, 409);
+
+    const next = await json(base, "POST", "/api/trips", { name: "云南" }, bob.token);
+    assert.notEqual(next.id, started.id);
+    const all = await json(base, "GET", "/api/trips", null, alice.token);
+    assert.equal(all.length, 2);
+    assert.equal(all[0].name, "云南");
+    assert.equal(all[1].name, "桂林阳朔");
+  });
+});
+
+test("stop kinds ratings reorder and isolation", async () => {
+  await withServer(async ({ base }) => {
+    const ada = await json(base, "POST", "/api/households", { name: "Ada" });
+    const other = await json(base, "POST", "/api/households", { name: "Other" });
+    const trip = await json(base, "POST", "/api/trips", { name: "广西" }, ada.token);
+
+    const stolen = await fetch(`${base}/api/trips/${trip.id}/stops`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${other.token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "偷记", kind: "美食", visitedOn: "2026-10-01" }),
+    });
+    assert.equal(stolen.status, 404);
+
+    const badKind = await fetch(`${base}/api/trips/${trip.id}/stops`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${ada.token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "店", kind: "景点", visitedOn: "2026-10-01" }),
+    });
+    assert.equal(badKind.status, 400);
+
+    const first = await json(
+      base,
+      "POST",
+      `/api/trips/${trip.id}/stops`,
+      { name: "客栈", kind: "住宿", visitedOn: "2026-10-01" },
+      ada.token
+    );
+    const second = await json(
+      base,
+      "POST",
+      `/api/trips/${trip.id}/stops`,
+      { name: "米粉", kind: "美食", rating: 4, visitedOn: "2026-10-01" },
+      ada.token
+    );
+    await json(
+      base,
+      "PATCH",
+      `/api/trips/${trip.id}/stops/${first.id}`,
+      { rating: 3, kind: "住宿" },
+      ada.token
+    );
+    const reordered = await json(
+      base,
+      "PATCH",
+      `/api/trips/${trip.id}/stops/reorder`,
+      { orderedIds: [second.id, first.id] },
+      ada.token
+    );
+    assert.equal(reordered[0].id, second.id);
+    assert.equal(reordered[1].id, first.id);
+
+    const removed = await fetch(`${base}/api/trips/${trip.id}/stops/${second.id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${ada.token}` },
+    });
+    assert.equal(removed.status, 200);
+    const left = await json(base, "GET", `/api/trips/${trip.id}`, null, ada.token);
+    assert.equal(left.stops.length, 1);
+    assert.equal(left.stops[0].rating, 3);
+  });
+});
+
+test("opening an older database adds trip tables", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "trip-migrate-"));
+  const dbPath = path.join(root, "save_money.db");
+  const old = new DatabaseSync(dbPath);
+  old.exec(`
+    CREATE TABLE households (id INTEGER PRIMARY KEY AUTOINCREMENT, code TEXT UNIQUE NOT NULL);
+    CREATE TABLE members (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      household_id INTEGER NOT NULL,
+      token TEXT UNIQUE NOT NULL,
+      name TEXT NOT NULL
+    );
+  `);
+  old.prepare("INSERT INTO households(code) VALUES ('111111')").run();
+  old.prepare("INSERT INTO members(household_id, token, name) VALUES (1, 'tok', 'Ada')").run();
+  old.close();
+  const store = new Store(root);
+  try {
+    const tables = store.db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map((row) => row.name);
+    assert.ok(tables.includes("trips"));
+    assert.ok(tables.includes("trip_stops"));
+    const started = store.startTrip(1, 1, "桂林", "2026-10-07");
+    assert.equal(started.name, "桂林");
+    assert.equal(store.activeTrip(1).id, started.id);
+  } finally {
+    store.db.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+after(() => {
+  fs.rmSync(dataRoot, { recursive: true, force: true });
+});
+
+async function json(base, method, pathname, body, token) {
+  const headers = { "Content-Type": "application/json" };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${base}${pathname}`, {
+    method,
+    headers,
+    body: body == null ? undefined : JSON.stringify(body),
+  });
+  const payload = await res.json();
+  assert.equal(res.status, 200, JSON.stringify(payload));
+  return payload;
+}
+
+function withServer(work) {
+  const server = http.createServer(app);
+  return new Promise((resolve, reject) => {
+    server.listen(0, "127.0.0.1", async () => {
+      const { port } = server.address();
+      try {
+        await work({ base: `http://127.0.0.1:${port}` });
+        resolve();
+      } catch (error) {
+        reject(error);
+      } finally {
+        server.close();
+      }
+    });
+  });
+}

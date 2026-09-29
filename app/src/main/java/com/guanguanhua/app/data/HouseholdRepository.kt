@@ -185,6 +185,53 @@ interface GuanGuanHuaApi {
         @Header("Authorization") authorization: String,
         @Body body: okhttp3.RequestBody,
     ): Response<CycleSettings>
+
+    @GET("api/trips")
+    suspend fun listTrips(@Header("Authorization") authorization: String): List<TripSummary>
+
+    @GET("api/trips/active")
+    suspend fun activeTrip(@Header("Authorization") authorization: String): Response<TripDetail>
+
+    @GET("api/trips/{id}")
+    suspend fun getTrip(@Header("Authorization") authorization: String, @Path("id") id: Long): TripDetail
+
+    @POST("api/trips")
+    suspend fun startTrip(
+        @Header("Authorization") authorization: String,
+        @Body body: okhttp3.RequestBody,
+    ): Response<TripDetail>
+
+    @POST("api/trips/{id}/end")
+    suspend fun endTrip(@Header("Authorization") authorization: String, @Path("id") id: Long): Response<TripDetail>
+
+    @POST("api/trips/{id}/stops")
+    suspend fun addTripStop(
+        @Header("Authorization") authorization: String,
+        @Path("id") id: Long,
+        @Body body: okhttp3.RequestBody,
+    ): Response<TripStop>
+
+    @PATCH("api/trips/{id}/stops/{stopId}")
+    suspend fun updateTripStop(
+        @Header("Authorization") authorization: String,
+        @Path("id") id: Long,
+        @Path("stopId") stopId: Long,
+        @Body body: okhttp3.RequestBody,
+    ): Response<TripStop>
+
+    @DELETE("api/trips/{id}/stops/{stopId}")
+    suspend fun deleteTripStop(
+        @Header("Authorization") authorization: String,
+        @Path("id") id: Long,
+        @Path("stopId") stopId: Long,
+    ): Response<ResponseBody>
+
+    @PATCH("api/trips/{id}/stops/reorder")
+    suspend fun reorderTripStops(
+        @Header("Authorization") authorization: String,
+        @Path("id") id: Long,
+        @Body body: okhttp3.RequestBody,
+    ): Response<List<TripStop>>
 }
 
 private data class CycleWriteBody(val start: String, val end: String?)
@@ -321,6 +368,41 @@ class HouseholdRepository(private val app: Application) {
 
     suspend fun updateCycleSettings(settings: CycleSettings): CycleSettings =
         unwrap(api().patchCycleSettings(bearer(), jsonBody(settings)), "设置没保存上")
+
+    suspend fun listTrips(): List<TripSummary> = api().listTrips(bearer())
+
+    suspend fun activeTrip(): TripDetail? {
+        val response = api().activeTrip(bearer())
+        if (!response.isSuccessful) {
+            throw apiFailure(response.code(), response.errorBody()?.string().orEmpty(), "旅程同步失败")
+        }
+        return response.body()
+    }
+
+    suspend fun getTrip(id: Long): TripDetail = api().getTrip(bearer(), id)
+
+    suspend fun startTrip(name: String, plannedEnd: String?): TripDetail =
+        unwrap(api().startTrip(bearer(), jsonBody(TripStartBody(name, plannedEnd))), "没开始成")
+
+    suspend fun endTrip(id: Long): TripDetail =
+        unwrap(api().endTrip(bearer(), id), "没结束成")
+
+    suspend fun addTripStop(tripId: Long, body: TripStopWrite): TripStop =
+        unwrap(api().addTripStop(bearer(), tripId, jsonBody(body)), "没记下")
+
+    suspend fun updateTripStop(tripId: Long, stopId: Long, body: TripStopWrite): TripStop =
+        unwrap(api().updateTripStop(bearer(), tripId, stopId, jsonBody(body)), "没改成")
+
+    suspend fun deleteTripStop(tripId: Long, stopId: Long) {
+        val response = api().deleteTripStop(bearer(), tripId, stopId)
+        if (!response.isSuccessful) throw apiFailure(response.code(), response.errorBody()?.string().orEmpty(), "没删掉")
+    }
+
+    suspend fun reorderTripStops(tripId: Long, orderedIds: List<Long>): List<TripStop> =
+        unwrap(api().reorderTripStops(bearer(), tripId, jsonBody(TripReorderBody(orderedIds))), "顺序没改成")
+
+    private data class TripStartBody(val name: String, val plannedEnd: String?)
+    private data class TripReorderBody(val orderedIds: List<Long>)
 
     private val cycleJson = GsonBuilder().serializeNulls().create()
 
