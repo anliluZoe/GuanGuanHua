@@ -56,7 +56,6 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.guanguanhua.app.AppViewModel
-import com.guanguanhua.app.data.ApiConfig
 import com.guanguanhua.app.notify.ReviewActivityWorker
 import com.guanguanhua.app.ui.theme.QTheme
 import com.guanguanhua.app.widget.WidgetCopy
@@ -67,7 +66,7 @@ fun ProfileEditScreen(viewModel: AppViewModel, onBack: () -> Unit) {
     val profile by viewModel.profile.collectAsStateWithLifecycle()
     val session by viewModel.session.collectAsStateWithLifecycle()
     val isBusy by viewModel.isBusy.collectAsStateWithLifecycle()
-    var name by rememberSaveable(profile.name) { mutableStateOf(profile.name.ifBlank { "小明" }) }
+    var name by rememberSaveable(profile.name) { mutableStateOf(profile.name) }
     var serverUrl by rememberSaveable(session.serverUrl) { mutableStateOf(session.serverUrl) }
     val context = LocalContext.current
     var notificationsOn by remember { mutableStateOf(ReviewActivityWorker.notificationsAllowed(context)) }
@@ -163,13 +162,7 @@ fun ProfileEditScreen(viewModel: AppViewModel, onBack: () -> Unit) {
         SoftCard(modifier = Modifier.fillMaxWidth()) {
             Text("审核动态提醒", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(6.dp))
-            Text("对方发起新申请、或审核了你的申请，都会通知你。", style = MaterialTheme.typography.bodySmall)
-            Spacer(Modifier.height(4.dp))
-            Text(
-                "App 打开时每 30 秒自动刷新；放到后台后大约 20 秒会检查一次，之后约每 15 分钟再查。不依赖 Google 推送。",
-                color = QTheme.colors.muted,
-                style = MaterialTheme.typography.bodySmall,
-            )
+            Text("对方发起或审核申请时会通知你。", style = MaterialTheme.typography.bodySmall)
             if (!notificationsOn) {
                 Spacer(Modifier.height(14.dp))
                 Text(
@@ -189,24 +182,13 @@ fun ProfileEditScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                 })
             }
         }
-        SoftCard(modifier = Modifier.fillMaxWidth()) {
-            Text("服务器地址", style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(6.dp))
-            Text(
-                "调试用。一般不用改，默认已连家里的服务器。",
-                color = QTheme.colors.muted,
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Spacer(Modifier.height(12.dp))
-            SoftField(value = serverUrl, onValueChange = { serverUrl = it }, label = "API 地址")
-            Spacer(Modifier.height(16.dp))
-            PillButton(
-                "保存地址",
-                filled = false,
-                enabled = !isBusy && ApiConfig.resolvedServerUrl(serverUrl) != session.serverUrl,
-                onClick = { viewModel.setServerUrl(serverUrl) },
-            )
-        }
+        ServerAddressCard(
+            serverUrl = serverUrl,
+            currentUrl = session.serverUrl,
+            busy = isBusy,
+            onUrlChange = { serverUrl = it },
+            onSave = { viewModel.setServerUrl(serverUrl) },
+        )
         if (session.joined) {
             PillButton("退出这个家庭账本", filled = false, enabled = !isBusy, onClick = {
                 confirmLeave = true

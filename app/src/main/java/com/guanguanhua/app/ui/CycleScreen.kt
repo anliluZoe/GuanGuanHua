@@ -89,7 +89,16 @@ fun CycleScreen(viewModel: AppViewModel) {
     val prediction = CycleMath.predict(cycle.cycles, cycle.settings)
     val periodDates = CycleMath.periodDates(cycle.cycles)
     val today = LocalDate.now()
+    val open = CycleMath.latestOpen(cycle.cycles)
+    val openStart = open?.let { CycleMath.parse(it.start) }
+    val todayAction = when {
+        !session.joined -> null
+        openStart != null && !today.isBefore(openStart) -> "今天结束了"
+        cycle.cycles.none { it.start == today.toString() } -> "今天开始了"
+        else -> null
+    }
     val context = LocalContext.current
+    val askNotifications = rememberAskNotifications()
     val activeSheet = sheet?.let { runCatching { CycleSheet.valueOf(it) }.getOrNull() }
     val editing = cycle.cycles.firstOrNull { it.id == editingId }
 
@@ -135,7 +144,18 @@ fun CycleScreen(viewModel: AppViewModel) {
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 item {
-                    PredictCard(prediction)
+                    PredictCard(
+                        prediction = prediction,
+                        todayAction = todayAction,
+                        busy = isBusy,
+                        onTodayAction = {
+                            if (todayAction == "今天结束了") {
+                                viewModel.recordCycleEnd(today.toString())
+                            } else {
+                                viewModel.recordCycleStart(today.toString())
+                            }
+                        },
+                    )
                 }
                 item {
                     CalendarCard(
@@ -147,8 +167,14 @@ fun CycleScreen(viewModel: AppViewModel) {
                         onPrev = { monthKey = month.minusMonths(1).toString() },
                         onNext = { monthKey = month.plusMonths(1).toString() },
                         onDay = { date ->
-                            selectedIso = date.toString()
-                            sheet = CycleSheet.Record.name
+                            val hit = CycleMath.recordCovering(cycle.cycles, date)
+                            if (hit != null) {
+                                editingId = hit.id
+                                sheet = CycleSheet.Edit.name
+                            } else {
+                                selectedIso = date.toString()
+                                sheet = CycleSheet.Record.name
+                            }
                         },
                     )
                 }
@@ -157,23 +183,19 @@ fun CycleScreen(viewModel: AppViewModel) {
                         enabled = cycle.settings.remindEnabled,
                         joined = session.joined,
                         busy = isBusy,
-                        onChange = { viewModel.setCycleRemind(it) },
+                        onChange = { enabled ->
+                            if (enabled) askNotifications()
+                            viewModel.setCycleRemind(enabled)
+                        },
                     )
                 }
                 item {
-                    Column {
-                        Text("历史记录", style = androidx.compose.material3.MaterialTheme.typography.titleMedium)
-                        Text(
-                            "可改起止 · 暂不支持删除",
-                            color = QTheme.colors.muted,
-                            style = androidx.compose.material3.MaterialTheme.typography.labelMedium,
-                        )
-                    }
+                    Text("历史记录", style = androidx.compose.material3.MaterialTheme.typography.titleMedium)
                 }
                 if (cycle.cycles.isEmpty()) {
                     item {
                         Text(
-                            if (session.joined) "还没有记录，点日历某天开始记吧" else "加入家庭后，点日历就能记",
+                            if (session.joined) "还没有记录。点「今天开始了」，或点日历上的某一天。" else "加入家庭后就能记",
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(22.dp))
@@ -192,12 +214,6 @@ fun CycleScreen(viewModel: AppViewModel) {
                         }
                     }
                 }
-                item {
-                    PrivacyTip(
-                        title = "隐私小提示",
-                        body = "数据跟着当前登录成员走；另一半平时看不到。用家庭码切身份时仍可能被看到——记得多留点心就好。",
-                    )
-                }
             }
         }
     }
@@ -212,6 +228,7 @@ fun CycleScreen(viewModel: AppViewModel) {
             when (activeSheet) {
                 CycleSheet.Record -> RecordSheet(
                     iso = selectedIso,
+                    openStart = openStart,
                     busy = isBusy,
                     joined = session.joined,
                     onStart = {
@@ -232,7 +249,6 @@ fun CycleScreen(viewModel: AppViewModel) {
                             viewModel.saveCycle(editing.id, start, end)
                             sheet = null
                         },
-                        onDelete = { viewModel.postStatus("删不掉是故意的——记录先留着") },
                         onClose = { sheet = null },
                     )
                 }
@@ -243,7 +259,6 @@ fun CycleScreen(viewModel: AppViewModel) {
                     joined = session.joined,
                     onReference = viewModel::setCycleReference,
                     onPeriod = viewModel::setCyclePeriodDays,
-                    onRemind = viewModel::setCycleRemind,
                     onExport = {
                         val csv = CycleMath.toCsv(cycle.cycles)
                         val name = "guanguanhua-cycle-${LocalDate.now()}.csv"
@@ -272,7 +287,12 @@ fun CycleScreen(viewModel: AppViewModel) {
 }
 
 @Composable
-private fun PredictCard(prediction: com.guanguanhua.app.cycle.CyclePrediction) {
+private fun PredictCard(
+    prediction: com.guanguanhua.app.cycle.CyclePrediction,
+    todayAction: String?,
+    busy: Boolean,
+    onTodayAction: () -> Unit,
+) {
     val q = QTheme.colors
     Column(
         modifier = Modifier
@@ -302,6 +322,10 @@ private fun PredictCard(prediction: com.guanguanhua.app.cycle.CyclePrediction) {
         Text(CycleMath.predictMeta(prediction), color = q.secondary, style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
         Spacer(Modifier.height(6.dp))
         Text(CycleMath.predictOvuText(prediction), color = q.lavender, style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
+        if (todayAction != null) {
+            Spacer(Modifier.height(12.dp))
+            PillButton(todayAction, enabled = !busy, onClick = onTodayAction)
+        }
     }
 }
 
@@ -425,7 +449,7 @@ private fun CalendarCard(
         }
         Spacer(Modifier.height(8.dp))
         Text(
-            "排卵＝下次经期首日 −14，只作参考；周期不稳时别当真。",
+            "点某一天就能记或改。排卵只作参考。",
             color = q.muted,
             fontSize = 11.sp,
             lineHeight = 16.sp,
@@ -462,7 +486,7 @@ private fun RemindCard(enabled: Boolean, joined: Boolean, busy: Boolean, onChang
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
                 Text("经期提醒", style = androidx.compose.material3.MaterialTheme.typography.titleMedium)
-                Text("默认提前 2 天提醒", color = q.muted, style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
+                Text("提前 2 天，早上 9 点", color = q.muted, style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
             }
             Switch(
                 checked = enabled,
@@ -476,12 +500,6 @@ private fun RemindCard(enabled: Boolean, joined: Boolean, busy: Boolean, onChang
                 ),
             )
         }
-        Spacer(Modifier.height(8.dp))
-        Text(
-            if (enabled) "开着的话，大概前两天轻轻戳你一下～" else "提醒关着啦，想开随时拨回来。",
-            color = q.muted,
-            style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
-        )
     }
 }
 
@@ -543,6 +561,7 @@ private fun PrivacyTip(title: String, body: String) {
 @Composable
 private fun RecordSheet(
     iso: String?,
+    openStart: LocalDate?,
     busy: Boolean,
     joined: Boolean,
     onStart: () -> Unit,
@@ -550,19 +569,20 @@ private fun RecordSheet(
     onClose: () -> Unit,
 ) {
     val date = CycleMath.parse(iso)
+    val canEnd = joined && !busy && date != null && openStart != null && !date.isBefore(openStart)
     Column(modifier = Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("记录这一天", style = androidx.compose.material3.MaterialTheme.typography.titleLarge)
         Text(date?.let(CycleMath::formatCnFull) ?: "—", color = QTheme.colors.muted)
-        PillButton("设为开始日", onClick = onStart, enabled = joined && !busy && date != null)
-        PillButton("设为结束日", onClick = onEnd, enabled = joined && !busy && date != null, approve = true)
-        PillButton("先不了", onClick = onClose, filled = false, enabled = !busy)
         Text(
-            "结束日可以先空着，回头再补也行～",
-            modifier = Modifier.fillMaxWidth(),
-            textAlign = TextAlign.Center,
-            color = QTheme.colors.muted2,
+            if (openStart != null) "上次开始是 ${CycleMath.formatCn(openStart)}，还没填结束" else "这天还没记下",
+            color = QTheme.colors.muted,
             style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
         )
+        if (canEnd) {
+            PillButton("设为结束日", onClick = onEnd, enabled = true, approve = true)
+        }
+        PillButton("设为开始日", onClick = onStart, enabled = joined && !busy && date != null)
+        PillButton("先不了", onClick = onClose, filled = false, enabled = !busy)
     }
 }
 
@@ -572,7 +592,6 @@ private fun EditSheet(
     record: CycleRecord,
     busy: Boolean,
     onSave: (String, String?) -> Unit,
-    onDelete: () -> Unit,
     onClose: () -> Unit,
 ) {
     var start by rememberSaveable(record.id) { mutableStateOf(record.start) }
@@ -580,7 +599,7 @@ private fun EditSheet(
     var picking by rememberSaveable { mutableStateOf<String?>(null) }
     Column(modifier = Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("改一改这条", style = androidx.compose.material3.MaterialTheme.typography.titleLarge)
-        Text("起止可以调；删除暂不开放", color = QTheme.colors.muted, style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
+        Text("起止可以调", color = QTheme.colors.muted, style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
         DateField("开始日", CycleMath.parse(start)?.let(CycleMath::formatCnFull) ?: "选一天") { picking = "start" }
         DateField("结束日 可空", CycleMath.parse(end)?.let(CycleMath::formatCnFull) ?: "可以先空着") { picking = "end" }
         if (end.isNotBlank()) {
@@ -588,27 +607,6 @@ private fun EditSheet(
         }
         PillButton("保存", enabled = !busy && start.isNotBlank(), onClick = { onSave(start, end.ifBlank { null }) })
         PillButton("取消", filled = false, enabled = !busy, onClick = onClose)
-        Text(
-            "删除（暂不可用）",
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(48.dp)
-                .clip(RoundedCornerShape(28.dp))
-                .background(QTheme.colors.disabledFill)
-                .border(1.dp, QTheme.colors.lineStrong, RoundedCornerShape(28.dp))
-                .clickable(onClick = onDelete)
-                .padding(vertical = 12.dp),
-            color = QTheme.colors.disabledInk,
-            textAlign = TextAlign.Center,
-            fontWeight = FontWeight.SemiBold,
-        )
-        Text(
-            "删不掉是故意的——记录先留着。",
-            modifier = Modifier.fillMaxWidth(),
-            textAlign = TextAlign.Center,
-            color = QTheme.colors.muted2,
-            style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
-        )
     }
     val initial = CycleMath.parse(if (picking == "end") end.ifBlank { start } else start)
     if (picking != null && initial != null) {
@@ -658,7 +656,6 @@ private fun SettingsSheet(
     joined: Boolean,
     onReference: (Int?) -> Unit,
     onPeriod: (Int) -> Unit,
-    onRemind: (Boolean) -> Unit,
     onExport: () -> Unit,
     onClose: () -> Unit,
 ) {
@@ -672,22 +669,8 @@ private fun SettingsSheet(
             .padding(horizontal = 20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text("提醒与导出", style = androidx.compose.material3.MaterialTheme.typography.titleLarge)
-        Text("周期天数、经期天数、提醒和导出", color = q.muted, style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
-        SettingsBlock {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("提前 2 天提醒", style = androidx.compose.material3.MaterialTheme.typography.titleMedium)
-                    Text("默认开启，可随手关掉", color = q.muted, style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
-                }
-                Switch(
-                    checked = settings.remindEnabled,
-                    onCheckedChange = onRemind,
-                    enabled = joined && !busy,
-                    colors = SwitchDefaults.colors(checkedTrackColor = q.mint, checkedThumbColor = Color.White, uncheckedThumbColor = Color.White),
-                )
-            }
-        }
+        Text("周期与导出", style = androidx.compose.material3.MaterialTheme.typography.titleLarge)
+        Text("周期天数、经期天数和导出", color = q.muted, style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
         SettingsBlock {
             Text("我的周期", style = androidx.compose.material3.MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(6.dp))

@@ -18,6 +18,7 @@ data class CyclePrediction(
     val cycleDays: Int,
     val averageDays: Int,
     val gapCount: Int,
+    val droppedGapCount: Int,
     val recordedCount: Int,
     val periodDays: Int,
     val referenceDays: Int?,
@@ -44,12 +45,12 @@ object CycleMath {
 
     fun predict(cycles: List<CycleRecord>, settings: CycleSettings): CyclePrediction {
         val starts = cycles.mapNotNull { parse(it.start) }.sorted()
-        val gaps = if (starts.size < 2) {
+        val allGaps = if (starts.size < 2) {
             emptyList()
         } else {
             starts.zipWithNext { previous, next -> ChronoUnit.DAYS.between(previous, next).toInt() }
-                .filter { it in GAP_MIN..GAP_MAX }
         }
+        val gaps = allGaps.filter { it in GAP_MIN..GAP_MAX }
         val averageDays = if (gaps.isEmpty()) DEFAULT_CYCLE_DAYS else floor(gaps.average() + 0.5).toInt()
         val reference = referenceDays(settings)
         val periodDays = periodDays(settings)
@@ -70,6 +71,7 @@ object CycleMath {
             cycleDays = cycleDays,
             averageDays = averageDays,
             gapCount = gaps.size,
+            droppedGapCount = allGaps.size - gaps.size,
             recordedCount = starts.size,
             periodDays = periodDays,
             referenceDays = reference,
@@ -140,30 +142,49 @@ object CycleMath {
                 "默认按约 $DEFAULT_CYCLE_DAYS 天估 · 多记几次更准"
             }
         }
-        val periodBit = " · 经期约 ${prediction.periodDays} 天"
         val recorded = prediction.recordedCount
         return when (prediction.source) {
             PredictSource.DATA -> {
-                val ref = prediction.referenceDays?.let { "（你设的参考 $it 天）" }.orEmpty()
-                "按你的记录平均约 ${prediction.averageDays} 天（首日→下次首日 · ${prediction.gapCount} 段）$ref · 已记 $recorded 次$periodBit"
+                val ref = prediction.referenceDays?.let { "；参考 $it 天只作对照" }.orEmpty()
+                "按你的记录平均约 ${prediction.averageDays} 天 · 已记 $recorded 次$ref"
             }
             PredictSource.MANUAL ->
-                "记录还少，先按你设的 ${prediction.cycleDays} 天估 · 已记 $recorded 次 · 再记几回会改用你的平均$periodBit"
-            PredictSource.DEFAULT ->
-                "按约 ${prediction.cycleDays} 天估 · 已记 $recorded 次 · 再记几回会按你的平均$periodBit"
+                "记录还少，先按你设的 ${prediction.cycleDays} 天估 · 已记 $recorded 次"
+            PredictSource.DEFAULT -> when {
+                prediction.droppedGapCount > 0 ->
+                    "有间隔不在 $GAP_MIN–$GAP_MAX 天，先按 $DEFAULT_CYCLE_DAYS 天估 · 已记 $recorded 次"
+                recorded >= 2 ->
+                    "有效间隔还不够，先按 $DEFAULT_CYCLE_DAYS 天估 · 已记 $recorded 次"
+                else ->
+                    "按约 ${prediction.cycleDays} 天估 · 已记 $recorded 次 · 再记几回会按你的平均"
+            }
         }
     }
 
     fun predictOvuText(prediction: CyclePrediction): String {
         val ovulation = prediction.ovulation ?: return "排卵示意要等有下次大概之后～"
-        return "排卵大概 ${formatCnFull(ovulation)}（下次首日 −14 · 仅规律时较准）"
+        return "排卵大概 ${formatCnFull(ovulation)}（下次 −14，仅参考）"
     }
 
     fun settingsHint(prediction: CyclePrediction): String = when (prediction.source) {
         PredictSource.DATA -> "有足够记录，预测按历史平均约 ${prediction.averageDays} 天。参考天数只作对照。"
         PredictSource.MANUAL -> "记录还少，先按参考 ${prediction.cycleDays} 天估。再记几回会改用你的平均。"
-        PredictSource.DEFAULT -> "有足够记录用历史平均；不够才用参考天数或默认 28。"
+        PredictSource.DEFAULT -> if (prediction.droppedGapCount > 0) {
+            "有间隔不在 $GAP_MIN–$GAP_MAX 天，先按 $DEFAULT_CYCLE_DAYS 天估。再记一次会按你的平均。"
+        } else {
+            "有足够记录用历史平均；不够才用参考天数或默认 $DEFAULT_CYCLE_DAYS。"
+        }
     }
+
+    fun latestOpen(cycles: List<CycleRecord>): CycleRecord? =
+        cycles.filter { parse(it.start) != null && it.end.isNullOrBlank() }.maxByOrNull { it.start }
+
+    fun recordCovering(cycles: List<CycleRecord>, date: LocalDate): CycleRecord? =
+        cycles.filter { record ->
+            val start = parse(record.start) ?: return@filter false
+            val end = parse(record.end)
+            !date.isBefore(start) && if (end == null) date == start else !date.isAfter(end)
+        }.maxByOrNull { it.start }
 
     /**
      * 提醒落在预测首日往前 remindDays 的当天早上 9 点。

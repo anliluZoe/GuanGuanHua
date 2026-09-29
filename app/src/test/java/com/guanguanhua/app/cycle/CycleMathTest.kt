@@ -23,6 +23,34 @@ class CycleMathTest {
         assertTrue(CycleMath.predictMeta(prediction).contains("平均约 26 天"))
         assertTrue(CycleMath.predictMeta(prediction).contains("参考 30 天"))
         assertEquals("2026年10月14日", CycleMath.predictDateText(prediction))
+        assertEquals(0, prediction.droppedGapCount)
+    }
+
+    @Test
+    fun longGapFallsBackToDefaultAndMetaSaysWhy() {
+        val cycles = listOf(
+            CycleRecord(1, "2026-07-21", "2026-07-25"),
+            CycleRecord(2, "2026-09-21", "2026-09-25"),
+        )
+        val prediction = CycleMath.predict(cycles, CycleSettings())
+        assertEquals(PredictSource.DEFAULT, prediction.source)
+        assertEquals(1, prediction.droppedGapCount)
+        assertEquals(0, prediction.gapCount)
+        assertEquals(LocalDate.of(2026, 10, 19), prediction.nextStart)
+        assertTrue(CycleMath.predictMeta(prediction).contains("不在 21–35 天"))
+        assertTrue(CycleMath.predictMeta(prediction).contains("先按 28 天估"))
+    }
+
+    @Test
+    fun latestOpenAndCoveringPreferTheOpenOrContainingRecord() {
+        val open = CycleRecord(2, "2026-09-21", null)
+        val closed = CycleRecord(1, "2026-07-21", "2026-07-25")
+        val cycles = listOf(closed, open)
+        assertEquals(open, CycleMath.latestOpen(cycles))
+        assertNull(CycleMath.latestOpen(listOf(closed)))
+        assertEquals(closed, CycleMath.recordCovering(cycles, LocalDate.of(2026, 7, 23)))
+        assertEquals(open, CycleMath.recordCovering(cycles, LocalDate.of(2026, 9, 21)))
+        assertNull(CycleMath.recordCovering(cycles, LocalDate.of(2026, 9, 22)))
     }
 
     @Test

@@ -46,8 +46,8 @@ fun NewRequestScreen(viewModel: AppViewModel, onBack: () -> Unit) {
     var quantityText by rememberSaveable { mutableStateOf("1") }
     var reason by rememberSaveable { mutableStateOf("") }
     var photoUri by rememberSaveable { mutableStateOf<String?>(null) }
-    var submitted by rememberSaveable { mutableStateOf(false) }
     val isBusy by viewModel.isBusy.collectAsStateWithLifecycle()
+    val askNotifications = rememberAskNotifications()
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         photoUri = uri?.toString()
     }
@@ -70,8 +70,8 @@ fun NewRequestScreen(viewModel: AppViewModel, onBack: () -> Unit) {
             value = itemName,
             onValueChange = { itemName = it },
             label = "物品名称",
-            isError = submitted && !nameValid,
-            supportingText = if (submitted && !nameValid) "给它起个名字吧" else null,
+            isError = itemName.isNotBlank() && !nameValid,
+            supportingText = if (itemName.isNotBlank() && !nameValid) "给它起个名字吧" else null,
         )
         Text("分类", style = MaterialTheme.typography.labelLarge)
         CATEGORIES.chunked(3).forEach { row ->
@@ -113,8 +113,8 @@ fun NewRequestScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                 label = "单价（元）",
                 prefix = "¥",
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                isError = submitted && priceCents == null,
-                supportingText = if (submitted && priceCents == null) "最多两位小数" else null,
+                isError = priceText.isNotBlank() && priceCents == null,
+                supportingText = if (priceText.isNotBlank() && priceCents == null) "最多两位小数" else null,
                 modifier = Modifier.weight(1.4f),
             )
             SoftField(
@@ -122,8 +122,8 @@ fun NewRequestScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                 onValueChange = { quantityText = it },
                 label = "数量",
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                isError = submitted && quantity == null,
-                supportingText = if (submitted && quantity == null) "1~9999" else null,
+                isError = quantityText.isNotBlank() && quantity == null,
+                supportingText = if (quantityText.isNotBlank() && quantity == null) "1~9999" else null,
                 modifier = Modifier.weight(1f),
             )
         }
@@ -162,12 +162,10 @@ fun NewRequestScreen(viewModel: AppViewModel, onBack: () -> Unit) {
         Spacer(Modifier.height(4.dp))
         PillButton(
             text = "哼，提交申请",
-            enabled = !isBusy,
+            enabled = !isBusy && formValid,
             onClick = {
-                submitted = true
-                if (formValid) {
-                    viewModel.submitRequest(itemName, category, priceCents!!, quantity!!, reason, photoUri, onSuccess = onBack)
-                }
+                askNotifications()
+                viewModel.submitRequest(itemName, category, priceCents!!, quantity!!, reason, photoUri, onSuccess = onBack)
             },
         )
         Spacer(Modifier.height(24.dp))

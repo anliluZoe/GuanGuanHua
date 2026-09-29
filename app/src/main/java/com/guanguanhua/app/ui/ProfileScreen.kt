@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -35,6 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -53,6 +55,51 @@ import kotlinx.coroutines.launch
 internal fun householdPairTitle(name: String, partnerName: String?): String =
     "${name.ifBlank { "我" }} × ${partnerName ?: "另一半"}"
 
+@Composable
+fun ServerAddressCard(
+    serverUrl: String,
+    currentUrl: String,
+    busy: Boolean,
+    onUrlChange: (String) -> Unit,
+    onSave: () -> Unit,
+) {
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    SoftCard(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            if (expanded) "服务器地址" else "高级",
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { expanded = !expanded },
+        )
+        if (expanded) {
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "调试用。一般不用改。",
+                color = QTheme.colors.muted,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Spacer(Modifier.height(12.dp))
+            SoftField(value = serverUrl, onValueChange = onUrlChange, label = "API 地址")
+            Spacer(Modifier.height(16.dp))
+            PillButton(
+                "保存地址",
+                filled = false,
+                enabled = !busy && ApiConfig.resolvedServerUrl(serverUrl) != currentUrl,
+                onClick = onSave,
+            )
+        } else {
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "服务器地址",
+                color = QTheme.colors.muted,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.clickable { expanded = true },
+            )
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(viewModel: AppViewModel, onOpenWidget: () -> Unit = {}, onOpenEdit: () -> Unit = {}) {
@@ -64,7 +111,7 @@ fun ProfileScreen(viewModel: AppViewModel, onOpenWidget: () -> Unit = {}, onOpen
     val appearance by viewModel.appearance.collectAsStateWithLifecycle()
     val widget by viewModel.widget.collectAsStateWithLifecycle()
     val joinPicker by viewModel.joinPicker.collectAsStateWithLifecycle()
-    var name by rememberSaveable(profile.name) { mutableStateOf(profile.name.ifBlank { "小明" }) }
+    var name by rememberSaveable(profile.name) { mutableStateOf(profile.name) }
     var householdCode by rememberSaveable { mutableStateOf("") }
     var serverUrl by rememberSaveable(session.serverUrl) { mutableStateOf(session.serverUrl) }
     LaunchedEffect(Unit) { viewModel.refresh() }
@@ -107,7 +154,7 @@ fun ProfileScreen(viewModel: AppViewModel, onOpenWidget: () -> Unit = {}, onOpen
                 Text("家庭账本", style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "不用填服务器。默认连家里那台，先起个名字就能建账本。每个家庭最多两个人。",
+                    "起个名字就能建账本。每个家庭最多两个人。",
                     color = QTheme.colors.muted,
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -123,17 +170,22 @@ fun ProfileScreen(viewModel: AppViewModel, onOpenWidget: () -> Unit = {}, onOpen
                 Text("已经有家庭码？", style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "还没满两人就新建身份；已经有两个人了，会让你选其中一个进入，不会再加第三人。",
+                    "还没满两人就新建身份；满了会让你选一个进入。",
                     color = QTheme.colors.muted,
                     style = MaterialTheme.typography.bodySmall,
                 )
                 Spacer(Modifier.height(10.dp))
-                SoftField(value = householdCode, onValueChange = { householdCode = it }, label = "6 位家庭码")
+                SoftField(
+                    value = householdCode,
+                    onValueChange = { householdCode = it.filter(Char::isDigit).take(6) },
+                    label = "6 位家庭码",
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                )
                 Spacer(Modifier.height(12.dp))
                 PillButton(
                     "加入",
                     filled = false,
-                    enabled = !isBusy && name.trim().isNotBlank() && householdCode.trim().isNotBlank(),
+                    enabled = !isBusy && name.trim().isNotBlank() && householdCode.length == 6,
                     onClick = {
                         viewModel.consumeStatus()
                         viewModel.joinHome(householdCode, name)
@@ -142,14 +194,8 @@ fun ProfileScreen(viewModel: AppViewModel, onOpenWidget: () -> Unit = {}, onOpen
             }
         } else {
         SoftCard(modifier = Modifier.fillMaxWidth()) {
-            Text(
-                householdPairTitle(profile.name, profile.partnerName),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Spacer(Modifier.height(16.dp))
-            Text("家庭码", color = QTheme.colors.muted, style = MaterialTheme.typography.labelMedium)
-            Spacer(Modifier.height(4.dp))
+            Text("家庭码", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(8.dp))
             CopyableHouseholdCode(session.householdCode) {
                 viewModel.postStatus(HouseholdCodeCopy.SNACKBAR)
             }
@@ -184,24 +230,13 @@ fun ProfileScreen(viewModel: AppViewModel, onOpenWidget: () -> Unit = {}, onOpen
         AppearancePicker(value = appearance, onChange = viewModel::setAppearance)
         UpdateCard()
         if (!session.joined) {
-            SoftCard(modifier = Modifier.fillMaxWidth()) {
-                Text("服务器地址", style = MaterialTheme.typography.titleMedium)
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    "调试用。一般不用改，默认已连家里的服务器。",
-                    color = QTheme.colors.muted,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                Spacer(Modifier.height(12.dp))
-                SoftField(value = serverUrl, onValueChange = { serverUrl = it }, label = "API 地址")
-                Spacer(Modifier.height(16.dp))
-                PillButton(
-                    "保存地址",
-                    filled = false,
-                    enabled = !isBusy && ApiConfig.resolvedServerUrl(serverUrl) != session.serverUrl,
-                    onClick = { viewModel.setServerUrl(serverUrl) },
-                )
-            }
+            ServerAddressCard(
+                serverUrl = serverUrl,
+                currentUrl = session.serverUrl,
+                busy = isBusy,
+                onUrlChange = { serverUrl = it },
+                onSave = { viewModel.setServerUrl(serverUrl) },
+            )
         }
         Spacer(Modifier.height(96.dp))
         }
@@ -319,7 +354,7 @@ private fun UpdateCard() {
         Text("检查更新", style = MaterialTheme.typography.titleMedium)
         Spacer(Modifier.height(6.dp))
         Text(
-            "当前版本 ${installed.versionName}（内部号 ${installed.versionCode}）",
+            "当前版本 ${installed.versionName}",
             style = MaterialTheme.typography.bodySmall,
             color = colors.secondary,
         )

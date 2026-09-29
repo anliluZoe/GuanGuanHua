@@ -1,15 +1,11 @@
 package com.guanguanhua.app
 
-import android.Manifest
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -50,7 +46,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -63,7 +58,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.guanguanhua.app.notify.CycleReminder
 import com.guanguanhua.app.notify.ReviewActivityWorker
 import com.guanguanhua.app.ui.ExpensesScreen
 import com.guanguanhua.app.ui.CycleScreen
@@ -104,13 +98,6 @@ class MainActivity : ComponentActivity() {
     /** 从经期提醒点进来，打开周期页。 */
     private val openCycle = mutableStateOf(false)
 
-    private val requestNotifications = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) {
-            ReviewActivityWorker.enqueueSoon(this)
-            CycleReminder.scheduleFromCache(this)
-        }
-    }
-
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
@@ -125,11 +112,6 @@ class MainActivity : ComponentActivity() {
         openRequestId.longValue = intent.getLongExtra(EXTRA_REQUEST_ID, 0L)
         openWidget.value = wantsWidget(intent)
         openCycle.value = wantsCycle(intent)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-        ) {
-            requestNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
-        }
         setContent {
             val viewModel: AppViewModel = viewModel()
             val appearance by viewModel.appearance.collectAsStateWithLifecycle()
@@ -140,7 +122,8 @@ class MainActivity : ComponentActivity() {
                 val isBusy by viewModel.isBusy.collectAsStateWithLifecycle()
                 val backStackEntry by navController.currentBackStackEntryAsState()
                 val currentRoute = backStackEntry?.destination?.route
-                val showBottomBar = TABS.any { it.route == currentRoute }
+                val showBottomBar = session.joined && TABS.any { it.route == currentRoute }
+                val startDestination = remember { if (session.joined) "requests" else "profile" }
                 val snackbar = remember { SnackbarHostState() }
 
                 BackHandler(enabled = isBusy) { }
@@ -198,9 +181,19 @@ class MainActivity : ComponentActivity() {
                         openWidget.value = false
                     }
 
+                    LaunchedEffect(session.joined) {
+                        if (session.joined) return@LaunchedEffect
+                        navController.navigate("profile") {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                inclusive = false
+                            }
+                            launchSingleTop = true
+                        }
+                    }
+
                     val pendingCycle = openCycle.value
-                    LaunchedEffect(pendingCycle) {
-                        if (!pendingCycle) return@LaunchedEffect
+                    LaunchedEffect(pendingCycle, session.joined) {
+                        if (!pendingCycle || !session.joined) return@LaunchedEffect
                         navController.navigate("cycle") {
                             popUpTo(navController.graph.findStartDestination().id) {
                                 saveState = true
@@ -267,7 +260,7 @@ class MainActivity : ComponentActivity() {
                     ) { padding ->
                         NavHost(
                             navController = navController,
-                            startDestination = "requests",
+                            startDestination = startDestination,
                             modifier = Modifier.padding(padding),
                         ) {
                             composable("requests") {
@@ -290,7 +283,12 @@ class MainActivity : ComponentActivity() {
                                     onBack = { navController.popBackStack() },
                                 )
                             }
-                            composable("expenses") { ExpensesScreen(viewModel = viewModel) }
+                            composable("expenses") {
+                                ExpensesScreen(
+                                    viewModel = viewModel,
+                                    onOpenRequest = { id -> navController.navigate("requests/$id") },
+                                )
+                            }
                             composable("cycle") { CycleScreen(viewModel = viewModel) }
                             composable("profile") {
                                 ProfileScreen(

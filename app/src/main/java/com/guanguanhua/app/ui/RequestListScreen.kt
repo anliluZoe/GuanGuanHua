@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -69,12 +68,12 @@ fun RequestListScreen(
     ) {
         Spacer(Modifier.height(12.dp))
         PageHeader(
-            title = "买买申请",
+            title = "申请",
             subtitle = if (!session.joined) {
                 "去「我们」页创建或加入家庭账本"
             } else {
-                profile.partnerName?.let { "${profile.name} × $it · 想买？先过我这关哼" }
-                    ?: "${profile.name}，等另一半加入后一起把关每一笔开销"
+                profile.partnerName?.let { "${profile.name} × $it" }
+                    ?: "${profile.name}，等另一半加入后一起把关"
             },
             leading = {
                 StackedAvatars(
@@ -87,33 +86,13 @@ fun RequestListScreen(
                 )
             },
         )
-        if (profile.partnerName != null) {
-            Spacer(Modifier.height(12.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                StackedAvatars(
-                    meName = profile.name,
-                    mePreset = profile.avatarPreset,
-                    mePhotoUrl = profile.avatarUrl,
-                    partnerName = profile.partnerName,
-                    partnerPreset = profile.partnerAvatarPreset,
-                    partnerPhotoUrl = profile.partnerAvatarUrl,
-                    size = 28.dp,
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    if (pendingForMe > 0) "$pendingForMe 笔在等你批哦" else "暂时没人闯关，哼",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = QTheme.colors.secondary,
-                )
-            }
-        }
         Spacer(Modifier.height(16.dp))
         Row(
             modifier = Modifier.horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             RequestListFilter.entries.forEach { option ->
-                ChoiceChip(option.label, filter == option, onClick = { filter = option })
+                ChoiceChip(option.chipLabel(pendingForMe), filter == option, onClick = { filter = option })
             }
         }
         Spacer(Modifier.height(16.dp))
@@ -201,18 +180,7 @@ private fun RequestCard(request: PurchaseRequest, onClick: () -> Unit) {
             MoneyText(request.totalCents, style = MaterialTheme.typography.headlineSmall)
             Spacer(Modifier.height(4.dp))
             Text(
-                buildString {
-                    append((request.approvedUnitPriceCents ?: request.unitPriceCents).toYuan())
-                    append(" × ")
-                    append(request.approvedQuantity ?: request.quantity)
-                    if (request.partial) {
-                        append(" · 申请 ${request.quantity} 个 ${request.askedCents.toYuan()}")
-                    }
-                    append(" · ")
-                    append(if (request.mine) "我" else request.requesterName)
-                    append(" · ")
-                    append(request.createdAt.toDateTimeText())
-                },
+                "${if (request.mine) "我" else request.requesterName} · ${request.createdAt.toDateTimeText()}",
                 style = MaterialTheme.typography.bodySmall,
                 color = QTheme.colors.muted,
             )
@@ -252,6 +220,9 @@ enum class RequestListFilter(
     WAITING_FOR_PARTNER("等对方", "没有在等对方的申请", "你提交后、还在等 TA 审核的会出现在这里"),
     APPROVED("已通过", "还没有过关的申请", "通过的购买会出现在这里"),
     REJECTED("已拒绝", "还没有被拒绝的申请", "被拒的申请会出现在这里");
+
+    fun chipLabel(pendingForMe: Int): String =
+        if (this == PENDING_FOR_ME && pendingForMe > 0) "$label $pendingForMe" else label
 
     fun matches(request: PurchaseRequest): Boolean = when (this) {
         ALL -> true
