@@ -1,22 +1,25 @@
 package com.guanguanhua.app.ui
 
-import android.annotation.SuppressLint
-import android.webkit.WebSettings
-import android.webkit.WebView
-import android.webkit.WebViewClient
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -35,15 +38,31 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.google.gson.Gson
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.guanguanhua.app.AppViewModel
 import com.guanguanhua.app.data.TripStop
 import com.guanguanhua.app.trip.TripMath
 import com.guanguanhua.app.ui.theme.QTheme
 import java.time.LocalDate
+import kotlin.math.roundToInt
+
+private val stopKindFill = mapOf(
+    "住宿" to Color(0xFF6BA3C4),
+    "美食" to Color(0xFFF07A5C),
+    "风景" to Color(0xFF4DB6A0),
+    "博物馆" to Color(0xFFA78BC4),
+    "杂物店" to Color(0xFFD4A84B),
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -56,16 +75,9 @@ fun TripRouteScreen(viewModel: AppViewModel, tripId: Long, onBack: () -> Unit) {
     var day by rememberSaveable { mutableStateOf("all") }
     var editingId by rememberSaveable { mutableStateOf(0L) }
     var deletingId by rememberSaveable { mutableStateOf(0L) }
-    var webView by remember { mutableStateOf<WebView?>(null) }
     val shown = trip?.stops.orEmpty().filter { day == "all" || it.visitedOn == day }
-
-    LaunchedEffect(shown, webView) {
-        val view = webView ?: return@LaunchedEffect
-        val json = Gson().toJson(shown.map { mapOf("name" to it.name, "kind" to it.kind, "lat" to it.lat, "lng" to it.lng) })
-        view.evaluateJavascript("window.renderStops && window.renderStops($json)", null)
-    }
-
     val mapped = shown.count { it.lat != null && it.lng != null }
+
     SubpageScaffold(title = trip?.name ?: "这次路线", onBack = onBack) { inner ->
         Column(
             modifier = Modifier
@@ -82,7 +94,7 @@ fun TripRouteScreen(viewModel: AppViewModel, tripId: Long, onBack: () -> Unit) {
                 "${TripMath.formatRange(trip.startedAt, trip.endedAt)} · ${trip.stops.size} 站",
                 color = QTheme.colors.muted,
             )
-            TripMap(onReady = { webView = it })
+            TripMap(shown)
             if (shown.isNotEmpty() && mapped == 0) {
                 Text(
                     "这些站还没有位置，地图上画不出线。记的时候点附近一家，或打开定位再手写。",
@@ -162,33 +174,78 @@ fun TripRouteScreen(viewModel: AppViewModel, tripId: Long, onBack: () -> Unit) {
     }
 }
 
-@SuppressLint("SetJavaScriptEnabled")
 @Composable
-private fun TripMap(onReady: (WebView) -> Unit) {
-    AndroidView(
-        factory = { context ->
-            WebView(context).apply {
-                settings.javaScriptEnabled = true
-                settings.domStorageEnabled = true
-                settings.allowFileAccess = true
-                settings.allowContentAccess = true
-                settings.loadsImagesAutomatically = true
-                settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-                settings.cacheMode = WebSettings.LOAD_DEFAULT
-                isNestedScrollingEnabled = false
-                webViewClient = object : WebViewClient() {
-                    override fun onPageFinished(view: WebView?, url: String?) {
-                        view?.let(onReady)
-                    }
-                }
-                loadUrl("file:///android_asset/trip_map.html")
-            }
-        },
+private fun TripMap(stops: List<TripStop>) {
+    val located = stops.mapNotNull { stop ->
+        val lat = stop.lat
+        val lng = stop.lng
+        if (lat == null || lng == null) null else stop
+    }
+    val q = QTheme.colors
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
             .height(260.dp)
-            .clip(RoundedCornerShape(18.dp)),
-    )
+            .clip(RoundedCornerShape(18.dp))
+            .background(q.mintSoft),
+    ) {
+        val density = LocalDensity.current
+        val context = LocalContext.current
+        val widthPx = with(density) { maxWidth.roundToPx() }
+        val heightPx = with(density) { maxHeight.roundToPx() }
+        val coords = located.map { it.lat as Double to it.lng as Double }
+        val frame = remember(coords, widthPx, heightPx) { TripMath.mapFrame(coords, widthPx, heightPx) }
+        val tiles = remember(frame) { TripMath.mapTiles(frame) }
+        val tileDp = with(density) { frame.tileSize.toDp() }
+        val markerRadius = with(density) { 14.dp.roundToPx() }
+        tiles.forEach { tile ->
+            AsyncImage(
+                model = ImageRequest.Builder(context)
+                    .data(tile.url)
+                    .addHeader("User-Agent", "GuanGuanHua/1.0")
+                    .build(),
+                contentDescription = null,
+                contentScale = ContentScale.FillBounds,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .offset { IntOffset(tile.offsetX.roundToInt(), tile.offsetY.roundToInt()) }
+                    .size(tileDp),
+            )
+        }
+        Canvas(Modifier.fillMaxSize()) {
+            located.zipWithNext().forEach { (from, to) ->
+                val start = TripMath.mapPixel(from.lat as Double, from.lng as Double, frame)
+                val end = TripMath.mapPixel(to.lat as Double, to.lng as Double, frame)
+                drawLine(
+                    color = q.sky,
+                    start = Offset(start.first, start.second),
+                    end = Offset(end.first, end.second),
+                    strokeWidth = 8f,
+                    cap = StrokeCap.Round,
+                )
+            }
+        }
+        located.forEachIndexed { index, stop ->
+            val pixel = TripMath.mapPixel(stop.lat as Double, stop.lng as Double, frame)
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .offset {
+                        IntOffset(pixel.first.roundToInt() - markerRadius, pixel.second.roundToInt() - markerRadius)
+                    }
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(stopKindFill[stop.kind] ?: q.sky),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    "${index + 1}",
+                    color = Color.White,
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

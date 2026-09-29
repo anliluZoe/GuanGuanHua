@@ -4,6 +4,10 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
+import kotlin.math.PI
+import kotlin.math.floor
+import kotlin.math.ln
+import kotlin.math.sin
 
 object TripMath {
     val KINDS = listOf("住宿", "美食", "风景", "博物馆", "杂物店")
@@ -49,4 +53,102 @@ object TripMath {
         if (lastReminded == plannedEnd && !today.isBefore(plannedEnd.plusDays(2))) return today
         return null
     }
+
+    fun mapFrame(points: List<Pair<Double, Double>>, widthPx: Int, heightPx: Int, tileSize: Int = 256): MapFrame {
+        val width = widthPx.coerceAtLeast(1)
+        val height = heightPx.coerceAtLeast(1)
+        val located = points.ifEmpty { listOf(25.27 to 110.29) }
+        var minLat = located.minOf { it.first }
+        var maxLat = located.maxOf { it.first }
+        var minLng = located.minOf { it.second }
+        var maxLng = located.maxOf { it.second }
+        if (maxLat - minLat < 0.08) {
+            val mid = (minLat + maxLat) / 2
+            minLat = mid - 0.04
+            maxLat = mid + 0.04
+        }
+        if (maxLng - minLng < 0.08) {
+            val mid = (minLng + maxLng) / 2
+            minLng = mid - 0.04
+            maxLng = mid + 0.04
+        }
+        val latPad = (maxLat - minLat) * 0.22
+        val lngPad = (maxLng - minLng) * 0.22
+        minLat -= latPad
+        maxLat += latPad
+        minLng -= lngPad
+        maxLng += lngPad
+        var zoom = 16
+        while (zoom > 4) {
+            val spanX = (lonToTileX(maxLng, zoom) - lonToTileX(minLng, zoom)) * tileSize
+            val spanY = (latToTileY(minLat, zoom) - latToTileY(maxLat, zoom)) * tileSize
+            if (spanX <= width && spanY <= height) break
+            zoom--
+        }
+        val west = lonToTileX(minLng, zoom)
+        val east = lonToTileX(maxLng, zoom)
+        val north = latToTileY(maxLat, zoom)
+        val south = latToTileY(minLat, zoom)
+        val left = west - (width / tileSize.toDouble() - (east - west)) / 2
+        val top = north - (height / tileSize.toDouble() - (south - north)) / 2
+        return MapFrame(zoom, left, top, width, height, tileSize)
+    }
+
+    fun mapTiles(frame: MapFrame): List<MapTile> {
+        val maxIndex = (1 shl frame.zoom) - 1
+        val x0 = floor(frame.left).toInt()
+        val y0 = floor(frame.top).toInt()
+        val x1 = floor(frame.left + frame.widthPx / frame.tileSize.toDouble()).toInt()
+        val y1 = floor(frame.top + frame.heightPx / frame.tileSize.toDouble()).toInt()
+        val tiles = mutableListOf<MapTile>()
+        for (x in x0..x1) {
+            for (y in y0..y1) {
+                val tx = x.coerceIn(0, maxIndex)
+                val ty = y.coerceIn(0, maxIndex)
+                val host = 1 + ((tx + ty) and 3)
+                tiles += MapTile(
+                    x = tx,
+                    y = ty,
+                    z = frame.zoom,
+                    url = "https://wprd0$host.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scl=1&style=7&x=$tx&y=$ty&z=${frame.zoom}",
+                    offsetX = ((x - frame.left) * frame.tileSize).toFloat(),
+                    offsetY = ((y - frame.top) * frame.tileSize).toFloat(),
+                )
+            }
+        }
+        return tiles
+    }
+
+    fun mapPixel(lat: Double, lng: Double, frame: MapFrame): Pair<Float, Float> {
+        val x = (lonToTileX(lng, frame.zoom) - frame.left) * frame.tileSize
+        val y = (latToTileY(lat, frame.zoom) - frame.top) * frame.tileSize
+        return x.toFloat() to y.toFloat()
+    }
+
+    private fun lonToTileX(lng: Double, zoom: Int): Double =
+        (lng + 180.0) / 360.0 * (1 shl zoom)
+
+    private fun latToTileY(lat: Double, zoom: Int): Double {
+        val clamped = lat.coerceIn(-85.05112878, 85.05112878)
+        val sinLat = sin(Math.toRadians(clamped))
+        return (1.0 - ln((1.0 + sinLat) / (1.0 - sinLat)) / (2.0 * PI)) / 2.0 * (1 shl zoom)
+    }
 }
+
+data class MapFrame(
+    val zoom: Int,
+    val left: Double,
+    val top: Double,
+    val widthPx: Int,
+    val heightPx: Int,
+    val tileSize: Int = 256,
+)
+
+data class MapTile(
+    val x: Int,
+    val y: Int,
+    val z: Int,
+    val url: String,
+    val offsetX: Float,
+    val offsetY: Float,
+)
