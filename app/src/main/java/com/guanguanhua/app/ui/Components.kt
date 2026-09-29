@@ -1,5 +1,10 @@
 package com.guanguanhua.app.ui
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -51,6 +56,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -58,12 +64,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import coil.compose.AsyncImage
 import com.guanguanhua.app.data.RequestStatus
+import com.guanguanhua.app.notify.CycleReminder
+import com.guanguanhua.app.notify.ReviewActivityWorker
 import com.guanguanhua.app.ui.theme.Appearance
 import com.guanguanhua.app.ui.theme.QTheme
 import java.io.File
@@ -565,7 +575,7 @@ fun AppearancePicker(
         Text("外观", style = MaterialTheme.typography.titleMedium)
         Spacer(Modifier.height(6.dp))
         Text(
-            "浅色是现在的清爽 Q 版；深色用深夜画布，主按钮用天空蓝，珊瑚留给金额。",
+            "浅色清爽，深色夜里看。",
             style = MaterialTheme.typography.bodySmall,
             color = QTheme.colors.secondary,
         )
@@ -576,6 +586,26 @@ fun AppearancePicker(
         ) {
             ChoiceChip("浅色", value == Appearance.Light, onClick = { onChange(Appearance.Light) })
             ChoiceChip("深色", value == Appearance.Dark, onClick = { onChange(Appearance.Dark) })
+        }
+    }
+}
+
+@Composable
+fun rememberAskNotifications(): () -> Unit {
+    val context = LocalContext.current
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            ReviewActivityWorker.enqueueSoon(context)
+            CycleReminder.scheduleFromCache(context)
+        }
+    }
+    return remember(launcher, context) {
+        {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+            ) {
+                launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
         }
     }
 }

@@ -1,6 +1,7 @@
 package com.guanguanhua.app.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -45,6 +46,7 @@ fun RequestDetailScreen(viewModel: AppViewModel, requestId: Long, onBack: () -> 
     var priceText by rememberSaveable { mutableStateOf("") }
     var quantityText by rememberSaveable { mutableStateOf("") }
     var approveAttempted by rememberSaveable { mutableStateOf(false) }
+    var adjusting by rememberSaveable { mutableStateOf(false) }
 
     val current = request
     if (current == null) {
@@ -83,11 +85,7 @@ fun RequestDetailScreen(viewModel: AppViewModel, requestId: Long, onBack: () -> 
         PageHeader("申请详情", current.itemName, onBack = onBack)
         SoftCard(modifier = Modifier.fillMaxWidth()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                if (QTheme.colors.isDark) {
-                    CategoryChip(current.category)
-                } else {
-                    RequestThumb(current.category, current.imagePath)
-                }
+                CategoryChip(current.category)
                 Spacer(Modifier.weight(1f))
                 StatusBadge(current.status, partial = current.partial)
             }
@@ -105,44 +103,22 @@ fun RequestDetailScreen(viewModel: AppViewModel, requestId: Long, onBack: () -> 
             MoneyText(current.totalCents, style = MaterialTheme.typography.displaySmall)
             Spacer(Modifier.height(16.dp))
             listOf(
-                "分类" to current.category,
                 "单价" to if (current.approvedUnitPriceCents != null && current.approvedUnitPriceCents != current.unitPriceCents) {
-                    if (QTheme.colors.isDark) {
-                        "${current.unitPriceCents.toYuan()} → ${current.approvedUnitPriceCents.toYuan()}"
-                    } else {
-                        "${current.approvedUnitPriceCents.toYuan()}（申请 ${current.unitPriceCents.toYuan()}）"
-                    }
+                    "${current.approvedUnitPriceCents.toYuan()}（申请 ${current.unitPriceCents.toYuan()}）"
                 } else {
                     current.unitPriceCents.toYuan()
                 },
                 "数量" to if (current.approvedQuantity != null && current.approvedQuantity != current.quantity) {
-                    if (QTheme.colors.isDark) {
-                        "${current.quantity} → ${current.approvedQuantity}"
-                    } else {
-                        "${current.approvedQuantity}（申请 ${current.quantity} 个）"
-                    }
+                    "${current.approvedQuantity}（申请 ${current.quantity} 个）"
                 } else {
                     "${current.quantity}"
                 },
                 "申请人" to if (current.mine) "我（${current.requesterName}）" else current.requesterName,
                 "申请时间" to current.createdAt.toDateTimeText(),
-            ).forEachIndexed { index, (label, value) ->
-                if (QTheme.colors.isDark && index > 0) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 2.dp)
-                            .height(1.dp)
-                            .background(QTheme.colors.line),
-                    )
-                }
+            ).forEach { (label, value) ->
                 Row(modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
                     Text(label, color = QTheme.colors.secondary, modifier = Modifier.weight(1f))
-                    if (label == "分类") {
-                        CategoryChip(current.category)
-                    } else {
-                        Text(value, fontWeight = FontWeight.Medium)
-                    }
+                    Text(value, fontWeight = FontWeight.Medium)
                 }
             }
             if (current.reason.isNotBlank()) {
@@ -201,50 +177,52 @@ fun RequestDetailScreen(viewModel: AppViewModel, requestId: Long, onBack: () -> 
                     Text("帮 ${current.requesterName} 把把关", style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        "可以改数量或单价再通过，但总额不能超过申请 ${current.askedCents.toYuan()}。过了关的钱才会乖乖进账本。",
+                        "按申请通过，或改金额后再过。总额不能超过 ${current.askedCents.toYuan()}。",
                         style = MaterialTheme.typography.bodySmall,
                         color = QTheme.colors.muted,
                     )
-                    Spacer(Modifier.height(12.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        SoftField(
-                            value = priceText,
-                            onValueChange = { priceText = it },
-                            label = "同意的单价（元）",
-                            prefix = "¥",
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            isError = approveAttempted && !priceOk,
-                            supportingText = if (approveAttempted && !priceOk) "须大于 0" else "可改单价",
-                            modifier = Modifier.weight(1.4f),
-                        )
-                        SoftField(
-                            value = quantityText,
-                            onValueChange = { quantityText = it },
-                            label = "同意买几个",
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            isError = approveAttempted && !qtyOk,
-                            supportingText = if (approveAttempted && !qtyOk) "须大于 0" else "可改数量",
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
-                    if (approveAmountsOk) {
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            if (approveQty != current.quantity || approvePrice != current.unitPriceCents) {
-                                "按这个通过：${(approvePrice!! * approveQty!!).toYuan()}（申请 ${current.askedCents.toYuan()}）"
-                            } else {
-                                "按申请全额通过：${current.askedCents.toYuan()}"
-                            },
-                            color = QTheme.colors.coral,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                    } else if (priceOk && qtyOk) {
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            "批准总额 ${(approvePrice!! * approveQty!!).toYuan()} 超过了申请 ${current.askedCents.toYuan()}",
-                            color = QTheme.colors.rose,
-                            fontWeight = FontWeight.SemiBold,
-                        )
+                    if (adjusting) {
+                        Spacer(Modifier.height(12.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            SoftField(
+                                value = priceText,
+                                onValueChange = { priceText = it },
+                                label = "同意的单价（元）",
+                                prefix = "¥",
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                isError = approveAttempted && !priceOk,
+                                supportingText = if (approveAttempted && !priceOk) "须大于 0" else "可改单价",
+                                modifier = Modifier.weight(1.4f),
+                            )
+                            SoftField(
+                                value = quantityText,
+                                onValueChange = { quantityText = it },
+                                label = "同意买几个",
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                isError = approveAttempted && !qtyOk,
+                                supportingText = if (approveAttempted && !qtyOk) "须大于 0" else "可改数量",
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                        if (approveAmountsOk) {
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                if (approveQty != current.quantity || approvePrice != current.unitPriceCents) {
+                                    "按这个通过：${(approvePrice!! * approveQty!!).toYuan()}（申请 ${current.askedCents.toYuan()}）"
+                                } else {
+                                    "按申请全额通过：${current.askedCents.toYuan()}"
+                                },
+                                color = QTheme.colors.coral,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        } else if (priceOk && qtyOk) {
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "批准总额 ${(approvePrice!! * approveQty!!).toYuan()} 超过了申请 ${current.askedCents.toYuan()}",
+                                color = QTheme.colors.rose,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        }
                     }
                     Spacer(Modifier.height(10.dp))
                     SoftField(
@@ -259,22 +237,44 @@ fun RequestDetailScreen(viewModel: AppViewModel, requestId: Long, onBack: () -> 
                         PillButton("拒绝", filled = false, enabled = !isBusy, onClick = {
                             viewModel.review(current.id, approve = false, comment = comment, onSuccess = onBack)
                         }, modifier = Modifier.weight(1f))
-                        PillButton("通过", enabled = !isBusy, approve = true, onClick = {
-                            approveAttempted = true
-                            if (approveAmountsOk) {
-                                viewModel.review(
-                                    current.id,
-                                    approve = true,
-                                    comment = comment,
-                                    unitPriceCents = approvePrice,
-                                    quantity = approveQty,
-                                    onSuccess = onBack,
-                                )
-                            }
-                        }, modifier = Modifier.weight(1f))
+                        PillButton(
+                            if (adjusting) "按这个通过" else "按申请通过",
+                            enabled = !isBusy,
+                            approve = true,
+                            onClick = {
+                                if (adjusting) {
+                                    approveAttempted = true
+                                    if (approveAmountsOk) {
+                                        viewModel.review(
+                                            current.id,
+                                            approve = true,
+                                            comment = comment,
+                                            unitPriceCents = approvePrice,
+                                            quantity = approveQty,
+                                            onSuccess = onBack,
+                                        )
+                                    }
+                                } else {
+                                    viewModel.review(
+                                        current.id,
+                                        approve = true,
+                                        comment = comment,
+                                        unitPriceCents = current.unitPriceCents,
+                                        quantity = current.quantity,
+                                        onSuccess = onBack,
+                                    )
+                                }
+                            },
+                            modifier = Modifier.weight(1f),
+                        )
                     }
                     Spacer(Modifier.height(8.dp))
-                    Text("通过后会自动记入当月消费。", color = QTheme.colors.muted, style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        if (adjusting) "改回原申请" else "改金额再过",
+                        color = QTheme.colors.sky,
+                        style = MaterialTheme.typography.labelMedium,
+                        modifier = Modifier.clickable { adjusting = !adjusting },
+                    )
                 }
             }
 

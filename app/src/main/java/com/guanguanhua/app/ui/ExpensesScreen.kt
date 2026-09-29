@@ -2,6 +2,7 @@ package com.guanguanhua.app.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -47,7 +48,7 @@ import com.guanguanhua.app.ui.theme.QTheme
 import java.time.YearMonth
 
 @Composable
-fun ExpensesScreen(viewModel: AppViewModel) {
+fun ExpensesScreen(viewModel: AppViewModel, onOpenRequest: (Long) -> Unit) {
     val month by viewModel.selectedMonth.collectAsStateWithLifecycle()
     val expenses by viewModel.monthExpenses.collectAsStateWithLifecycle()
     val budget by viewModel.monthBudget.collectAsStateWithLifecycle()
@@ -74,8 +75,8 @@ fun ExpensesScreen(viewModel: AppViewModel) {
     ) {
         Spacer(Modifier.height(12.dp))
         PageHeader(
-            title = "小账本",
-            subtitle = "才、才不是在盯你花了多少",
+            title = "账本",
+            subtitle = "已通过的购买会记在这里",
             leading = {
                 StackedAvatars(
                     meName = profile.name,
@@ -132,38 +133,19 @@ fun ExpensesScreen(viewModel: AppViewModel) {
                         )
                         .padding(18.dp),
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("本月已消费", color = q.muted, style = MaterialTheme.typography.bodyMedium)
-                                Spacer(Modifier.width(8.dp))
-                                Text(
-                                    "盯~",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = q.mint,
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f))
-                                        .padding(horizontal = 8.dp, vertical = 2.dp),
-                                )
-                            }
-                            MoneyText(
-                                totalCents,
-                                style = MaterialTheme.typography.displaySmall,
-                                color = if (overBudget) MaterialTheme.colorScheme.error else q.coral,
-                            )
-                        }
-                        MemberAvatar(
-                            name = profile.name,
-                            presetId = profile.avatarPreset,
-                            photoUrl = profile.avatarUrl,
-                            size = 64.dp,
-                        )
-                    }
+                    Text("本月已消费", color = q.muted, style = MaterialTheme.typography.bodyMedium)
+                    MoneyText(
+                        totalCents,
+                        style = MaterialTheme.typography.displaySmall,
+                        color = if (overBudget) MaterialTheme.colorScheme.error else q.coral,
+                    )
                     Spacer(Modifier.height(12.dp))
                     Text(
-                        text = if (budgetCents == null) "还没设预算，点下面设一个小目标"
-                        else "预算 ${budgetCents.toYuan()}  ·  剩余 ${(budgetCents - totalCents).toYuan()}",
+                        text = when {
+                            budgetCents == null -> "还没设预算"
+                            overBudget -> "预算 ${budgetCents.toYuan()}  ·  超支 ${(totalCents - budgetCents).toYuan()}"
+                            else -> "预算 ${budgetCents.toYuan()}  ·  剩余 ${(budgetCents - totalCents).toYuan()}"
+                        },
                         color = if (overBudget) MaterialTheme.colorScheme.error else q.muted,
                         style = MaterialTheme.typography.bodyMedium,
                     )
@@ -177,13 +159,18 @@ fun ExpensesScreen(viewModel: AppViewModel) {
                         )
                     }
                     Spacer(Modifier.height(12.dp))
-                    ChoiceChip(
-                        label = if (budgetCents == null) "设置预算" else "改预算",
-                        selected = false,
-                        onClick = {
-                            budgetText = budgetCents?.toYuan()?.removePrefix("¥") ?: ""
-                            editingBudget = true
-                        },
+                    Text(
+                        if (budgetCents == null) "设置预算" else "改预算",
+                        color = q.sky,
+                        style = MaterialTheme.typography.labelMedium,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(q.skySoft)
+                            .clickable {
+                                budgetText = budgetCents?.toYuan()?.removePrefix("¥") ?: ""
+                                editingBudget = true
+                            }
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
                     )
                     Spacer(Modifier.height(6.dp))
                     Text("共 ${expenses.size} 笔已通过的购买", color = q.muted, style = MaterialTheme.typography.bodySmall)
@@ -209,6 +196,12 @@ fun ExpensesScreen(viewModel: AppViewModel) {
                                         Icon(look.icon, contentDescription = null, tint = look.accent, modifier = Modifier.size(14.dp))
                                     }
                                     Text(category, modifier = Modifier.weight(1f))
+                                    Text(
+                                        if (totalCents == 0L) "0%" else "${(cents * 100 / totalCents)}%",
+                                        color = QTheme.colors.muted,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        modifier = Modifier.padding(end = 8.dp),
+                                    )
                                     MoneyText(cents, style = MaterialTheme.typography.titleMedium, color = QTheme.colors.ink)
                                 }
                                 Spacer(Modifier.height(6.dp))
@@ -234,7 +227,7 @@ fun ExpensesScreen(viewModel: AppViewModel) {
                 }
             } else {
                 items(expenses, key = { it.id }) { record ->
-                    SoftCard(modifier = Modifier.fillMaxWidth()) {
+                    SoftCard(modifier = Modifier.fillMaxWidth(), onClick = { onOpenRequest(record.requestId) }) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             CategoryBubble(record.category)
                             Spacer(Modifier.width(12.dp))
