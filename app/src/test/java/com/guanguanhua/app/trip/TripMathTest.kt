@@ -1,9 +1,11 @@
 package com.guanguanhua.app.trip
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
 import java.time.LocalDate
 import java.time.ZoneOffset
 
@@ -47,5 +49,14 @@ class TripMathTest {
         assertNull(TripMath.nextEndReminder(planned, false, planned.plusDays(5), planned.plusDays(2)))
         assertNull(TripMath.nextEndReminder(planned, ended = true, today = planned, lastReminded = null))
         assertNull(TripMath.nextEndReminder(null, false, planned, null))
+    }
+
+    @Test
+    fun routeMapUsesBundledLeaflet() {
+        val html = File("src/main/assets/trip_map.html").readText()
+        assertTrue(html.contains("leaflet/leaflet.js"))
+        assertFalse(html.contains("unpkg.com"))
+        assertTrue(File("src/main/assets/leaflet/leaflet.js").exists())
+        assertTrue(File("src/main/assets/leaflet/leaflet.css").exists())
     }
 }

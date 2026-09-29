@@ -120,7 +120,15 @@ fun RecordStopScreen(viewModel: AppViewModel, onBack: () -> Unit, onOpenRoute: (
                 }
                 SoftField(value = name, onValueChange = { name = it }, label = "附近没找到，自己写")
                 if (name.isNotBlank()) {
-                    PillButton("用这个名字", filled = false, onClick = { picked = true })
+                    PillButton("用这个名字", filled = false, onClick = {
+                        if (lat == null || lng == null) {
+                            NearbyPlaces.lastLocation(context)?.let { location ->
+                                lat = location.latitude.toString()
+                                lng = location.longitude.toString()
+                            }
+                        }
+                        picked = true
+                    })
                 }
             } else {
                 SoftField(value = name, onValueChange = { name = it }, label = "名字")
@@ -137,6 +145,12 @@ fun RecordStopScreen(viewModel: AppViewModel, onBack: () -> Unit, onOpenRoute: (
                     "记下",
                     enabled = !isBusy && name.trim().isNotBlank() && TripMath.knownKind(kind),
                     onClick = {
+                        if (lat == null || lng == null) {
+                            NearbyPlaces.lastLocation(context)?.let { location ->
+                                lat = location.latitude.toString()
+                                lng = location.longitude.toString()
+                            }
+                        }
                         viewModel.addTripStop(
                             name = name,
                             kind = kind,
