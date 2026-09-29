@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import com.guanguanhua.app.cycle.CycleCache
 import com.guanguanhua.app.cycle.CycleMath
 import com.guanguanhua.app.trip.TripCache
+import com.guanguanhua.app.trip.TripMath
 import com.guanguanhua.app.data.ApiConfig
 import com.guanguanhua.app.data.CycleRecord
 import com.guanguanhua.app.data.CycleSettings
@@ -530,6 +531,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         lng: Double?,
         visitedOn: String,
         amountCents: Long? = null,
+        photoUris: List<Uri> = emptyList(),
         onSuccess: () -> Unit = {},
     ) {
         val tripId = _trips.value.active?.id
@@ -540,15 +542,21 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             track(_busyCount) {
                 runCatching {
-                    repo.addTripStop(
+                    val created = repo.addTripStop(
                         tripId,
                         TripStopWrite(name.trim(), kind, rating, lat, lng, visitedOn, amountCents),
                     )
+                    photoUris.take(TripMath.MAX_PHOTOS).forEach { uri ->
+                        repo.uploadTripStopPhoto(tripId, created.id, uri)
+                    }
                 }.onSuccess {
                     runCatching { syncTrips() }
                     _statusMessage.value = "已记下 · ${name.trim()}"
                     onSuccess()
-                }.onFailure { _statusMessage.value = it.message ?: "没记下" }
+                }.onFailure {
+                    runCatching { syncTrips() }
+                    _statusMessage.value = it.message ?: "没记下"
+                }
             }
         }
     }
@@ -572,6 +580,33 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     )
                 }.onSuccess { runCatching { syncTrips() } }
                     .onFailure { _statusMessage.value = it.message ?: "没改成" }
+            }
+        }
+    }
+
+    fun uploadTripStopPhotos(tripId: Long, stopId: Long, uris: List<Uri>) {
+        if (uris.isEmpty()) return
+        viewModelScope.launch {
+            track(_busyCount) {
+                runCatching {
+                    uris.take(TripMath.MAX_PHOTOS).forEach { uri ->
+                        repo.uploadTripStopPhoto(tripId, stopId, uri)
+                    }
+                }.onSuccess { runCatching { syncTrips() } }
+                    .onFailure {
+                        runCatching { syncTrips() }
+                        _statusMessage.value = it.message ?: "照片没传上"
+                    }
+            }
+        }
+    }
+
+    fun deleteTripStopPhoto(tripId: Long, stopId: Long, photoId: Long) {
+        viewModelScope.launch {
+            track(_busyCount) {
+                runCatching { repo.deleteTripStopPhoto(tripId, stopId, photoId) }
+                    .onSuccess { runCatching { syncTrips() } }
+                    .onFailure { _statusMessage.value = it.message ?: "照片没删掉" }
             }
         }
     }

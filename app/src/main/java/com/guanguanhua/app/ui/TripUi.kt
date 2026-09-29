@@ -3,6 +3,7 @@ package com.guanguanhua.app.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -10,7 +11,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
@@ -22,6 +25,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.guanguanhua.app.data.TripStopPhoto
 import com.guanguanhua.app.trip.TripMath
 import com.guanguanhua.app.ui.theme.QTheme
 
@@ -110,4 +114,47 @@ fun TripKindLabel(kind: String) {
             .border(1.dp, q.line, RoundedCornerShape(999.dp))
             .padding(horizontal = 8.dp, vertical = 2.dp),
     )
+}
+
+@Composable
+fun TripPhotoStrip(
+    photos: List<TripStopPhoto>,
+    localUris: List<String> = emptyList(),
+    canEdit: Boolean,
+    onAdd: () -> Unit,
+    onRemovePhoto: (TripStopPhoto) -> Unit = {},
+    onRemoveLocal: (String) -> Unit = {},
+) {
+    val total = photos.size + localUris.size
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        photos.forEach { photo ->
+            PhotoSlot(
+                model = photo.url,
+                modifier = Modifier.size(88.dp),
+                showEmpty = false,
+                onClear = if (canEdit) ({ onRemovePhoto(photo) }) else null,
+            )
+        }
+        localUris.forEach { uri ->
+            PhotoSlot(
+                model = uri,
+                modifier = Modifier.size(88.dp),
+                showEmpty = false,
+                onClear = { onRemoveLocal(uri) },
+            )
+        }
+        if (canEdit && total < TripMath.MAX_PHOTOS) {
+            PhotoSlot(
+                model = null,
+                modifier = Modifier.size(88.dp),
+                emptyLabel = "加照片",
+                onClick = onAdd,
+            )
+        }
+    }
 }

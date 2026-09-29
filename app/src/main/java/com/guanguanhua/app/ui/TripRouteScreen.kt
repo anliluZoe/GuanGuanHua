@@ -1,7 +1,12 @@
 package com.guanguanhua.app.ui
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -21,6 +26,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -44,8 +50,10 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -73,7 +81,7 @@ fun TripRouteScreen(viewModel: AppViewModel, tripId: Long, onBack: () -> Unit) {
     LaunchedEffect(tripId) { viewModel.openTrip(tripId) }
     val trip = opened?.takeIf { it.id == tripId } ?: trips.active?.takeIf { it.id == tripId }
     var day by rememberSaveable { mutableStateOf("all") }
-    var editingId by rememberSaveable { mutableStateOf(0L) }
+    var selectedId by rememberSaveable { mutableStateOf(0L) }
     var deletingId by rememberSaveable { mutableStateOf(0L) }
     val shown = trip?.stops.orEmpty().filter { day == "all" || it.visitedOn == day }
     val mapped = shown.count { it.lat != null && it.lng != null }
@@ -94,7 +102,7 @@ fun TripRouteScreen(viewModel: AppViewModel, tripId: Long, onBack: () -> Unit) {
                 "${TripMath.formatRange(trip.startedAt, trip.endedAt)} · ${tripStopsLine(trip.stops.size, trip.spentCents)}",
                 color = QTheme.colors.muted,
             )
-            TripMap(shown)
+            TripMap(shown, selectedId) { selectedId = it }
             if (shown.isNotEmpty() && mapped == 0) {
                 Text(
                     "这些站还没有位置，地图上画不出线。记的时候点附近一家，或打开定位再手写。",
@@ -117,7 +125,7 @@ fun TripRouteScreen(viewModel: AppViewModel, tripId: Long, onBack: () -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 itemsIndexed(shown, key = { _, stop -> stop.id }) { index, stop ->
-                    SoftCard(modifier = Modifier.fillMaxWidth(), onClick = { if (trip.active) editingId = stop.id }) {
+                    SoftCard(modifier = Modifier.fillMaxWidth(), onClick = { selectedId = stop.id }) {
                         Text("${index + 1}. ${stop.name}", style = MaterialTheme.typography.titleMedium)
                         Spacer(Modifier.height(4.dp))
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -130,6 +138,14 @@ fun TripRouteScreen(viewModel: AppViewModel, tripId: Long, onBack: () -> Unit) {
                             stop.amountCents?.let { cents ->
                                 Text(cents.toYuan(), color = QTheme.colors.coral, style = MaterialTheme.typography.bodySmall)
                             }
+                        }
+                        if (stop.photos.isNotEmpty()) {
+                            Spacer(Modifier.height(8.dp))
+                            PhotoSlot(
+                                model = stop.photos.first().url,
+                                modifier = Modifier.fillMaxWidth().height(120.dp),
+                                showEmpty = false,
+                            )
                         }
                         if (trip.active) {
                             Spacer(Modifier.height(8.dp))
@@ -145,17 +161,26 @@ fun TripRouteScreen(viewModel: AppViewModel, tripId: Long, onBack: () -> Unit) {
         }
     }
 
-    val editing = trip?.stops?.firstOrNull { it.id == editingId }
+    val editing = trip?.stops?.firstOrNull { it.id == selectedId }
     val routeTrip = trip
     if (editing != null && routeTrip != null) {
-        StopEditSheet(
+        StopSheet(
             stop = editing,
+            canEdit = routeTrip.active,
             busy = isBusy,
             onSave = { name, kind, rating, amountCents ->
                 viewModel.updateTripStop(routeTrip.id, editing.id, name, kind, rating, editing.visitedOn, amountCents)
-                editingId = 0L
+                selectedId = 0L
             },
-            onClose = { editingId = 0L },
+            onAddPhotos = { uris ->
+                viewModel.uploadTripStopPhotos(
+                    routeTrip.id,
+                    editing.id,
+                    uris.take(TripMath.MAX_PHOTOS - editing.photos.size),
+                )
+            },
+            onRemovePhoto = { photoId -> viewModel.deleteTripStopPhoto(routeTrip.id, editing.id, photoId) },
+            onClose = { selectedId = 0L },
         )
     }
     val deleting = routeTrip?.stops?.firstOrNull { it.id == deletingId }
@@ -178,7 +203,7 @@ fun TripRouteScreen(viewModel: AppViewModel, tripId: Long, onBack: () -> Unit) {
 }
 
 @Composable
-private fun TripMap(stops: List<TripStop>) {
+private fun TripMap(stops: List<TripStop>, selectedId: Long, onSelect: (Long) -> Unit) {
     val located = stops.mapNotNull { stop ->
         val lat = stop.lat
         val lng = stop.lng
@@ -200,7 +225,14 @@ private fun TripMap(stops: List<TripStop>) {
         val frame = remember(coords, widthPx, heightPx) { TripMath.mapFrame(coords, widthPx, heightPx) }
         val tiles = remember(frame) { TripMath.mapTiles(frame) }
         val tileDp = with(density) { frame.tileSize.toDp() }
-        val markerRadius = with(density) { 14.dp.roundToPx() }
+        val hitRadius = with(density) { 14.dp.roundToPx() }
+        val minMarkerDist = with(density) { 20.dp.toPx() }
+        val pixels = remember(located, frame, minMarkerDist) {
+            TripMath.spreadOverlapping(
+                located.map { TripMath.mapPixel(it.lat as Double, it.lng as Double, frame) },
+                minMarkerDist,
+            )
+        }
         tiles.forEach { tile ->
             AsyncImage(
                 model = ImageRequest.Builder(context)
@@ -223,29 +255,39 @@ private fun TripMap(stops: List<TripStop>) {
                     color = q.sky,
                     start = Offset(start.first, start.second),
                     end = Offset(end.first, end.second),
-                    strokeWidth = 8f,
+                    strokeWidth = 4f,
                     cap = StrokeCap.Round,
                 )
             }
         }
         located.forEachIndexed { index, stop ->
-            val pixel = TripMath.mapPixel(stop.lat as Double, stop.lng as Double, frame)
+            val pixel = pixels[index]
+            val selected = stop.id == selectedId
             Box(
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .offset {
-                        IntOffset(pixel.first.roundToInt() - markerRadius, pixel.second.roundToInt() - markerRadius)
+                        IntOffset(pixel.first.roundToInt() - hitRadius, pixel.second.roundToInt() - hitRadius)
                     }
                     .size(28.dp)
-                    .clip(CircleShape)
-                    .background(stopKindFill[stop.kind] ?: q.sky),
+                    .clickable { onSelect(stop.id) },
                 contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    "${index + 1}",
-                    color = Color.White,
-                    style = MaterialTheme.typography.labelSmall,
-                )
+                Box(
+                    modifier = Modifier
+                        .size(if (selected) 18.dp else 14.dp)
+                        .border(1.dp, if (selected) Color.White else Color.Transparent, CircleShape)
+                        .clip(CircleShape)
+                        .background(stopKindFill[stop.kind] ?: q.sky),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        "${index + 1}",
+                        color = Color.White,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
             }
         }
     }
@@ -253,10 +295,13 @@ private fun TripMap(stops: List<TripStop>) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun StopEditSheet(
+private fun StopSheet(
     stop: TripStop,
+    canEdit: Boolean,
     busy: Boolean,
     onSave: (String, String, Int?, Long?) -> Unit,
+    onAddPhotos: (List<Uri>) -> Unit,
+    onRemovePhoto: (Long) -> Unit,
     onClose: () -> Unit,
 ) {
     var name by rememberSaveable(stop.id) { mutableStateOf(stop.name) }
@@ -265,26 +310,57 @@ private fun StopEditSheet(
     var amountText by rememberSaveable(stop.id) {
         mutableStateOf(stop.amountCents?.toYuan()?.removePrefix("¥") ?: "")
     }
+    val photoPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickMultipleVisualMedia(TripMath.MAX_PHOTOS),
+    ) { uris ->
+        if (uris.isNotEmpty()) onAddPhotos(uris)
+    }
     ModalBottomSheet(
         onDismissRequest = onClose,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = QTheme.colors.paper,
     ) {
-        Column(modifier = Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("改这一站", style = MaterialTheme.typography.titleLarge)
-            SoftField(value = name, onValueChange = { name = it }, label = "名字")
-            TripKindChips(kind) { kind = it }
-            TripStars(rating.takeIf { it > 0 }) { rating = it ?: 0 }
-            TripAmountField(amountText) { amountText = it }
-            PillButton(
-                "保存",
-                enabled = !busy && name.trim().isNotBlank() && TripMath.knownKind(kind) &&
-                    (amountText.isBlank() || amountText.yuanToCentsOrNull() != null),
-                onClick = {
-                    onSave(name, kind, TripMath.ratingOrNull(rating.takeIf { it > 0 }), amountText.yuanToCentsOrNull())
-                },
-            )
-            PillButton("先不了", filled = false, onClick = onClose)
+        Column(
+            modifier = Modifier
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 24.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(if (canEdit) "这一站" else stop.name, style = MaterialTheme.typography.titleLarge)
+            if (canEdit) {
+                SoftField(value = name, onValueChange = { name = it }, label = "名字")
+                TripKindChips(kind) { kind = it }
+                TripStars(rating.takeIf { it > 0 }) { rating = it ?: 0 }
+                TripAmountField(amountText) { amountText = it }
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    TripKindLabel(stop.kind)
+                    Text(stop.rating?.let { "★$it" } ?: "未评分", color = QTheme.colors.muted)
+                    stop.amountCents?.let { Text(it.toYuan(), color = QTheme.colors.coral) }
+                }
+            }
+            if (stop.photos.isNotEmpty() || canEdit) {
+                TripPhotoStrip(
+                    photos = stop.photos,
+                    canEdit = canEdit && !busy,
+                    onAdd = {
+                        photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                    },
+                    onRemovePhoto = { photo -> onRemovePhoto(photo.id) },
+                )
+            }
+            if (canEdit) {
+                PillButton(
+                    "保存",
+                    enabled = !busy && name.trim().isNotBlank() && TripMath.knownKind(kind) &&
+                        (amountText.isBlank() || amountText.yuanToCentsOrNull() != null),
+                    onClick = {
+                        onSave(name, kind, TripMath.ratingOrNull(rating.takeIf { it > 0 }), amountText.yuanToCentsOrNull())
+                    },
+                )
+            }
+            PillButton(if (canEdit) "先不了" else "好", filled = false, onClick = onClose)
         }
     }
 }

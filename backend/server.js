@@ -2,7 +2,7 @@ const path = require("path");
 const express = require("express");
 const cors = require("cors");
 const multer = require("multer");
-const { Store, normalizeWidgetCaptionColor, TRIP_KINDS } = require("./store");
+const { Store, normalizeWidgetCaptionColor, TRIP_KINDS, TRIP_STOP_PHOTO_MAX } = require("./store");
 const { UpdateStore } = require("./updates");
 
 const DATA_ROOT = process.env.SAVE_MONEY_DATA || path.join(__dirname, "data");
@@ -382,7 +382,7 @@ app.patch("/api/cycle-settings", requireMember, (req, res) => {
   res.json(settingsJson(store.patchCycleSettings(req.member.id, patch)));
 });
 
-function tripJson(row, stops) {
+function tripJson(row, req, withStops) {
   const payload = {
     id: Number(row.id),
     name: row.name,
@@ -394,11 +394,25 @@ function tripJson(row, stops) {
     stopCount: Number(row.stop_count || 0),
     spentCents: Number(row.spent_cents || 0),
   };
-  if (stops) payload.stops = stops.map(stopJson);
+  if (withStops) payload.stops = stopsJson(req, row.id);
   return payload;
 }
 
-function stopJson(row) {
+function stopsJson(req, tripId) {
+  const grouped = new Map();
+  for (const photo of store.listStopPhotosForTrip(tripId)) {
+    const stopId = Number(photo.stop_id);
+    if (!grouped.has(stopId)) grouped.set(stopId, []);
+    grouped.get(stopId).push(photo);
+  }
+  return store.listStops(tripId).map((row) => stopJson(row, req, grouped.get(Number(row.id)) || []));
+}
+
+function oneStopJson(req, row) {
+  return stopJson(row, req, store.listStopPhotos(row.id));
+}
+
+function stopJson(row, req, photos = []) {
   return {
     id: Number(row.id),
     name: row.name,
@@ -411,6 +425,10 @@ function stopJson(row) {
     sortOrder: Number(row.sort_order),
     createdBy: Number(row.created_by),
     createdByName: row.created_by_name,
+    photos: photos.map((photo) => ({
+      id: Number(photo.id),
+      url: fileUrl(req, photo.filename),
+    })),
   };
 }
 
@@ -472,6 +490,8 @@ function tripWriteError(result, res) {
   if (result.error === "kind") return res.status(400).json({ detail: "类型选住宿、美食、风景、博物馆或杂物店" });
   if (result.error === "rating") return res.status(400).json({ detail: "评分请选 1–5 星" });
   if (result.error === "amount") return res.status(400).json({ detail: "金额请填正数，单位是分" });
+  if (result.error === "full") return res.status(400).json({ detail: `这一站最多 ${TRIP_STOP_PHOTO_MAX} 张照片` });
+  if (result.error === "photo") return res.status(404).json({ detail: "找不到这张照片" });
   if (result.error === "order") return res.status(400).json({ detail: "顺序不对" });
   return null;
 }
@@ -483,7 +503,7 @@ app.get("/api/trips", requireMember, (req, res) => {
 app.get("/api/trips/active", requireMember, (req, res) => {
   const row = store.activeTrip(req.member.household_id);
   if (!row) return res.json(null);
-  res.json(tripJson(row, store.listStops(row.id)));
+  res.json(tripJson(row, req, true));
 });
 
 app.get("/api/trips/:id", requireMember, (req, res) => {
@@ -491,7 +511,7 @@ app.get("/api/trips/:id", requireMember, (req, res) => {
   if (!Number.isSafeInteger(id) || id < 1) return res.status(404).json({ detail: "找不到这段旅程" });
   const row = store.tripById(req.member.household_id, id);
   if (!row) return res.status(404).json({ detail: "找不到这段旅程" });
-  res.json(tripJson(row, store.listStops(row.id)));
+  res.json(tripJson(row, req, true));
 });
 
 app.post("/api/trips", requireMember, (req, res) => {
@@ -506,7 +526,7 @@ app.post("/api/trips", requireMember, (req, res) => {
     planned.plannedEnd === undefined ? null : planned.plannedEnd
   );
   if (tripWriteError(created, res)) return;
-  res.json(tripJson(created, []));
+  res.json(tripJson(created, req));
 });
 
 app.post("/api/trips/:id/end", requireMember, (req, res) => {
@@ -514,7 +534,7 @@ app.post("/api/trips/:id/end", requireMember, (req, res) => {
   if (!Number.isSafeInteger(id) || id < 1) return res.status(404).json({ detail: "找不到这段旅程" });
   const ended = store.endTrip(req.member.household_id, id);
   if (tripWriteError(ended, res)) return;
-  res.json(tripJson(ended, store.listStops(ended.id)));
+  res.json(tripJson(ended, req, true));
 });
 
 app.post("/api/trips/:id/stops", requireMember, (req, res) => {
@@ -524,7 +544,7 @@ app.post("/api/trips/:id/stops", requireMember, (req, res) => {
   if (fields.error) return res.status(400).json({ detail: fields.error });
   const created = store.addStop(req.member.household_id, req.member.id, id, fields);
   if (tripWriteError(created, res)) return;
-  res.json(stopJson(created));
+  res.json(oneStopJson(req, created));
 });
 
 app.patch("/api/trips/:id/stops/reorder", requireMember, (req, res) => {
@@ -534,7 +554,7 @@ app.patch("/api/trips/:id/stops/reorder", requireMember, (req, res) => {
   if (!ids) return res.status(400).json({ detail: "顺序不对" });
   const reordered = store.reorderStops(req.member.household_id, id, ids);
   if (tripWriteError(reordered, res)) return;
-  res.json(reordered.map(stopJson));
+  res.json(stopsJson(req, id));
 });
 
 app.patch("/api/trips/:id/stops/:stopId", requireMember, (req, res) => {
@@ -559,7 +579,7 @@ app.patch("/api/trips/:id/stops/:stopId", requireMember, (req, res) => {
   if (Object.prototype.hasOwnProperty.call(req.body || {}, "lng")) fields.lng = req.body.lng == null ? null : fields.lng;
   const updated = store.updateStop(req.member.household_id, id, stopId, fields);
   if (tripWriteError(updated, res)) return;
-  res.json(stopJson(updated));
+  res.json(oneStopJson(req, updated));
 });
 
 app.delete("/api/trips/:id/stops/:stopId", requireMember, (req, res) => {
@@ -571,6 +591,37 @@ app.delete("/api/trips/:id/stops/:stopId", requireMember, (req, res) => {
   const removed = store.deleteStop(req.member.household_id, id, stopId);
   if (tripWriteError(removed, res)) return;
   res.json({ ok: true });
+});
+
+app.post("/api/trips/:id/stops/:stopId/photos", requireMember, upload.single("image"), (req, res) => {
+  const id = Number(req.params.id);
+  const stopId = Number(req.params.stopId);
+  if (!Number.isSafeInteger(id) || id < 1 || !Number.isSafeInteger(stopId) || stopId < 1) {
+    return res.status(404).json({ detail: "找不到这一站" });
+  }
+  if (!req.file || !req.file.buffer.length) return res.status(400).json({ detail: "先选一张照片" });
+  const suffix = path.extname(req.file.originalname || "") || ".jpg";
+  const filename = store.savePhoto(req.file.buffer, suffix);
+  const saved = store.addStopPhoto(req.member.household_id, req.member.id, id, stopId, filename);
+  if (!saved || saved.error) store.deletePhoto(filename);
+  if (tripWriteError(saved, res)) return;
+  res.json(oneStopJson(req, saved));
+});
+
+app.delete("/api/trips/:id/stops/:stopId/photos/:photoId", requireMember, (req, res) => {
+  const id = Number(req.params.id);
+  const stopId = Number(req.params.stopId);
+  const photoId = Number(req.params.photoId);
+  if (
+    !Number.isSafeInteger(id) || id < 1 ||
+    !Number.isSafeInteger(stopId) || stopId < 1 ||
+    !Number.isSafeInteger(photoId) || photoId < 1
+  ) {
+    return res.status(404).json({ detail: "找不到这张照片" });
+  }
+  const removed = store.deleteStopPhoto(req.member.household_id, id, stopId, photoId);
+  if (tripWriteError(removed, res)) return;
+  res.json(oneStopJson(req, removed));
 });
 
 app.get("/api/files/:filename", (req, res) => {

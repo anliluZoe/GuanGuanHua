@@ -226,6 +226,23 @@ interface GuanGuanHuaApi {
         @Path("stopId") stopId: Long,
     ): Response<ResponseBody>
 
+    @Multipart
+    @POST("api/trips/{id}/stops/{stopId}/photos")
+    suspend fun uploadTripStopPhoto(
+        @Header("Authorization") authorization: String,
+        @Path("id") id: Long,
+        @Path("stopId") stopId: Long,
+        @Part image: MultipartBody.Part,
+    ): Response<TripStop>
+
+    @DELETE("api/trips/{id}/stops/{stopId}/photos/{photoId}")
+    suspend fun deleteTripStopPhoto(
+        @Header("Authorization") authorization: String,
+        @Path("id") id: Long,
+        @Path("stopId") stopId: Long,
+        @Path("photoId") photoId: Long,
+    ): Response<TripStop>
+
     @PATCH("api/trips/{id}/stops/reorder")
     suspend fun reorderTripStops(
         @Header("Authorization") authorization: String,
@@ -397,6 +414,20 @@ class HouseholdRepository(private val app: Application) {
         val response = api().deleteTripStop(bearer(), tripId, stopId)
         if (!response.isSuccessful) throw apiFailure(response.code(), response.errorBody()?.string().orEmpty(), "没删掉")
     }
+
+    suspend fun uploadTripStopPhoto(tripId: Long, stopId: Long, imageUri: Uri): TripStop =
+        unwrap(
+            api().uploadTripStopPhoto(
+                bearer(),
+                tripId,
+                stopId,
+                jpegPart(imageUri, field = "image", filename = "stop.jpg", maxEdge = ImageCompress.PHOTO_MAX_EDGE),
+            ),
+            "照片没传上",
+        )
+
+    suspend fun deleteTripStopPhoto(tripId: Long, stopId: Long, photoId: Long): TripStop =
+        unwrap(api().deleteTripStopPhoto(bearer(), tripId, stopId, photoId), "照片没删掉")
 
     suspend fun reorderTripStops(tripId: Long, orderedIds: List<Long>): List<TripStop> =
         unwrap(api().reorderTripStops(bearer(), tripId, jsonBody(TripReorderBody(orderedIds))), "顺序没改成")

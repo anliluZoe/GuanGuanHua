@@ -2,7 +2,9 @@ package com.guanguanhua.app.ui
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -56,6 +58,7 @@ fun RecordStopScreen(viewModel: AppViewModel, onBack: () -> Unit, onOpenRoute: (
     var kind by rememberSaveable { mutableStateOf("") }
     var rating by rememberSaveable { mutableStateOf(0) }
     var amountText by rememberSaveable { mutableStateOf("") }
+    var photoUris by rememberSaveable { mutableStateOf(listOf<String>()) }
     var visitedOn by rememberSaveable { mutableStateOf(LocalDate.now().toString()) }
     var lat by rememberSaveable { mutableStateOf<String?>(null) }
     var lng by rememberSaveable { mutableStateOf<String?>(null) }
@@ -65,6 +68,11 @@ fun RecordStopScreen(viewModel: AppViewModel, onBack: () -> Unit, onOpenRoute: (
     var picked by rememberSaveable { mutableStateOf(false) }
     val askLocation = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         scope.launch { loadNearby(context) { places, hint -> nearby = places; nearbyHint = hint } }
+    }
+    val photoPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickMultipleVisualMedia(TripMath.MAX_PHOTOS),
+    ) { uris ->
+        photoUris = (photoUris + uris.map { it.toString() }).distinct().take(TripMath.MAX_PHOTOS)
     }
 
     LaunchedEffect(Unit) {
@@ -138,6 +146,15 @@ fun RecordStopScreen(viewModel: AppViewModel, onBack: () -> Unit, onOpenRoute: (
                 Text("评分", style = MaterialTheme.typography.labelLarge)
                 TripStars(rating.takeIf { it > 0 }) { rating = it ?: 0 }
                 TripAmountField(amountText) { amountText = it }
+                TripPhotoStrip(
+                    photos = emptyList(),
+                    localUris = photoUris,
+                    canEdit = true,
+                    onAdd = {
+                        photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                    },
+                    onRemoveLocal = { uri -> photoUris = photoUris.filterNot { it == uri } },
+                )
                 Text(
                     if (visitedOn == LocalDate.now().toString()) "不是今天" else "记在 $visitedOn",
                     color = QTheme.colors.sky,
@@ -162,11 +179,13 @@ fun RecordStopScreen(viewModel: AppViewModel, onBack: () -> Unit, onOpenRoute: (
                             lng = lng?.toDoubleOrNull(),
                             visitedOn = visitedOn,
                             amountCents = amountText.yuanToCentsOrNull(),
+                            photoUris = photoUris.map { Uri.parse(it) },
                             onSuccess = {
                                 name = ""
                                 kind = ""
                                 rating = 0
                                 amountText = ""
+                                photoUris = emptyList()
                                 lat = null
                                 lng = null
                                 picked = false
@@ -181,6 +200,7 @@ fun RecordStopScreen(viewModel: AppViewModel, onBack: () -> Unit, onOpenRoute: (
                     lng = null
                     rating = 0
                     amountText = ""
+                    photoUris = emptyList()
                     picked = false
                 })
             }
@@ -188,8 +208,13 @@ fun RecordStopScreen(viewModel: AppViewModel, onBack: () -> Unit, onOpenRoute: (
                 Text("今天记下的", style = MaterialTheme.typography.titleMedium)
                 active.stops.filter { it.visitedOn == LocalDate.now().toString() }.asReversed().forEach { stop ->
                     Text(
-                        listOfNotNull(stop.amountCents?.toYuan(), stop.rating?.let { "★$it" }, stop.kind, stop.name)
-                            .joinToString(" · "),
+                        listOfNotNull(
+                            stop.amountCents?.toYuan(),
+                            stop.rating?.let { "★$it" },
+                            stop.kind,
+                            stop.name,
+                            stop.photos.takeIf { it.isNotEmpty() }?.let { "图${it.size}" },
+                        ).joinToString(" · "),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }

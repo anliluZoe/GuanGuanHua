@@ -26,6 +26,12 @@ data class TripStop(
     val sortOrder: Int = 0,
     val createdBy: Long = 0,
     val createdByName: String? = null,
+    val photos: List<TripStopPhoto> = emptyList(),
+)
+
+data class TripStopPhoto(
+    val id: Long = 0,
+    val url: String = "",
 )
 
 data class TripDetail(

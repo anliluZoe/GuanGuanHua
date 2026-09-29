@@ -6,6 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
 import java.time.ZoneOffset
+import kotlin.math.hypot
 
 class TripMathTest {
 
@@ -15,6 +16,7 @@ class TripMathTest {
         assertTrue(TripMath.knownKind("杂物店"))
         assertNull(TripMath.ratingOrNull(0))
         assertEquals(5, TripMath.ratingOrNull(5))
+        assertEquals(6, TripMath.MAX_PHOTOS)
     }
 
     @Test
@@ -68,5 +70,19 @@ class TripMathTest {
         assertTrue(start.second in 0f..400f)
         assertTrue(end.second in 0f..400f)
         assertTrue(TripMath.mapTiles(TripMath.mapFrame(emptyList(), 400, 260)).isNotEmpty())
+    }
+
+    @Test
+    fun nearbyMarkersSpreadApartInsteadOfStacking() {
+        val stacked = listOf(100f to 100f, 100f to 100f, 102f to 101f)
+        val spread = TripMath.spreadOverlapping(stacked, 20f)
+        val d01 = hypot(spread[0].first - spread[1].first, spread[0].second - spread[1].second)
+        val d02 = hypot(spread[0].first - spread[2].first, spread[0].second - spread[2].second)
+        val d12 = hypot(spread[1].first - spread[2].first, spread[1].second - spread[2].second)
+        assertTrue(d01 >= 19.5f)
+        assertTrue(d02 >= 19.5f)
+        assertTrue(d12 >= 19.5f)
+        val far = listOf(10f to 10f, 200f to 200f)
+        assertEquals(far, TripMath.spreadOverlapping(far, 20f))
     }
 }
