@@ -5,7 +5,9 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 import kotlin.math.PI
+import kotlin.math.cos
 import kotlin.math.floor
+import kotlin.math.hypot
 import kotlin.math.ln
 import kotlin.math.sin
 
@@ -124,6 +126,32 @@ object TripMath {
         val x = (lonToTileX(lng, frame.zoom) - frame.left) * frame.tileSize
         val y = (latToTileY(lat, frame.zoom) - frame.top) * frame.tileSize
         return x.toFloat() to y.toFloat()
+    }
+
+    fun spreadOverlapping(pixels: List<Pair<Float, Float>>, minDist: Float): List<Pair<Float, Float>> {
+        if (pixels.size < 2 || minDist <= 0f) return pixels
+        val out = pixels.map { it.first to it.second }.toMutableList()
+        repeat(12) {
+            for (i in out.indices) {
+                for (j in i + 1 until out.size) {
+                    val dx = out[j].first - out[i].first
+                    val dy = out[j].second - out[i].second
+                    val dist = hypot(dx.toDouble(), dy.toDouble()).toFloat()
+                    if (dist >= minDist) continue
+                    if (dist < 0.5f) {
+                        val angle = i * 2.399f + j
+                        out[j] = out[j].first + cos(angle) * minDist to out[j].second + sin(angle) * minDist
+                        continue
+                    }
+                    val push = (minDist - dist) / 2f
+                    val ux = dx / dist
+                    val uy = dy / dist
+                    out[i] = out[i].first - ux * push to out[i].second - uy * push
+                    out[j] = out[j].first + ux * push to out[j].second + uy * push
+                }
+            }
+        }
+        return out
     }
 
     private fun lonToTileX(lng: Double, zoom: Int): Double =

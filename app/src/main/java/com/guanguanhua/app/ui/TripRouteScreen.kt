@@ -50,8 +50,10 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -223,7 +225,14 @@ private fun TripMap(stops: List<TripStop>, selectedId: Long, onSelect: (Long) ->
         val frame = remember(coords, widthPx, heightPx) { TripMath.mapFrame(coords, widthPx, heightPx) }
         val tiles = remember(frame) { TripMath.mapTiles(frame) }
         val tileDp = with(density) { frame.tileSize.toDp() }
-        val markerRadius = with(density) { 16.dp.roundToPx() }
+        val hitRadius = with(density) { 14.dp.roundToPx() }
+        val minMarkerDist = with(density) { 20.dp.toPx() }
+        val pixels = remember(located, frame, minMarkerDist) {
+            TripMath.spreadOverlapping(
+                located.map { TripMath.mapPixel(it.lat as Double, it.lng as Double, frame) },
+                minMarkerDist,
+            )
+        }
         tiles.forEach { tile ->
             AsyncImage(
                 model = ImageRequest.Builder(context)
@@ -246,31 +255,39 @@ private fun TripMap(stops: List<TripStop>, selectedId: Long, onSelect: (Long) ->
                     color = q.sky,
                     start = Offset(start.first, start.second),
                     end = Offset(end.first, end.second),
-                    strokeWidth = 8f,
+                    strokeWidth = 4f,
                     cap = StrokeCap.Round,
                 )
             }
         }
         located.forEachIndexed { index, stop ->
-            val pixel = TripMath.mapPixel(stop.lat as Double, stop.lng as Double, frame)
+            val pixel = pixels[index]
+            val selected = stop.id == selectedId
             Box(
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .offset {
-                        IntOffset(pixel.first.roundToInt() - markerRadius, pixel.second.roundToInt() - markerRadius)
+                        IntOffset(pixel.first.roundToInt() - hitRadius, pixel.second.roundToInt() - hitRadius)
                     }
-                    .size(32.dp)
-                    .border(2.dp, if (stop.id == selectedId) Color.White else Color.Transparent, CircleShape)
-                    .clip(CircleShape)
-                    .background(stopKindFill[stop.kind] ?: q.sky)
+                    .size(28.dp)
                     .clickable { onSelect(stop.id) },
                 contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    "${index + 1}",
-                    color = Color.White,
-                    style = MaterialTheme.typography.labelSmall,
-                )
+                Box(
+                    modifier = Modifier
+                        .size(if (selected) 18.dp else 14.dp)
+                        .border(1.dp, if (selected) Color.White else Color.Transparent, CircleShape)
+                        .clip(CircleShape)
+                        .background(stopKindFill[stop.kind] ?: q.sky),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        "${index + 1}",
+                        color = Color.White,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
             }
         }
     }
