@@ -1,6 +1,7 @@
 package com.guanguanhua.app.ui
 
 import android.annotation.SuppressLint
+import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.clickable
@@ -13,8 +14,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -31,6 +34,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -61,12 +65,12 @@ fun TripRouteScreen(viewModel: AppViewModel, tripId: Long, onBack: () -> Unit) {
         view.evaluateJavascript("window.renderStops && window.renderStops($json)", null)
     }
 
+    val mapped = shown.count { it.lat != null && it.lng != null }
     SubpageScaffold(title = trip?.name ?: "这次路线", onBack = onBack) { inner ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(inner)
-                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -79,6 +83,13 @@ fun TripRouteScreen(viewModel: AppViewModel, tripId: Long, onBack: () -> Unit) {
                 color = QTheme.colors.muted,
             )
             TripMap(onReady = { webView = it })
+            if (shown.isNotEmpty() && mapped == 0) {
+                Text(
+                    "这些站还没有位置，地图上画不出线。记的时候点附近一家，或打开定位再手写。",
+                    color = QTheme.colors.muted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
             Row(
                 modifier = Modifier.horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -89,24 +100,29 @@ fun TripRouteScreen(viewModel: AppViewModel, tripId: Long, onBack: () -> Unit) {
                     ChoiceChip("第${n}天", day == iso, onClick = { day = iso })
                 }
             }
-            shown.forEachIndexed { index, stop ->
-                SoftCard(modifier = Modifier.fillMaxWidth(), onClick = { if (trip.active) editingId = stop.id }) {
-                    Text("${index + 1}. ${stop.name}", style = MaterialTheme.typography.titleMedium)
-                    Spacer(Modifier.height(4.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        TripKindLabel(stop.kind)
-                        Text(
-                            stop.rating?.let { "★$it" } ?: "未评分",
-                            color = QTheme.colors.muted,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                    if (trip.active) {
-                        Spacer(Modifier.height(8.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Text("上移", color = QTheme.colors.sky, modifier = Modifier.clickable { viewModel.moveTripStop(stop.id, -1) })
-                            Text("下移", color = QTheme.colors.sky, modifier = Modifier.clickable { viewModel.moveTripStop(stop.id, 1) })
-                            Text("删除", color = QTheme.colors.coral, modifier = Modifier.clickable { deletingId = stop.id })
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                itemsIndexed(shown, key = { _, stop -> stop.id }) { index, stop ->
+                    SoftCard(modifier = Modifier.fillMaxWidth(), onClick = { if (trip.active) editingId = stop.id }) {
+                        Text("${index + 1}. ${stop.name}", style = MaterialTheme.typography.titleMedium)
+                        Spacer(Modifier.height(4.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            TripKindLabel(stop.kind)
+                            Text(
+                                stop.rating?.let { "★$it" } ?: "未评分",
+                                color = QTheme.colors.muted,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                        if (trip.active) {
+                            Spacer(Modifier.height(8.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Text("上移", color = QTheme.colors.sky, modifier = Modifier.clickable { viewModel.moveTripStop(stop.id, -1) })
+                                Text("下移", color = QTheme.colors.sky, modifier = Modifier.clickable { viewModel.moveTripStop(stop.id, 1) })
+                                Text("删除", color = QTheme.colors.coral, modifier = Modifier.clickable { deletingId = stop.id })
+                            }
                         }
                     }
                 }
@@ -153,6 +169,13 @@ private fun TripMap(onReady: (WebView) -> Unit) {
         factory = { context ->
             WebView(context).apply {
                 settings.javaScriptEnabled = true
+                settings.domStorageEnabled = true
+                settings.allowFileAccess = true
+                settings.allowContentAccess = true
+                settings.loadsImagesAutomatically = true
+                settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                settings.cacheMode = WebSettings.LOAD_DEFAULT
+                isNestedScrollingEnabled = false
                 webViewClient = object : WebViewClient() {
                     override fun onPageFinished(view: WebView?, url: String?) {
                         view?.let(onReady)
@@ -161,7 +184,10 @@ private fun TripMap(onReady: (WebView) -> Unit) {
                 loadUrl("file:///android_asset/trip_map.html")
             }
         },
-        modifier = Modifier.fillMaxWidth().height(240.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(260.dp)
+            .clip(RoundedCornerShape(18.dp)),
     )
 }
 
