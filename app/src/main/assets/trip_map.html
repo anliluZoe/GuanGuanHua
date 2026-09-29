@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    html, body, #map { height: 100%; margin: 0; background: #e7f2f4; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const colors = { "住宿": "#6BA3C4", "美食": "#F07A5C", "风景": "#4DB6A0", "博物馆": "#A78BC4", "杂物店": "#D4A84B" };
+    let map = L.map("map", { zoomControl: true }).setView([25.27, 110.29], 6);
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "&copy; OpenStreetMap"
+    }).addTo(map);
+    let layer = L.layerGroup().addTo(map);
+    function render(stops) {
+      layer.clearLayers();
+      const pts = (stops || []).filter(s => s.lat != null && s.lng != null);
+      pts.forEach((s, i) => {
+        const marker = L.circleMarker([s.lat, s.lng], {
+          radius: 8,
+          color: colors[s.kind] || "#6BA3C4",
+          fillColor: colors[s.kind] || "#6BA3C4",
+          fillOpacity: 0.9,
+          weight: 2
+        }).bindPopup((i + 1) + ". " + s.name);
+        marker.addTo(layer);
+      });
+      if (pts.length >= 2) {
+        L.polyline(pts.map(s => [s.lat, s.lng]), { color: "#6BA3C4", weight: 3 }).addTo(layer);
+      }
+      if (pts.length) {
+        map.fitBounds(L.latLngBounds(pts.map(s => [s.lat, s.lng])).pad(0.2));
+      }
+    }
+    window.renderStops = render;
+  </script>
+</body>
+</html>

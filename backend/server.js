@@ -2,7 +2,7 @@ const path = require("path");
 const express = require("express");
 const cors = require("cors");
 const multer = require("multer");
-const { Store, normalizeWidgetCaptionColor } = require("./store");
+const { Store, normalizeWidgetCaptionColor, TRIP_KINDS } = require("./store");
 const { UpdateStore } = require("./updates");
 
 const DATA_ROOT = process.env.SAVE_MONEY_DATA || path.join(__dirname, "data");
@@ -380,6 +380,184 @@ app.patch("/api/cycle-settings", requireMember, (req, res) => {
   }
   if (!Object.keys(patch).length) return res.status(400).json({ detail: "没有要改的设置" });
   res.json(settingsJson(store.patchCycleSettings(req.member.id, patch)));
+});
+
+function tripJson(row, stops) {
+  const payload = {
+    id: Number(row.id),
+    name: row.name,
+    startedAt: Number(row.started_at),
+    endedAt: row.ended_at == null ? null : Number(row.ended_at),
+    plannedEnd: row.planned_end ?? null,
+    createdBy: Number(row.created_by),
+    createdByName: row.created_by_name,
+    stopCount: Number(row.stop_count || 0),
+  };
+  if (stops) payload.stops = stops.map(stopJson);
+  return payload;
+}
+
+function stopJson(row) {
+  return {
+    id: Number(row.id),
+    name: row.name,
+    kind: row.kind,
+    rating: row.rating == null ? null : Number(row.rating),
+    lat: row.lat == null ? null : Number(row.lat),
+    lng: row.lng == null ? null : Number(row.lng),
+    visitedOn: row.visited_on,
+    sortOrder: Number(row.sort_order),
+    createdBy: Number(row.created_by),
+    createdByName: row.created_by_name,
+  };
+}
+
+function readTripName(body) {
+  const name = String(body?.name || "").trim();
+  if (!name) return { error: "先给这段旅程起个名字" };
+  return { name: name.slice(0, 40) };
+}
+
+function readPlannedEnd(body, required) {
+  if (!Object.prototype.hasOwnProperty.call(body || {}, "plannedEnd")) {
+    return required ? { error: "没有要改的" } : { plannedEnd: undefined };
+  }
+  if (body.plannedEnd == null || String(body.plannedEnd).trim() === "") return { plannedEnd: null };
+  const plannedEnd = parseIsoDate(String(body.plannedEnd).trim());
+  if (!plannedEnd) return { error: "预计结束日要填成 YYYY-MM-DD" };
+  return { plannedEnd };
+}
+
+function readStopBody(body, fallback) {
+  const name = body?.name != null ? String(body.name).trim() : fallback?.name;
+  if (!name) return { error: "先写店名或景点名" };
+  const kind = body?.kind != null ? String(body.kind).trim() : fallback?.kind;
+  if (!TRIP_KINDS.includes(kind)) return { error: "类型选住宿、美食、风景、博物馆或杂物店" };
+  let rating = fallback ? fallback.rating : null;
+  if (body != null && Object.prototype.hasOwnProperty.call(body, "rating")) {
+    if (body.rating == null || body.rating === "") rating = null;
+    else {
+      const n = readInt(body.rating);
+      if (n == null || n < 1 || n > 5) return { error: "评分请选 1–5 星" };
+      rating = n;
+    }
+  }
+  const visitedOn = body?.visitedOn != null ? parseIsoDate(String(body.visitedOn).trim()) : fallback?.visitedOn;
+  if (!visitedOn) return { error: "日期要填成 YYYY-MM-DD" };
+  const lat = body?.lat == null || body.lat === "" ? fallback?.lat ?? null : Number(body.lat);
+  const lng = body?.lng == null || body.lng === "" ? fallback?.lng ?? null : Number(body.lng);
+  if ((lat != null && !Number.isFinite(lat)) || (lng != null && !Number.isFinite(lng))) {
+    return { error: "位置不对" };
+  }
+  return { name: name.slice(0, 80), kind, rating, visitedOn, lat, lng };
+}
+
+function tripWriteError(result, res) {
+  if (!result) return res.status(404).json({ detail: "找不到这段旅程" });
+  if (result.error === "already_active") return res.status(409).json({ detail: "已经有一段进行中的旅程" });
+  if (result.error === "already_ended") return res.status(409).json({ detail: "这段旅程已经结束了" });
+  if (result.error === "ended") return res.status(409).json({ detail: "这段旅程已经结束了" });
+  if (result.error === "name") return res.status(400).json({ detail: "先给这段旅程起个名字" });
+  if (result.error === "kind") return res.status(400).json({ detail: "类型选住宿、美食、风景、博物馆或杂物店" });
+  if (result.error === "rating") return res.status(400).json({ detail: "评分请选 1–5 星" });
+  if (result.error === "order") return res.status(400).json({ detail: "顺序不对" });
+  return null;
+}
+
+app.get("/api/trips", requireMember, (req, res) => {
+  res.json(store.listTrips(req.member.household_id).map((row) => tripJson(row)));
+});
+
+app.get("/api/trips/active", requireMember, (req, res) => {
+  const row = store.activeTrip(req.member.household_id);
+  if (!row) return res.json(null);
+  res.json(tripJson(row, store.listStops(row.id)));
+});
+
+app.get("/api/trips/:id", requireMember, (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id < 1) return res.status(404).json({ detail: "找不到这段旅程" });
+  const row = store.tripById(req.member.household_id, id);
+  if (!row) return res.status(404).json({ detail: "找不到这段旅程" });
+  res.json(tripJson(row, store.listStops(row.id)));
+});
+
+app.post("/api/trips", requireMember, (req, res) => {
+  const named = readTripName(req.body || {});
+  if (named.error) return res.status(400).json({ detail: named.error });
+  const planned = readPlannedEnd(req.body || {});
+  if (planned.error) return res.status(400).json({ detail: planned.error });
+  const created = store.startTrip(
+    req.member.household_id,
+    req.member.id,
+    named.name,
+    planned.plannedEnd === undefined ? null : planned.plannedEnd
+  );
+  if (tripWriteError(created, res)) return;
+  res.json(tripJson(created, []));
+});
+
+app.post("/api/trips/:id/end", requireMember, (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id < 1) return res.status(404).json({ detail: "找不到这段旅程" });
+  const ended = store.endTrip(req.member.household_id, id);
+  if (tripWriteError(ended, res)) return;
+  res.json(tripJson(ended, store.listStops(ended.id)));
+});
+
+app.post("/api/trips/:id/stops", requireMember, (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id < 1) return res.status(404).json({ detail: "找不到这段旅程" });
+  const fields = readStopBody(req.body || {}, null);
+  if (fields.error) return res.status(400).json({ detail: fields.error });
+  const created = store.addStop(req.member.household_id, req.member.id, id, fields);
+  if (tripWriteError(created, res)) return;
+  res.json(stopJson(created));
+});
+
+app.patch("/api/trips/:id/stops/reorder", requireMember, (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id < 1) return res.status(404).json({ detail: "找不到这段旅程" });
+  const ids = Array.isArray(req.body?.orderedIds) ? req.body.orderedIds : null;
+  if (!ids) return res.status(400).json({ detail: "顺序不对" });
+  const reordered = store.reorderStops(req.member.household_id, id, ids);
+  if (tripWriteError(reordered, res)) return;
+  res.json(reordered.map(stopJson));
+});
+
+app.patch("/api/trips/:id/stops/:stopId", requireMember, (req, res) => {
+  const id = Number(req.params.id);
+  const stopId = Number(req.params.stopId);
+  if (!Number.isSafeInteger(id) || id < 1 || !Number.isSafeInteger(stopId) || stopId < 1) {
+    return res.status(404).json({ detail: "找不到这一站" });
+  }
+  const existing = store.getStop(req.member.household_id, id, stopId);
+  if (!existing) return res.status(404).json({ detail: "找不到这一站" });
+  const fields = readStopBody(req.body || {}, {
+    name: existing.name,
+    kind: existing.kind,
+    rating: existing.rating,
+    visitedOn: existing.visited_on,
+    lat: existing.lat,
+    lng: existing.lng,
+  });
+  if (fields.error) return res.status(400).json({ detail: fields.error });
+  if (Object.prototype.hasOwnProperty.call(req.body || {}, "lat")) fields.lat = req.body.lat == null ? null : fields.lat;
+  if (Object.prototype.hasOwnProperty.call(req.body || {}, "lng")) fields.lng = req.body.lng == null ? null : fields.lng;
+  const updated = store.updateStop(req.member.household_id, id, stopId, fields);
+  if (tripWriteError(updated, res)) return;
+  res.json(stopJson(updated));
+});
+
+app.delete("/api/trips/:id/stops/:stopId", requireMember, (req, res) => {
+  const id = Number(req.params.id);
+  const stopId = Number(req.params.stopId);
+  if (!Number.isSafeInteger(id) || id < 1 || !Number.isSafeInteger(stopId) || stopId < 1) {
+    return res.status(404).json({ detail: "找不到这一站" });
+  }
+  const removed = store.deleteStop(req.member.household_id, id, stopId);
+  if (tripWriteError(removed, res)) return;
+  res.json({ ok: true });
 });
 
 app.get("/api/files/:filename", (req, res) => {

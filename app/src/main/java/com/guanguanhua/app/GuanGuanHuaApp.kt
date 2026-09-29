@@ -9,6 +9,9 @@ import com.guanguanhua.app.data.ApiConfig
 import com.guanguanhua.app.data.HouseholdRepository
 import com.guanguanhua.app.notify.CycleReminder
 import com.guanguanhua.app.notify.ReviewActivityWorker
+import com.guanguanhua.app.notify.TripEndReminderWorker
+import com.guanguanhua.app.notify.TripOngoing
+import com.guanguanhua.app.trip.TripCache
 import com.guanguanhua.app.update.ApkDownloadCoordinator
 import com.guanguanhua.app.update.AppUpdates
 import com.guanguanhua.app.widget.WidgetRefreshWorker
@@ -43,8 +46,11 @@ class GuanGuanHuaApp : Application() {
         }
         ensureReviewChannel()
         ensureCycleChannel()
+        TripOngoing.ensureChannels(this)
         ReviewActivityWorker.schedule(this)
         CycleReminder.scheduleFromCache(this)
+        TripOngoing.refresh(this, TripCache.read(this)?.active)
+        TripEndReminderWorker.schedule(this)
         WidgetRefreshWorker.schedule(this)
     }
 
