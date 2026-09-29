@@ -1,6 +1,7 @@
 package com.guanguanhua.app.trip
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class NearbyPlacesTest {
@@ -19,5 +20,23 @@ class NearbyPlacesTest {
         assertEquals("某某粉店", places[0].name)
         assertEquals("美食", places[0].kind)
         assertEquals("住宿", places[1].kind)
+    }
+
+    @Test
+    fun overpassWaysUseCenterAndPreferChineseName() {
+        val raw = """
+            {"elements":[
+              {"type":"way","center":{"lat":30.673,"lon":104.072},"tags":{"name":"Kuanzhai Alley","name:zh":"宽窄巷子","tourism":"attraction"}},
+              {"type":"node","lat":30.674,"lon":104.073,"tags":{"name:zh-Hans":"龙抄手","amenity":"restaurant"}},
+              {"type":"way","center":{"lat":30.675,"lon":104.074},"tags":{"amenity":"cafe"}}
+            ]}
+        """.trimIndent()
+        val places = NearbyPlaces.parseOverpass(raw, 30.673, 104.072)
+        assertEquals(2, places.size)
+        assertEquals("宽窄巷子", places[0].name)
+        assertEquals("风景", places[0].kind)
+        assertEquals("龙抄手", places[1].name)
+        assertEquals("美食", places[1].kind)
+        assertTrue(places[0].meters < places[1].meters)
     }
 }
