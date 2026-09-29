@@ -408,7 +408,23 @@ class HouseholdRepository(private val app: Application) {
         unwrap(api().addTripStop(bearer(), tripId, jsonBody(body)), "没记下")
 
     suspend fun updateTripStop(tripId: Long, stopId: Long, body: TripStopWrite): TripStop =
-        unwrap(api().updateTripStop(bearer(), tripId, stopId, jsonBody(body)), "没改成")
+        unwrap(
+            api().updateTripStop(
+                bearer(),
+                tripId,
+                stopId,
+                jsonBody(
+                    mapOf(
+                        "name" to body.name,
+                        "kind" to body.kind,
+                        "rating" to body.rating,
+                        "visitedOn" to body.visitedOn,
+                        "amountCents" to body.amountCents,
+                    ),
+                ),
+            ),
+            "没改成",
+        )
 
     suspend fun deleteTripStop(tripId: Long, stopId: Long) {
         val response = api().deleteTripStop(bearer(), tripId, stopId)

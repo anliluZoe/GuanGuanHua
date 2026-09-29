@@ -575,8 +575,6 @@ app.patch("/api/trips/:id/stops/:stopId", requireMember, (req, res) => {
     lng: existing.lng,
   });
   if (fields.error) return res.status(400).json({ detail: fields.error });
-  if (Object.prototype.hasOwnProperty.call(req.body || {}, "lat")) fields.lat = req.body.lat == null ? null : fields.lat;
-  if (Object.prototype.hasOwnProperty.call(req.body || {}, "lng")) fields.lng = req.body.lng == null ? null : fields.lng;
   const updated = store.updateStop(req.member.household_id, id, stopId, fields);
   if (tripWriteError(updated, res)) return;
   res.json(oneStopJson(req, updated));
