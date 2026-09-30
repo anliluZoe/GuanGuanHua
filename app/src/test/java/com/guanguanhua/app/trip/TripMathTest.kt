@@ -139,4 +139,30 @@ class TripMathTest {
         assertEquals(0f, broken[0], 0.01f)
         assertEquals(1f, broken[2], 0.01f)
     }
+
+    @Test
+    fun routePlayheadWalksAlongThePolyline() {
+        val pts = listOf(0f to 0f, 100f to 0f, 100f to 100f)
+        val start = TripMath.routePlayhead(pts, 0f)
+        assertEquals(0f, start!!.x, 0.1f)
+        assertEquals(0f, start.y, 0.1f)
+        assertEquals(0, start.reached)
+        val mid = TripMath.routePlayhead(pts, 0.25f)
+        assertEquals(50f, mid!!.x, 0.1f)
+        assertEquals(0f, mid.y, 0.1f)
+        assertEquals(0, mid.reached)
+        val corner = TripMath.routePlayhead(pts, 0.5f)
+        assertEquals(100f, corner!!.x, 0.1f)
+        assertEquals(0f, corner.y, 0.1f)
+        assertEquals(1, corner.reached)
+        val end = TripMath.routePlayhead(pts, 1f)
+        assertEquals(100f, end!!.x, 0.1f)
+        assertEquals(100f, end.y, 0.1f)
+        assertEquals(2, end.reached)
+        assertNull(TripMath.routePlayhead(emptyList(), 0.5f))
+        assertEquals(0, TripMath.routePlayhead(listOf(3f to 4f), 1f)!!.reached)
+        assertEquals(1800, TripMath.playMs(2))
+        assertEquals(2800, TripMath.playMs(3))
+        assertEquals(12000, TripMath.playMs(20))
+    }
 }

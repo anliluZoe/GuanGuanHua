@@ -4,6 +4,9 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -188,6 +191,7 @@ fun TripRouteScreen(viewModel: AppViewModel, tripId: Long, onBack: () -> Unit) {
     val trip = opened?.takeIf { it.id == tripId } ?: trips.active?.takeIf { it.id == tripId }
     var day by rememberSaveable { mutableStateOf("all") }
     var selectedId by rememberSaveable { mutableStateOf(0L) }
+    var playStopId by rememberSaveable { mutableStateOf(0L) }
     var deletingId by rememberSaveable { mutableStateOf(0L) }
     val shown = trip?.stops.orEmpty().filter { day == "all" || it.visitedOn == day }
     val mapped = shown.count { it.lat != null && it.lng != null }
@@ -215,7 +219,14 @@ fun TripRouteScreen(viewModel: AppViewModel, tripId: Long, onBack: () -> Unit) {
                 expanded = mapExpanded,
                 onToggleExpand = { mapExpanded = !mapExpanded },
                 modifier = if (mapExpanded) Modifier.fillMaxWidth().weight(1f) else Modifier.fillMaxWidth().height(260.dp),
-                onSelect = { selectedId = it },
+                onSelect = {
+                    selectedId = it
+                    playStopId = 0L
+                },
+                onPlayStop = { id ->
+                    playStopId = id
+                    if (id != 0L) selectedId = 0L
+                },
             )
             if (shown.isNotEmpty() && mapped == 0 && !mapExpanded) {
                 Text(
@@ -271,7 +282,7 @@ fun TripRouteScreen(viewModel: AppViewModel, tripId: Long, onBack: () -> Unit) {
                     }
                     item(key = stop.id) {
                         val q = QTheme.colors
-                        val selected = stop.id == selectedId
+                        val selected = stop.id == selectedId || stop.id == playStopId
                         val fill = stopKindFill[stop.kind] ?: q.sky
                         TripAxisNode(
                             leftLabel = "",
@@ -402,6 +413,7 @@ private fun TripMap(
     onToggleExpand: () -> Unit,
     modifier: Modifier,
     onSelect: (Long) -> Unit,
+    onPlayStop: (Long) -> Unit,
 ) {
     val located = stops.mapNotNull { stop ->
         val lat = stop.lat
@@ -460,7 +472,35 @@ private fun TripMap(
                 minMarkerDist,
             )
         }
+        var playing by remember { mutableStateOf(false) }
+        val playAnim = remember { Animatable(0f) }
+        LaunchedEffect(located.map { it.id }) {
+            playing = false
+            playAnim.snapTo(0f)
+            onPlayStop(0L)
+        }
+        LaunchedEffect(playing) {
+            if (!playing) return@LaunchedEffect
+            if (located.size < 2) {
+                playing = false
+                return@LaunchedEffect
+            }
+            playAnim.snapTo(0f)
+            playAnim.animateTo(1f, tween(TripMath.playMs(located.size), easing = LinearEasing))
+            playing = false
+        }
+        val play = playAnim.value
+        val showingPlay = playing || play > 0f && play < 1f
         if (frame == null) return@BoxWithConstraints
+        val pathPts = remember(located, frame) {
+            located.map { TripMath.mapPixel(it.lat as Double, it.lng as Double, frame) }
+        }
+        val head = if (showingPlay) TripMath.routePlayhead(pathPts, play) else null
+        LaunchedEffect(head?.reached, playing) {
+            if (playing && head != null) {
+                located.getOrNull(head.reached)?.let { onPlayStop(it.id) }
+            }
+        }
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -541,11 +581,10 @@ private fun TripMap(
             }
             Canvas(Modifier.fillMaxSize()) {
                 val progresses = TripMath.routeProgress(located.map { it.visitedOn })
-                val early = lerp(q.sky, Color.White, 0.42f).copy(alpha = 0.42f)
-                val late = lerp(q.sky, Color(0xFF0A2740), 0.62f).copy(alpha = 0.95f)
-                located.zipWithNext().forEachIndexed { index, (from, to) ->
-                    val start = TripMath.mapPixel(from.lat as Double, from.lng as Double, frame)
-                    val end = TripMath.mapPixel(to.lat as Double, to.lng as Double, frame)
+                val dim = if (showingPlay) 0.35f else 1f
+                val early = lerp(q.sky, Color.White, 0.42f).copy(alpha = 0.42f * dim)
+                val late = lerp(q.sky, Color(0xFF0A2740), 0.62f).copy(alpha = 0.95f * dim)
+                pathPts.zipWithNext().forEachIndexed { index, (start, end) ->
                     val fromPx = Offset(start.first, start.second)
                     val toPx = Offset(end.first, end.second)
                     drawLine(
@@ -564,10 +603,26 @@ private fun TripMap(
                         pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 8f)),
                     )
                 }
+                if (head != null) {
+                    val ink = q.sky.copy(alpha = 0.92f)
+                    val walked = pathPts.take(head.reached + 1) + (head.x to head.y)
+                    walked.zipWithNext().forEach { (from, to) ->
+                        drawLine(
+                            color = ink,
+                            start = Offset(from.first, from.second),
+                            end = Offset(to.first, to.second),
+                            strokeWidth = 4.5f,
+                            cap = StrokeCap.Round,
+                        )
+                    }
+                    val tip = Offset(head.x, head.y)
+                    drawCircle(Color.White, 8.dp.toPx(), tip)
+                    drawCircle(q.sky, 5.5.dp.toPx(), tip)
+                }
                 located.forEachIndexed { index, stop ->
                     val pixel = pixels[index]
                     val center = Offset(pixel.first, pixel.second)
-                    val selected = stop.id == selectedId
+                    val selected = stop.id == selectedId || index == head?.reached
                     val radius = if (selected) 9.dp.toPx() else 7.dp.toPx()
                     drawCircle(stopKindFill[stop.kind] ?: q.sky, radius, center)
                     if (selected) {
@@ -633,6 +688,22 @@ private fun TripMap(
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
                 )
+            }
+            if (located.size >= 2) {
+                Box(Modifier.width(36.dp).height(1.dp).background(q.line))
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clickable { playing = !playing },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        if (playing) "停" else "播",
+                        color = q.ink,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                    )
+                }
             }
         }
     }

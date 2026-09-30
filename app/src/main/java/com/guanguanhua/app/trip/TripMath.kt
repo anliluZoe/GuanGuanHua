@@ -200,6 +200,36 @@ object TripMath {
         return keys.map { (it - lo).toFloat() / (hi - lo).toFloat() }
     }
 
+    fun playMs(stopCount: Int): Int =
+        ((stopCount - 1).coerceAtLeast(0) * 1400).coerceIn(1800, 12000)
+
+    fun routePlayhead(points: List<Pair<Float, Float>>, progress: Float): RoutePlayhead? {
+        if (points.isEmpty()) return null
+        val first = points.first()
+        if (points.size == 1) return RoutePlayhead(first.first, first.second, 0)
+        val t = progress.coerceIn(0f, 1f)
+        val lengths = points.zipWithNext { a, b -> hypot(b.first - a.first, b.second - a.second) }
+        val total = lengths.sum()
+        val last = points.last()
+        if (total <= 0f) return RoutePlayhead(last.first, last.second, points.lastIndex)
+        val target = t * total
+        var walked = 0f
+        lengths.forEachIndexed { index, len ->
+            if (walked + len >= target) {
+                val u = if (len <= 0f) 1f else ((target - walked) / len).coerceIn(0f, 1f)
+                val a = points[index]
+                val b = points[index + 1]
+                return RoutePlayhead(
+                    x = a.first + (b.first - a.first) * u,
+                    y = a.second + (b.second - a.second) * u,
+                    reached = if (u >= 0.999f) index + 1 else index,
+                )
+            }
+            walked += len
+        }
+        return RoutePlayhead(last.first, last.second, points.lastIndex)
+    }
+
     private fun clampFrame(frame: MapFrame): MapFrame {
         val world = (1 shl frame.zoom).toDouble()
         val widthTiles = frame.widthPx / frame.tileSize.toDouble()
@@ -236,4 +266,10 @@ data class MapTile(
     val url: String,
     val offsetX: Float,
     val offsetY: Float,
+)
+
+data class RoutePlayhead(
+    val x: Float,
+    val y: Float,
+    val reached: Int,
 )
