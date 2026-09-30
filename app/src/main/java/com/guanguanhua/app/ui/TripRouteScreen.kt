@@ -542,8 +542,8 @@ private fun TripMap(
             Canvas(Modifier.fillMaxSize()) {
                 val stepPx = 18.dp.toPx()
                 val sidePx = 3.5.dp.toPx()
-                val printLen = 8.dp.toPx()
-                val printWid = 3.8.dp.toPx()
+                val printLen = 7.5.dp.toPx()
+                val printWid = 4.5.dp.toPx()
                 located.zipWithNext().forEach { (from, to) ->
                     val start = TripMath.mapPixel(from.lat as Double, from.lng as Double, frame)
                     val end = TripMath.mapPixel(to.lat as Double, to.lng as Double, frame)
@@ -558,19 +558,13 @@ private fun TripMap(
                         pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f)),
                     )
                     TripMath.routeSteps(fromPx.x, fromPx.y, toPx.x, toPx.y, stepPx, sidePx).forEach { step ->
-                        // 脚印本体沿 +X，rotate(angleDeg) 后脚尖朝向前进方向
-                        val turn = if (step.left) -14f else 14f
+                        // 椭圆长轴沿 +X，和 angleDeg（0° 朝右）对齐后顺着路线
+                        val turn = if (step.left) -12f else 12f
                         rotate(step.angleDeg + turn, Offset(step.x, step.y)) {
-                            val ink = q.sky.copy(alpha = 0.9f)
-                            drawCircle(
-                                color = ink,
-                                radius = printWid * 0.4f,
-                                center = Offset(step.x - printLen * 0.24f, step.y),
-                            )
                             drawOval(
-                                color = ink,
-                                topLeft = Offset(step.x - printLen * 0.02f, step.y - printWid / 2f),
-                                size = Size(printLen * 0.5f, printWid),
+                                color = q.sky.copy(alpha = 0.9f),
+                                topLeft = Offset(step.x - printLen / 2f, step.y - printWid / 2f),
+                                size = Size(printLen, printWid),
                             )
                         }
                     }
