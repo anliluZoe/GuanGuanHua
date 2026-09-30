@@ -41,6 +41,7 @@ import com.guanguanhua.app.data.NearbyPlace
 import com.guanguanhua.app.trip.NearbyPlaces
 import com.guanguanhua.app.trip.TripMath
 import com.guanguanhua.app.ui.theme.QTheme
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
@@ -64,6 +65,8 @@ fun RecordStopScreen(viewModel: AppViewModel, onBack: () -> Unit, onOpenRoute: (
     var lng by rememberSaveable { mutableStateOf<String?>(null) }
     var nearby by remember { mutableStateOf<List<NearbyPlace>>(emptyList()) }
     var nearbyHint by rememberSaveable { mutableStateOf("正在找附近…") }
+    var remoteHits by remember { mutableStateOf<List<NearbyPlace>>(emptyList()) }
+    var searchHint by remember { mutableStateOf<String?>(null) }
     var pickingDate by rememberSaveable { mutableStateOf(false) }
     var picked by rememberSaveable { mutableStateOf(false) }
     fun findNearby() {
@@ -87,10 +90,29 @@ fun RecordStopScreen(viewModel: AppViewModel, onBack: () -> Unit, onOpenRoute: (
         if (granted) {
             findNearby()
         } else {
-            nearbyHint = "打不开定位，也可以先写店名"
+            nearbyHint = "打不开定位，也可以先搜店名"
             askLocation.launch(
                 arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
             )
+        }
+    }
+
+    LaunchedEffect(name, picked) {
+        val q = name.trim()
+        if (picked || q.length < 2) {
+            remoteHits = emptyList()
+            searchHint = null
+            return@LaunchedEffect
+        }
+        delay(400)
+        searchHint = "正在搜「$q」…"
+        val origin = NearbyPlaces.lastLocation(context)
+        val result = runCatching { NearbyPlaces.searchByName(q, origin?.latitude, origin?.longitude) }
+        remoteHits = result.getOrDefault(emptyList())
+        searchHint = when {
+            result.isFailure -> "这会儿搜不到，稍后再试，或用这个名字"
+            remoteHits.isEmpty() -> "没搜到「$q」，换个词，或用这个名字"
+            else -> "搜到这些，点一家"
         }
     }
 
@@ -114,8 +136,14 @@ fun RecordStopScreen(viewModel: AppViewModel, onBack: () -> Unit, onOpenRoute: (
             Text("${active.name} · 第 $day 天", color = QTheme.colors.muted, style = MaterialTheme.typography.bodyMedium)
             Text("今天 ${active.stops.count { it.visitedOn == LocalDate.now().toString() }} 站", color = QTheme.colors.secondary)
             if (!picked) {
+                val query = name.trim()
+                val shownPlaces = if (query.length < 2) nearby else {
+                    val local = nearby.filter { it.name.contains(query, ignoreCase = true) }
+                    (remoteHits + local).distinctBy { it.name to it.lat.toBits() }.sortedBy { it.meters }
+                }
+                SoftField(value = name, onValueChange = { name = it }, label = "搜店名或地名")
                 Text(
-                    nearbyHint,
+                    searchHint ?: nearbyHint,
                     color = QTheme.colors.muted,
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.clickable {
@@ -128,7 +156,7 @@ fun RecordStopScreen(viewModel: AppViewModel, onBack: () -> Unit, onOpenRoute: (
                         )
                     },
                 )
-                nearby.forEach { place ->
+                shownPlaces.forEach { place ->
                     SoftCard(modifier = Modifier.fillMaxWidth(), onClick = {
                         name = place.name
                         kind = place.kind.orEmpty()
@@ -138,13 +166,15 @@ fun RecordStopScreen(viewModel: AppViewModel, onBack: () -> Unit, onOpenRoute: (
                     }) {
                         Text(place.name, style = MaterialTheme.typography.titleMedium)
                         Text(
-                            listOfNotNull(place.kind, "${place.meters} 米").joinToString(" · "),
+                            listOfNotNull(
+                                place.kind,
+                                place.meters.takeIf { it > 0 }?.let { "${it} 米" },
+                            ).joinToString(" · "),
                             color = QTheme.colors.muted,
                             style = MaterialTheme.typography.bodySmall,
                         )
                     }
                 }
-                SoftField(value = name, onValueChange = { name = it }, label = "附近没找到，自己写")
                 if (name.isNotBlank()) {
                     PillButton("用这个名字", filled = false, onClick = {
                         if (lat == null || lng == null) {

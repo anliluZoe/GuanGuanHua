@@ -27,7 +27,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -51,13 +50,19 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.LineHeightStyle
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -246,6 +251,25 @@ private fun TripMap(stops: List<TripStop>, selectedId: Long, onSelect: (Long) ->
         val tileDp = with(density) { (frame?.tileSize ?: 256).toDp() }
         val hitRadius = with(density) { 14.dp.roundToPx() }
         val minMarkerDist = with(density) { 20.dp.toPx() }
+        val textMeasurer = rememberTextMeasurer()
+        val markerStyle = remember {
+            TextStyle(
+                color = Color.White,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.SemiBold,
+                lineHeight = 9.sp,
+                textAlign = TextAlign.Center,
+                lineHeightStyle = LineHeightStyle(
+                    alignment = LineHeightStyle.Alignment.Center,
+                    trim = LineHeightStyle.Trim.Both,
+                ),
+            )
+        }
+        val labels = remember(located.size, markerStyle, textMeasurer) {
+            List(located.size) { index ->
+                textMeasurer.measure("${index + 1}", markerStyle)
+            }
+        }
         val pixels = remember(located, frame, minMarkerDist) {
             val shown = frame ?: return@remember emptyList()
             TripMath.spreadOverlapping(
@@ -344,34 +368,23 @@ private fun TripMap(stops: List<TripStop>, selectedId: Long, onSelect: (Long) ->
                         cap = StrokeCap.Round,
                     )
                 }
-            }
-            located.forEachIndexed { index, stop ->
-                val pixel = pixels[index]
-                val selected = stop.id == selectedId
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .offset {
-                            IntOffset(pixel.first.roundToInt() - hitRadius, pixel.second.roundToInt() - hitRadius)
-                        }
-                        .size(28.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(if (selected) 18.dp else 14.dp)
-                            .border(1.dp, if (selected) Color.White else Color.Transparent, CircleShape)
-                            .clip(CircleShape)
-                            .background(stopKindFill[stop.kind] ?: q.sky),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            "${index + 1}",
-                            color = Color.White,
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.SemiBold,
-                        )
+                located.forEachIndexed { index, stop ->
+                    val pixel = pixels[index]
+                    val center = Offset(pixel.first, pixel.second)
+                    val selected = stop.id == selectedId
+                    val radius = if (selected) 9.dp.toPx() else 7.dp.toPx()
+                    drawCircle(stopKindFill[stop.kind] ?: q.sky, radius, center)
+                    if (selected) {
+                        drawCircle(Color.White, radius, center, style = Stroke(width = 1.5.dp.toPx()))
                     }
+                    val label = labels[index]
+                    drawText(
+                        textLayoutResult = label,
+                        topLeft = Offset(
+                            center.x - label.size.width / 2f,
+                            center.y - label.size.height / 2f,
+                        ),
+                    )
                 }
             }
         }
