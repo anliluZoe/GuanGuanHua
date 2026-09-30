@@ -121,19 +121,22 @@ class TripMathTest {
     }
 
     @Test
-    fun routeStepsAlternateFeetAlongThePath() {
-        val steps = TripMath.routeSteps(0f, 0f, 200f, 0f, 20f, 4f)
-        assertTrue(steps.size >= 6)
-        assertEquals(true, steps[0].left)
-        assertEquals(false, steps[1].left)
-        assertTrue(steps.first().x > 10f)
-        assertTrue(steps.last().x < 190f)
-        assertEquals(0f, steps[0].angleDeg, 1f)
-        assertTrue(steps[0].y < 0f)
-        assertTrue(steps[1].y > 0f)
-        assertEquals(90f, TripMath.routeSteps(0f, 0f, 0f, 200f, 20f, 4f)[0].angleDeg, 1f)
-        assertEquals(180f, TripMath.routeSteps(200f, 0f, 0f, 0f, 20f, 4f)[0].angleDeg, 1f)
-        assertEquals(-90f, TripMath.routeSteps(0f, 200f, 0f, 0f, 20f, 4f)[0].angleDeg, 1f)
-        assertTrue(TripMath.routeSteps(0f, 0f, 10f, 0f, 20f, 4f).isEmpty())
+    fun routeProgressGoesFromEarlyLightToLateDark() {
+        assertEquals(emptyList<Float>(), TripMath.routeProgress(emptyList()))
+        assertEquals(listOf(0f), TripMath.routeProgress(listOf("2026-10-01")))
+        val sameDay = TripMath.routeProgress(listOf("2026-10-01", "2026-10-01", "2026-10-01"))
+        assertEquals(0f, sameDay[0], 0.01f)
+        assertEquals(0.5f, sameDay[1], 0.01f)
+        assertEquals(1f, sameDay[2], 0.01f)
+        val twoDays = TripMath.routeProgress(listOf("2026-10-01", "2026-10-03"))
+        assertEquals(0f, twoDays[0], 0.01f)
+        assertEquals(1f, twoDays[1], 0.01f)
+        val mixed = TripMath.routeProgress(listOf("2026-10-01", "2026-10-01", "2026-10-05"))
+        assertTrue(mixed[0] < mixed[1])
+        assertTrue(mixed[1] < mixed[2])
+        assertTrue(mixed[1] < 0.4f)
+        val broken = TripMath.routeProgress(listOf("bad", "also-bad", "nope"))
+        assertEquals(0f, broken[0], 0.01f)
+        assertEquals(1f, broken[2], 0.01f)
     }
 }

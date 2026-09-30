@@ -51,12 +51,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -540,34 +540,29 @@ private fun TripMap(
                 )
             }
             Canvas(Modifier.fillMaxSize()) {
-                val stepPx = 18.dp.toPx()
-                val sidePx = 3.5.dp.toPx()
-                val printLen = 7.5.dp.toPx()
-                val printWid = 4.5.dp.toPx()
-                located.zipWithNext().forEach { (from, to) ->
+                val progresses = TripMath.routeProgress(located.map { it.visitedOn })
+                val early = lerp(q.sky, Color.White, 0.42f).copy(alpha = 0.42f)
+                val late = lerp(q.sky, Color(0xFF0A2740), 0.62f).copy(alpha = 0.95f)
+                located.zipWithNext().forEachIndexed { index, (from, to) ->
                     val start = TripMath.mapPixel(from.lat as Double, from.lng as Double, frame)
                     val end = TripMath.mapPixel(to.lat as Double, to.lng as Double, frame)
                     val fromPx = Offset(start.first, start.second)
                     val toPx = Offset(end.first, end.second)
                     drawLine(
-                        color = q.sky.copy(alpha = 0.45f),
+                        brush = Brush.linearGradient(
+                            colors = listOf(
+                                lerp(early, late, progresses[index]),
+                                lerp(early, late, progresses[index + 1]),
+                            ),
+                            start = fromPx,
+                            end = toPx,
+                        ),
                         start = fromPx,
                         end = toPx,
-                        strokeWidth = 2.5f,
+                        strokeWidth = 3.5f,
                         cap = StrokeCap.Round,
-                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f)),
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 8f)),
                     )
-                    TripMath.routeSteps(fromPx.x, fromPx.y, toPx.x, toPx.y, stepPx, sidePx).forEach { step ->
-                        // 椭圆长轴沿 +X，和 angleDeg（0° 朝右）对齐后顺着路线
-                        val turn = if (step.left) -12f else 12f
-                        rotate(step.angleDeg + turn, Offset(step.x, step.y)) {
-                            drawOval(
-                                color = q.sky.copy(alpha = 0.9f),
-                                topLeft = Offset(step.x - printLen / 2f, step.y - printWid / 2f),
-                                size = Size(printLen, printWid),
-                            )
-                        }
-                    }
                 }
                 located.forEachIndexed { index, stop ->
                     val pixel = pixels[index]

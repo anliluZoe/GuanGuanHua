@@ -5,7 +5,6 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 import kotlin.math.PI
-import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.floor
 import kotlin.math.hypot
@@ -185,37 +184,20 @@ object TripMath {
         return out
     }
 
-    fun routeSteps(
-        x0: Float,
-        y0: Float,
-        x1: Float,
-        y1: Float,
-        stepPx: Float,
-        sidePx: Float,
-    ): List<RouteStep> {
-        val dx = x1 - x0
-        val dy = y1 - y0
-        val len = hypot(dx.toDouble(), dy.toDouble()).toFloat()
-        if (len < stepPx * 1.6f || stepPx <= 0f) return emptyList()
-        val ux = dx / len
-        val uy = dy / len
-        // 屏幕坐标：0° 朝右、90° 朝下。脚印椭圆长轴沿 +X，再按这个角旋转。
-        val angle = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat()
-        val steps = mutableListOf<RouteStep>()
-        var walked = stepPx
-        var left = true
-        while (walked < len - stepPx * 0.45f) {
-            val side = if (left) -1f else 1f
-            steps += RouteStep(
-                x = x0 + ux * walked + -uy * sidePx * side,
-                y = y0 + uy * walked + ux * sidePx * side,
-                angleDeg = angle,
-                left = left,
-            )
-            left = !left
-            walked += stepPx
+    /** 0 最早浅色，1 最晚深色；同一天按站序，跨天按日期。 */
+    fun routeProgress(visitedOn: List<String>): List<Float> {
+        if (visitedOn.isEmpty()) return emptyList()
+        if (visitedOn.size == 1) return listOf(0f)
+        val days = visitedOn.map { iso -> runCatching { LocalDate.parse(iso).toEpochDay() }.getOrNull() }
+        val keys = if (days.all { it != null }) {
+            days.mapIndexed { index, day -> requireNotNull(day) * visitedOn.size + index }
+        } else {
+            visitedOn.indices.map { it.toLong() }
         }
-        return steps
+        val lo = keys.min()
+        val hi = keys.max()
+        if (hi <= lo) return visitedOn.indices.map { it.toFloat() / visitedOn.lastIndex }
+        return keys.map { (it - lo).toFloat() / (hi - lo).toFloat() }
     }
 
     private fun clampFrame(frame: MapFrame): MapFrame {
@@ -254,11 +236,4 @@ data class MapTile(
     val url: String,
     val offsetX: Float,
     val offsetY: Float,
-)
-
-data class RouteStep(
-    val x: Float,
-    val y: Float,
-    val angleDeg: Float,
-    val left: Boolean,
 )
