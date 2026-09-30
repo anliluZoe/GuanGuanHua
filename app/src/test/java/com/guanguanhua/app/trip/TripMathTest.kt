@@ -17,6 +17,10 @@ class TripMathTest {
         assertNull(TripMath.ratingOrNull(0))
         assertEquals(5, TripMath.ratingOrNull(5))
         assertEquals(6, TripMath.MAX_PHOTOS)
+        assertEquals(400, TripMath.MAX_NOTE)
+        assertNull(TripMath.noteOrNull("  "))
+        assertEquals("好吃", TripMath.noteOrNull("  好吃  "))
+        assertEquals("a".repeat(400), TripMath.noteOrNull("a".repeat(401)))
         assertEquals(4, TripMath.MAP_MIN_ZOOM)
         assertEquals(18, TripMath.MAP_MAX_ZOOM)
     }

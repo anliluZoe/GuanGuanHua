@@ -531,6 +531,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         lng: Double?,
         visitedOn: String,
         amountCents: Long? = null,
+        note: String? = null,
         photoUris: List<Uri> = emptyList(),
         onSuccess: () -> Unit = {},
     ) {
@@ -544,7 +545,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 runCatching {
                     val created = repo.addTripStop(
                         tripId,
-                        TripStopWrite(name.trim(), kind, rating, lat, lng, visitedOn, amountCents),
+                        TripStopWrite(
+                            name.trim(),
+                            kind,
+                            rating,
+                            lat,
+                            lng,
+                            visitedOn,
+                            amountCents,
+                            TripMath.noteOrNull(note),
+                        ),
                     )
                     photoUris.take(TripMath.MAX_PHOTOS).forEach { uri ->
                         repo.uploadTripStopPhoto(tripId, created.id, uri)
@@ -569,6 +579,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         rating: Int?,
         visitedOn: String,
         amountCents: Long? = null,
+        note: String? = null,
     ) {
         viewModelScope.launch {
             track(_busyCount) {
@@ -576,7 +587,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     repo.updateTripStop(
                         tripId,
                         stopId,
-                        TripStopWrite(name.trim(), kind, rating, visitedOn = visitedOn, amountCents = amountCents),
+                        TripStopWrite(
+                            name.trim(),
+                            kind,
+                            rating,
+                            visitedOn = visitedOn,
+                            amountCents = amountCents,
+                            note = TripMath.noteOrNull(note),
+                        ),
                     )
                 }.onSuccess { runCatching { syncTrips() } }
                     .onFailure { _statusMessage.value = it.message ?: "没改成" }

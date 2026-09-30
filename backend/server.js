@@ -419,6 +419,7 @@ function stopJson(row, req, photos = []) {
     kind: row.kind,
     rating: row.rating == null ? null : Number(row.rating),
     amountCents: row.amount_cents == null ? null : Number(row.amount_cents),
+    note: row.note ? String(row.note) : null,
     lat: row.lat == null ? null : Number(row.lat),
     lng: row.lng == null ? null : Number(row.lng),
     visitedOn: row.visited_on,
@@ -471,6 +472,11 @@ function readStopBody(body, fallback) {
       amountCents = n;
     }
   }
+  let note = fallback ? fallback.note ?? null : null;
+  if (body != null && Object.prototype.hasOwnProperty.call(body, "note")) {
+    if (body.note == null || String(body.note).trim() === "") note = null;
+    else note = String(body.note).trim().slice(0, 400);
+  }
   const visitedOn = body?.visitedOn != null ? parseIsoDate(String(body.visitedOn).trim()) : fallback?.visitedOn;
   if (!visitedOn) return { error: "日期要填成 YYYY-MM-DD" };
   const lat = body?.lat == null || body.lat === "" ? fallback?.lat ?? null : Number(body.lat);
@@ -478,7 +484,7 @@ function readStopBody(body, fallback) {
   if ((lat != null && !Number.isFinite(lat)) || (lng != null && !Number.isFinite(lng))) {
     return { error: "位置不对" };
   }
-  return { name: name.slice(0, 80), kind, rating, amountCents, visitedOn, lat, lng };
+  return { name: name.slice(0, 80), kind, rating, amountCents, note, visitedOn, lat, lng };
 }
 
 function tripWriteError(result, res) {
@@ -570,6 +576,7 @@ app.patch("/api/trips/:id/stops/:stopId", requireMember, (req, res) => {
     kind: existing.kind,
     rating: existing.rating,
     amountCents: existing.amount_cents,
+    note: existing.note,
     visitedOn: existing.visited_on,
     lat: existing.lat,
     lng: existing.lng,

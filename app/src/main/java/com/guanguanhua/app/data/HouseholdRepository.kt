@@ -420,6 +420,7 @@ class HouseholdRepository(private val app: Application) {
                         "rating" to body.rating,
                         "visitedOn" to body.visitedOn,
                         "amountCents" to body.amountCents,
+                        "note" to body.note,
                     ),
                 ),
             ),

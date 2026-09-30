@@ -20,6 +20,7 @@ data class TripStop(
     val kind: String = "",
     val rating: Int? = null,
     val amountCents: Long? = null,
+    val note: String? = null,
     val lat: Double? = null,
     val lng: Double? = null,
     val visitedOn: String = "",
@@ -68,6 +69,7 @@ data class TripStopWrite(
     val lng: Double? = null,
     val visitedOn: String,
     val amountCents: Long? = null,
+    val note: String? = null,
 )
 
 data class NearbyPlace(

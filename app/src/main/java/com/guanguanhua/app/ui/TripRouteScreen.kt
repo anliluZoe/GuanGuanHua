@@ -340,6 +340,14 @@ fun TripRouteScreen(viewModel: AppViewModel, tripId: Long, onBack: () -> Unit) {
                                         Text(cents.toYuan(), color = q.coral, style = MaterialTheme.typography.bodySmall)
                                     }
                                 }
+                                stop.note?.takeIf { it.isNotBlank() }?.let { note ->
+                                    Text(
+                                        note,
+                                        color = q.muted,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        maxLines = 2,
+                                    )
+                                }
                                 if (trip.active) {
                                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                         Text("上移", color = q.sky, modifier = Modifier.clickable { viewModel.moveTripStop(stop.id, -1) })
@@ -371,8 +379,8 @@ fun TripRouteScreen(viewModel: AppViewModel, tripId: Long, onBack: () -> Unit) {
             stop = editing,
             canEdit = routeTrip.active,
             busy = isBusy,
-            onSave = { name, kind, rating, amountCents ->
-                viewModel.updateTripStop(routeTrip.id, editing.id, name, kind, rating, editing.visitedOn, amountCents)
+            onSave = { name, kind, rating, amountCents, note ->
+                viewModel.updateTripStop(routeTrip.id, editing.id, name, kind, rating, editing.visitedOn, amountCents, note)
                 selectedId = 0L
             },
             onAddPhotos = { uris ->
@@ -715,7 +723,7 @@ private fun StopSheet(
     stop: TripStop,
     canEdit: Boolean,
     busy: Boolean,
-    onSave: (String, String, Int?, Long?) -> Unit,
+    onSave: (String, String, Int?, Long?, String?) -> Unit,
     onAddPhotos: (List<Uri>) -> Unit,
     onRemovePhoto: (Long) -> Unit,
     onClose: () -> Unit,
@@ -726,6 +734,7 @@ private fun StopSheet(
     var amountText by rememberSaveable(stop.id) {
         mutableStateOf(stop.amountCents?.toYuan()?.removePrefix("¥") ?: "")
     }
+    var noteText by rememberSaveable(stop.id) { mutableStateOf(stop.note.orEmpty()) }
     val photoPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.PickMultipleVisualMedia(TripMath.MAX_PHOTOS),
     ) { uris ->
@@ -749,11 +758,15 @@ private fun StopSheet(
                 TripKindChips(kind) { kind = it }
                 TripStars(rating.takeIf { it > 0 }) { rating = it ?: 0 }
                 TripAmountField(amountText) { amountText = it }
+                TripNoteField(noteText) { noteText = it }
             } else {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     TripKindLabel(stop.kind)
                     Text(stop.rating?.let { "★$it" } ?: "未评分", color = QTheme.colors.muted)
                     stop.amountCents?.let { Text(it.toYuan(), color = QTheme.colors.coral) }
+                }
+                stop.note?.takeIf { it.isNotBlank() }?.let { note ->
+                    Text(note, color = QTheme.colors.ink, style = MaterialTheme.typography.bodyMedium)
                 }
             }
             if (stop.photos.isNotEmpty() || canEdit) {
@@ -772,7 +785,13 @@ private fun StopSheet(
                     enabled = !busy && name.trim().isNotBlank() && TripMath.knownKind(kind) &&
                         (amountText.isBlank() || amountText.yuanToCentsOrNull() != null),
                     onClick = {
-                        onSave(name, kind, TripMath.ratingOrNull(rating.takeIf { it > 0 }), amountText.yuanToCentsOrNull())
+                        onSave(
+                            name,
+                            kind,
+                            TripMath.ratingOrNull(rating.takeIf { it > 0 }),
+                            amountText.yuanToCentsOrNull(),
+                            noteText,
+                        )
                     },
                 )
             }

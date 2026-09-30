@@ -14,12 +14,16 @@ import kotlin.math.sin
 object TripMath {
     val KINDS = listOf("住宿", "美食", "风景", "博物馆", "杂物店")
     const val MAX_PHOTOS = 6
+    const val MAX_NOTE = 400
     const val MAP_MIN_ZOOM = 4
     const val MAP_MAX_ZOOM = 18
 
     fun knownKind(kind: String): Boolean = kind in KINDS
 
     fun ratingOrNull(rating: Int?): Int? = rating?.takeIf { it in 1..5 }
+
+    fun noteOrNull(text: String?): String? =
+        text?.trim()?.takeIf { it.isNotEmpty() }?.take(MAX_NOTE)
 
     fun startedDate(startedAt: Long, zone: ZoneId = ZoneId.systemDefault()): LocalDate =
         Instant.ofEpochMilli(startedAt).atZone(zone).toLocalDate()
