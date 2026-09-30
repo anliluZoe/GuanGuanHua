@@ -542,8 +542,8 @@ private fun TripMap(
             Canvas(Modifier.fillMaxSize()) {
                 val stepPx = 18.dp.toPx()
                 val sidePx = 3.5.dp.toPx()
-                val printW = 4.5.dp.toPx()
-                val printH = 7.5.dp.toPx()
+                val printLen = 7.5.dp.toPx()
+                val printWid = 4.5.dp.toPx()
                 located.zipWithNext().forEach { (from, to) ->
                     val start = TripMath.mapPixel(from.lat as Double, from.lng as Double, frame)
                     val end = TripMath.mapPixel(to.lat as Double, to.lng as Double, frame)
@@ -558,11 +558,13 @@ private fun TripMap(
                         pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f)),
                     )
                     TripMath.routeSteps(fromPx.x, fromPx.y, toPx.x, toPx.y, stepPx, sidePx).forEach { step ->
-                        rotate(step.angleDeg, Offset(step.x, step.y)) {
+                        // 椭圆长轴沿 +X，和 angleDeg（0° 朝右）对齐后顺着路线
+                        val turn = if (step.left) -12f else 12f
+                        rotate(step.angleDeg + turn, Offset(step.x, step.y)) {
                             drawOval(
                                 color = q.sky.copy(alpha = 0.9f),
-                                topLeft = Offset(step.x - printW / 2f, step.y - printH / 2f),
-                                size = Size(printW, printH),
+                                topLeft = Offset(step.x - printLen / 2f, step.y - printWid / 2f),
+                                size = Size(printLen, printWid),
                             )
                         }
                     }

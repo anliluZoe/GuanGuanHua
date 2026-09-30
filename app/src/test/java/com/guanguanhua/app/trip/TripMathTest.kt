@@ -131,6 +131,9 @@ class TripMathTest {
         assertEquals(0f, steps[0].angleDeg, 1f)
         assertTrue(steps[0].y < 0f)
         assertTrue(steps[1].y > 0f)
+        assertEquals(90f, TripMath.routeSteps(0f, 0f, 0f, 200f, 20f, 4f)[0].angleDeg, 1f)
+        assertEquals(180f, TripMath.routeSteps(200f, 0f, 0f, 0f, 20f, 4f)[0].angleDeg, 1f)
+        assertEquals(-90f, TripMath.routeSteps(0f, 200f, 0f, 0f, 20f, 4f)[0].angleDeg, 1f)
         assertTrue(TripMath.routeSteps(0f, 0f, 10f, 0f, 20f, 4f).isEmpty())
     }
 }
