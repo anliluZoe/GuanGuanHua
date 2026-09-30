@@ -17,6 +17,8 @@ class TripMathTest {
         assertNull(TripMath.ratingOrNull(0))
         assertEquals(5, TripMath.ratingOrNull(5))
         assertEquals(6, TripMath.MAX_PHOTOS)
+        assertEquals(4, TripMath.MAP_MIN_ZOOM)
+        assertEquals(18, TripMath.MAP_MAX_ZOOM)
     }
 
     @Test
@@ -94,5 +96,25 @@ class TripMathTest {
         assertTrue(d12 >= 19.5f)
         val far = listOf(10f to 10f, 200f to 200f)
         assertEquals(far, TripMath.spreadOverlapping(far, 20f))
+    }
+
+    @Test
+    fun zoomAndPanKeepTheFocusedStopOnScreen() {
+        val chengdu = 30.67 to 104.06
+        val frame = TripMath.mapFrame(listOf(chengdu), 512, 260)
+        val pixel = TripMath.mapPixel(chengdu.first, chengdu.second, frame)
+        val zoomed = TripMath.zoomFrame(frame, frame.zoom + 2, pixel.first, pixel.second)
+        assertEquals(frame.zoom + 2, zoomed.zoom)
+        val still = TripMath.mapPixel(chengdu.first, chengdu.second, zoomed)
+        assertEquals(pixel.first, still.first, 1.5f)
+        assertEquals(pixel.second, still.second, 1.5f)
+        val maxed = TripMath.zoomFrame(zoomed, 99, 120f, 80f)
+        assertEquals(TripMath.MAP_MAX_ZOOM, maxed.zoom)
+        val mined = TripMath.zoomFrame(frame, 1, 120f, 80f)
+        assertEquals(TripMath.MAP_MIN_ZOOM, mined.zoom)
+        val panned = TripMath.panFrame(frame, 40f, -16f)
+        val moved = TripMath.mapPixel(chengdu.first, chengdu.second, panned)
+        assertEquals(pixel.first + 40f, moved.first, 1.5f)
+        assertEquals(pixel.second - 16f, moved.second, 1.5f)
     }
 }

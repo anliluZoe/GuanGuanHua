@@ -24,6 +24,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.FormBody
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 
@@ -117,33 +118,57 @@ object NearbyPlaces {
                 );
                 out center 48;
             """.trimIndent()
-            var lastError: IOException? = null
-            for (url in overpassUrls) {
-                val request = Request.Builder()
-                    .url(url)
-                    .header("User-Agent", USER_AGENT)
-                    .post(FormBody.Builder().add("data", query).build())
-                    .build()
-                val response = runCatching { client.newCall(request).execute() }.getOrElse { error ->
-                    lastError = IOException(error.message ?: "附近连不上", error)
-                    null
-                } ?: continue
-                val places = response.use { http ->
-                    when {
-                        http.isSuccessful -> parseOverpass(http.body?.string().orEmpty(), lat, lng)
-                        http.code == 429 || http.code >= 500 -> {
-                            lastError = IOException("overpass ${http.code}")
-                            null
-                        }
-                        else -> return@withContext emptyList()
-                    }
-                }
-                if (places != null) {
-                    cachedSearch = Triple(cacheKey, System.currentTimeMillis(), places)
-                    return@withContext places
-                }
+            val places = parseOverpass(overpassBody(query), lat, lng)
+            cachedSearch = Triple(cacheKey, System.currentTimeMillis(), places)
+            places
+        }
+
+    suspend fun searchByName(query: String, lat: Double?, lng: Double?): List<NearbyPlace> =
+        withContext(Dispatchers.IO) {
+            val q = query.trim().take(40).replace("\"", "")
+            if (q.length < 2) return@withContext emptyList()
+            val needle = q.replace(Regex("""[\\.^$|?*+()\[\]{}]""")) { "\\${it.value}" }
+            val around = if (lat != null && lng != null) {
+                runCatching {
+                    parseOverpass(
+                        overpassBody(
+                            """
+                            [out:json][timeout:15];
+                            (
+                              nwr(around:8000,$lat,$lng)[name~"$needle",i];
+                              nwr(around:8000,$lat,$lng)["name:zh"~"$needle",i];
+                            );
+                            out center 24;
+                            """.trimIndent(),
+                        ),
+                        lat,
+                        lng,
+                    )
+                }.getOrDefault(emptyList())
+            } else {
+                emptyList()
             }
-            throw lastError ?: IOException("附近连不上")
+            val named = runCatching {
+                val url = "https://photon.komoot.io/api/".toHttpUrl().newBuilder()
+                    .addQueryParameter("q", q)
+                    .addQueryParameter("limit", "12")
+                    .addQueryParameter("lang", "zh")
+                    .apply {
+                        if (lat != null && lng != null) {
+                            addQueryParameter("lat", lat.toString())
+                            addQueryParameter("lon", lng.toString())
+                        }
+                    }
+                    .build()
+                val body = client.newCall(
+                    Request.Builder().url(url).header("User-Agent", USER_AGENT).get().build(),
+                ).execute().use { response ->
+                    if (!response.isSuccessful) throw IOException("photon ${response.code}")
+                    response.body?.string().orEmpty()
+                }
+                parsePhoton(body, lat, lng)
+            }.getOrDefault(emptyList())
+            (around + named).distinctBy { it.name to it.lat.toBits() }.sortedBy { it.meters }.take(24)
         }
 
     fun metersBetween(lat1: Double, lng1: Double, lat2: Double, lng2: Double): Int {
@@ -178,6 +203,66 @@ object NearbyPlaces {
                 meters = metersBetween(originLat, originLng, lat, lng),
             )
         }.distinctBy { it.name to it.lat.toBits() }.sortedBy { it.meters }.take(24)
+    }
+
+    fun parsePhoton(raw: String, originLat: Double?, originLng: Double?): List<NearbyPlace> {
+        val features = runCatching {
+            JsonParser.parseString(raw).asJsonObject.getAsJsonArray("features")
+        }.getOrNull() ?: return emptyList()
+        return features.mapNotNull { feature ->
+            val obj = feature.asJsonObject
+            val props = obj.getAsJsonObject("properties") ?: return@mapNotNull null
+            val name = tagText(props, "name") ?: return@mapNotNull null
+            val coords = obj.getAsJsonObject("geometry")?.getAsJsonArray("coordinates") ?: return@mapNotNull null
+            if (coords.size() < 2) return@mapNotNull null
+            val lng = runCatching { coords[0].asDouble }.getOrNull() ?: return@mapNotNull null
+            val lat = runCatching { coords[1].asDouble }.getOrNull() ?: return@mapNotNull null
+            val key = tagText(props, "osm_key")
+            val value = tagText(props, "osm_value")
+            NearbyPlace(
+                name = name,
+                kind = when (key) {
+                    "amenity" -> TripMath.kindFromTags(value, null, null)
+                    "tourism" -> TripMath.kindFromTags(null, value, null)
+                    "shop" -> TripMath.kindFromTags(null, null, value)
+                    else -> null
+                },
+                lat = lat,
+                lng = lng,
+                meters = if (originLat != null && originLng != null) {
+                    metersBetween(originLat, originLng, lat, lng)
+                } else {
+                    0
+                },
+            )
+        }.distinctBy { it.name to it.lat.toBits() }.sortedBy { it.meters }.take(24)
+    }
+
+    private fun overpassBody(query: String): String {
+        var lastError: IOException? = null
+        for (url in overpassUrls) {
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", USER_AGENT)
+                .post(FormBody.Builder().add("data", query).build())
+                .build()
+            val response = runCatching { client.newCall(request).execute() }.getOrElse { error ->
+                lastError = IOException(error.message ?: "附近连不上", error)
+                null
+            } ?: continue
+            val body = response.use { http ->
+                when {
+                    http.isSuccessful -> http.body?.string().orEmpty()
+                    http.code == 429 || http.code >= 500 -> {
+                        lastError = IOException("overpass ${http.code}")
+                        null
+                    }
+                    else -> return ""
+                }
+            }
+            if (body != null) return body
+        }
+        throw lastError ?: IOException("附近连不上")
     }
 
     private fun tagText(tags: JsonObject, key: String): String? =

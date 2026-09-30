@@ -39,4 +39,22 @@ class NearbyPlacesTest {
         assertEquals("美食", places[1].kind)
         assertTrue(places[0].meters < places[1].meters)
     }
+
+    @Test
+    fun photonJsonKeepsNamedPlacesAndMapsKinds() {
+        val raw = """
+            {"features":[
+              {"type":"Feature","geometry":{"type":"Point","coordinates":[104.072,30.673]},"properties":{"name":"宽窄巷子","osm_key":"tourism","osm_value":"attraction"}},
+              {"type":"Feature","geometry":{"type":"Point","coordinates":[104.073,30.674]},"properties":{"name":"龙抄手","osm_key":"amenity","osm_value":"restaurant"}},
+              {"type":"Feature","geometry":{"type":"Point","coordinates":[104.074,30.675]},"properties":{"osm_key":"shop","osm_value":"convenience"}}
+            ]}
+        """.trimIndent()
+        val places = NearbyPlaces.parsePhoton(raw, 30.673, 104.072)
+        assertEquals(2, places.size)
+        assertEquals("宽窄巷子", places[0].name)
+        assertEquals("风景", places[0].kind)
+        assertEquals("龙抄手", places[1].name)
+        assertEquals("美食", places[1].kind)
+        assertTrue(places[0].meters < places[1].meters)
+    }
 }

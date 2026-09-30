@@ -14,6 +14,8 @@ import kotlin.math.sin
 object TripMath {
     val KINDS = listOf("住宿", "美食", "风景", "博物馆", "杂物店")
     const val MAX_PHOTOS = 6
+    const val MAP_MIN_ZOOM = 4
+    const val MAP_MAX_ZOOM = 18
 
     fun knownKind(kind: String): Boolean = kind in KINDS
 
@@ -82,8 +84,8 @@ object TripMath {
         maxLat += latPad
         minLng -= lngPad
         maxLng += lngPad
-        var zoom = 16
-        while (zoom > 4) {
+        var zoom = MAP_MAX_ZOOM
+        while (zoom > MAP_MIN_ZOOM) {
             val spanX = (lonToTileX(maxLng, zoom) - lonToTileX(minLng, zoom)) * tileSize
             val spanY = (latToTileY(minLat, zoom) - latToTileY(maxLat, zoom)) * tileSize
             if (spanX <= width && spanY <= height) break
@@ -97,6 +99,28 @@ object TripMath {
         val top = north - (height / tileSize.toDouble() - (south - north)) / 2
         return MapFrame(zoom, left, top, width, height, tileSize)
     }
+
+    fun zoomFrame(frame: MapFrame, newZoom: Int, focusX: Float, focusY: Float): MapFrame {
+        val zoom = newZoom.coerceIn(MAP_MIN_ZOOM, MAP_MAX_ZOOM)
+        val scale = (1 shl zoom).toDouble() / (1 shl frame.zoom)
+        val worldX = frame.left + focusX / frame.tileSize
+        val worldY = frame.top + focusY / frame.tileSize
+        return clampFrame(
+            frame.copy(
+                zoom = zoom,
+                left = worldX * scale - focusX / frame.tileSize,
+                top = worldY * scale - focusY / frame.tileSize,
+            ),
+        )
+    }
+
+    fun panFrame(frame: MapFrame, dxPx: Float, dyPx: Float): MapFrame =
+        clampFrame(
+            frame.copy(
+                left = frame.left - dxPx / frame.tileSize,
+                top = frame.top - dyPx / frame.tileSize,
+            ),
+        )
 
     fun mapTiles(frame: MapFrame): List<MapTile> {
         val maxIndex = (1 shl frame.zoom) - 1
@@ -153,6 +177,16 @@ object TripMath {
             }
         }
         return out
+    }
+
+    private fun clampFrame(frame: MapFrame): MapFrame {
+        val world = (1 shl frame.zoom).toDouble()
+        val widthTiles = frame.widthPx / frame.tileSize.toDouble()
+        val heightTiles = frame.heightPx / frame.tileSize.toDouble()
+        return frame.copy(
+            left = frame.left.coerceIn(0.0, (world - widthTiles).coerceAtLeast(0.0)),
+            top = frame.top.coerceIn(0.0, (world - heightTiles).coerceAtLeast(0.0)),
+        )
     }
 
     private fun lonToTileX(lng: Double, zoom: Int): Double =
