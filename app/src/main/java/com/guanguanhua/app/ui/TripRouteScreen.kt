@@ -51,9 +51,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -205,14 +208,23 @@ fun TripRouteScreen(viewModel: AppViewModel, tripId: Long, onBack: () -> Unit) {
                 "${TripMath.formatRange(trip.startedAt, trip.endedAt)} · ${tripStopsLine(trip.stops.size, trip.spentCents)}",
                 color = QTheme.colors.muted,
             )
-            TripMap(shown, selectedId) { selectedId = it }
-            if (shown.isNotEmpty() && mapped == 0) {
+            var mapExpanded by rememberSaveable { mutableStateOf(false) }
+            TripMap(
+                stops = shown,
+                selectedId = selectedId,
+                expanded = mapExpanded,
+                onToggleExpand = { mapExpanded = !mapExpanded },
+                modifier = if (mapExpanded) Modifier.fillMaxWidth().weight(1f) else Modifier.fillMaxWidth().height(260.dp),
+                onSelect = { selectedId = it },
+            )
+            if (shown.isNotEmpty() && mapped == 0 && !mapExpanded) {
                 Text(
                     "这些站还没有位置，地图上画不出线。记的时候点附近一家，或打开定位再手写。",
                     color = QTheme.colors.muted,
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
+            if (!mapExpanded) {
             Row(
                 modifier = Modifier.horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -337,6 +349,7 @@ fun TripRouteScreen(viewModel: AppViewModel, tripId: Long, onBack: () -> Unit) {
                     }
                 }
             }
+            }
         }
     }
 
@@ -382,7 +395,14 @@ fun TripRouteScreen(viewModel: AppViewModel, tripId: Long, onBack: () -> Unit) {
 }
 
 @Composable
-private fun TripMap(stops: List<TripStop>, selectedId: Long, onSelect: (Long) -> Unit) {
+private fun TripMap(
+    stops: List<TripStop>,
+    selectedId: Long,
+    expanded: Boolean,
+    onToggleExpand: () -> Unit,
+    modifier: Modifier,
+    onSelect: (Long) -> Unit,
+) {
     val located = stops.mapNotNull { stop ->
         val lat = stop.lat
         val lng = stop.lng
@@ -390,9 +410,7 @@ private fun TripMap(stops: List<TripStop>, selectedId: Long, onSelect: (Long) ->
     }
     val q = QTheme.colors
     BoxWithConstraints(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(260.dp)
+        modifier = modifier
             .clip(RoundedCornerShape(18.dp))
             .background(q.mintSoft),
     ) {
@@ -522,16 +540,32 @@ private fun TripMap(stops: List<TripStop>, selectedId: Long, onSelect: (Long) ->
                 )
             }
             Canvas(Modifier.fillMaxSize()) {
+                val stepPx = 18.dp.toPx()
+                val sidePx = 3.5.dp.toPx()
+                val printW = 4.5.dp.toPx()
+                val printH = 7.5.dp.toPx()
                 located.zipWithNext().forEach { (from, to) ->
                     val start = TripMath.mapPixel(from.lat as Double, from.lng as Double, frame)
                     val end = TripMath.mapPixel(to.lat as Double, to.lng as Double, frame)
+                    val fromPx = Offset(start.first, start.second)
+                    val toPx = Offset(end.first, end.second)
                     drawLine(
-                        color = q.sky,
-                        start = Offset(start.first, start.second),
-                        end = Offset(end.first, end.second),
-                        strokeWidth = 4f,
+                        color = q.sky.copy(alpha = 0.45f),
+                        start = fromPx,
+                        end = toPx,
+                        strokeWidth = 2.5f,
                         cap = StrokeCap.Round,
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f)),
                     )
+                    TripMath.routeSteps(fromPx.x, fromPx.y, toPx.x, toPx.y, stepPx, sidePx).forEach { step ->
+                        rotate(step.angleDeg, Offset(step.x, step.y)) {
+                            drawOval(
+                                color = q.sky.copy(alpha = 0.9f),
+                                topLeft = Offset(step.x - printW / 2f, step.y - printH / 2f),
+                                size = Size(printW, printH),
+                            )
+                        }
+                    }
                 }
                 located.forEachIndexed { index, stop ->
                     val pixel = pixels[index]
@@ -588,6 +622,20 @@ private fun TripMap(stops: List<TripStop>, selectedId: Long, onSelect: (Long) ->
                         fontWeight = FontWeight.Medium,
                     )
                 }
+            }
+            Box(Modifier.width(36.dp).height(1.dp).background(q.line))
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clickable(onClick = onToggleExpand),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    if (expanded) "收" else "满",
+                    color = q.ink,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                )
             }
         }
     }
