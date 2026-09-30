@@ -35,8 +35,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.outlined.Fullscreen
+import androidx.compose.material.icons.outlined.FullscreenExit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
@@ -62,6 +68,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -79,13 +86,16 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.guanguanhua.app.AppViewModel
+import com.guanguanhua.app.UserProfile
 import com.guanguanhua.app.data.TripStop
 import com.guanguanhua.app.trip.MapFrame
 import com.guanguanhua.app.trip.TripMath
 import com.guanguanhua.app.ui.theme.QTheme
 import java.time.LocalDate
+import kotlin.math.cos
 import kotlin.math.hypot
 import kotlin.math.roundToInt
+import kotlin.math.sin
 
 private val stopKindFill = mapOf(
     "住宿" to Color(0xFF6BA3C4),
@@ -187,6 +197,7 @@ fun TripRouteScreen(viewModel: AppViewModel, tripId: Long, onBack: () -> Unit) {
     val trips by viewModel.trips.collectAsStateWithLifecycle()
     val opened by viewModel.openedTrip.collectAsStateWithLifecycle()
     val isBusy by viewModel.isBusy.collectAsStateWithLifecycle()
+    val profile by viewModel.profile.collectAsStateWithLifecycle()
     LaunchedEffect(tripId) { viewModel.openTrip(tripId) }
     val trip = opened?.takeIf { it.id == tripId } ?: trips.active?.takeIf { it.id == tripId }
     var day by rememberSaveable { mutableStateOf("all") }
@@ -227,6 +238,7 @@ fun TripRouteScreen(viewModel: AppViewModel, tripId: Long, onBack: () -> Unit) {
                     playStopId = id
                     if (id != 0L) selectedId = 0L
                 },
+                profile = profile,
             )
             if (shown.isNotEmpty() && mapped == 0 && !mapExpanded) {
                 Text(
@@ -422,6 +434,7 @@ private fun TripMap(
     modifier: Modifier,
     onSelect: (Long) -> Unit,
     onPlayStop: (Long) -> Unit,
+    profile: UserProfile,
 ) {
     val located = stops.mapNotNull { stop ->
         val lat = stop.lat
@@ -623,9 +636,6 @@ private fun TripMap(
                             cap = StrokeCap.Round,
                         )
                     }
-                    val tip = Offset(head.x, head.y)
-                    drawCircle(Color.White, 8.dp.toPx(), tip)
-                    drawCircle(q.sky, 5.5.dp.toPx(), tip)
                 }
                 located.forEachIndexed { index, stop ->
                     val pixel = pixels[index]
@@ -645,6 +655,50 @@ private fun TripMap(
                         ),
                     )
                 }
+            }
+            if (head != null) {
+                val avatarPx = with(density) { 30.dp.toPx() }
+                val sep = with(density) { 11.dp.toPx() }
+                val rad = Math.toRadians(head.angleDeg.toDouble())
+                val nx = (-sin(rad)).toFloat()
+                val ny = cos(rad).toFloat()
+                val together = !profile.partnerName.isNullOrBlank() ||
+                    !profile.partnerAvatarUrl.isNullOrBlank() ||
+                    !profile.partnerAvatarPreset.isNullOrBlank()
+                val meX = if (together) head.x + nx * sep else head.x
+                val meY = if (together) head.y + ny * sep else head.y
+                if (together) {
+                    MemberAvatar(
+                        name = profile.partnerName.orEmpty(),
+                        presetId = profile.partnerAvatarPreset,
+                        photoUrl = profile.partnerAvatarUrl,
+                        fallbackPreset = AvatarIds.DOG,
+                        size = 30.dp,
+                        modifier = Modifier
+                            .zIndex(9f)
+                            .offset {
+                                IntOffset(
+                                    (head.x - nx * sep - avatarPx / 2f).roundToInt(),
+                                    (head.y - ny * sep - avatarPx / 2f).roundToInt(),
+                                )
+                            },
+                    )
+                }
+                MemberAvatar(
+                    name = profile.name.ifBlank { "我" },
+                    presetId = profile.avatarPreset,
+                    photoUrl = profile.avatarUrl,
+                    fallbackPreset = AvatarIds.CAT,
+                    size = 30.dp,
+                    modifier = Modifier
+                        .zIndex(10f)
+                        .offset {
+                            IntOffset(
+                                (meX - avatarPx / 2f).roundToInt(),
+                                (meY - avatarPx / 2f).roundToInt(),
+                            )
+                        },
+                )
             }
         }
         Column(
@@ -690,11 +744,11 @@ private fun TripMap(
                     .clickable(onClick = onToggleExpand),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    if (expanded) "收" else "满",
-                    color = q.ink,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
+                Icon(
+                    imageVector = if (expanded) Icons.Outlined.FullscreenExit else Icons.Outlined.Fullscreen,
+                    contentDescription = if (expanded) "收起地图" else "铺满屏幕",
+                    tint = q.ink,
+                    modifier = Modifier.size(20.dp),
                 )
             }
             if (located.size >= 2) {
@@ -705,11 +759,11 @@ private fun TripMap(
                         .clickable { playing = !playing },
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(
-                        if (playing) "停" else "播",
-                        color = q.ink,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium,
+                    Icon(
+                        imageVector = if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                        contentDescription = if (playing) "停止播放" else "播放足迹",
+                        tint = q.ink,
+                        modifier = Modifier.size(22.dp),
                     )
                 }
             }

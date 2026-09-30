@@ -5,6 +5,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 import kotlin.math.PI
+import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.floor
 import kotlin.math.hypot
@@ -210,12 +211,12 @@ object TripMath {
     fun routePlayhead(points: List<Pair<Float, Float>>, progress: Float): RoutePlayhead? {
         if (points.isEmpty()) return null
         val first = points.first()
-        if (points.size == 1) return RoutePlayhead(first.first, first.second, 0)
+        if (points.size == 1) return RoutePlayhead(first.first, first.second, 0, 0f)
         val t = progress.coerceIn(0f, 1f)
         val lengths = points.zipWithNext { a, b -> hypot(b.first - a.first, b.second - a.second) }
         val total = lengths.sum()
         val last = points.last()
-        if (total <= 0f) return RoutePlayhead(last.first, last.second, points.lastIndex)
+        if (total <= 0f) return RoutePlayhead(last.first, last.second, points.lastIndex, 0f)
         val target = t * total
         var walked = 0f
         lengths.forEachIndexed { index, len ->
@@ -223,15 +224,24 @@ object TripMath {
                 val u = if (len <= 0f) 1f else ((target - walked) / len).coerceIn(0f, 1f)
                 val a = points[index]
                 val b = points[index + 1]
+                val dx = b.first - a.first
+                val dy = b.second - a.second
                 return RoutePlayhead(
-                    x = a.first + (b.first - a.first) * u,
-                    y = a.second + (b.second - a.second) * u,
+                    x = a.first + dx * u,
+                    y = a.second + dy * u,
                     reached = if (u >= 0.999f) index + 1 else index,
+                    angleDeg = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat(),
                 )
             }
             walked += len
         }
-        return RoutePlayhead(last.first, last.second, points.lastIndex)
+        val prev = points[points.lastIndex - 1]
+        return RoutePlayhead(
+            last.first,
+            last.second,
+            points.lastIndex,
+            Math.toDegrees(atan2((last.second - prev.second).toDouble(), (last.first - prev.first).toDouble())).toFloat(),
+        )
     }
 
     private fun clampFrame(frame: MapFrame): MapFrame {
@@ -276,4 +286,5 @@ data class RoutePlayhead(
     val x: Float,
     val y: Float,
     val reached: Int,
+    val angleDeg: Float = 0f,
 )
