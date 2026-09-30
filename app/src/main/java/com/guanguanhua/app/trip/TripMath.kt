@@ -199,6 +199,7 @@ object TripMath {
         if (len < stepPx * 1.6f || stepPx <= 0f) return emptyList()
         val ux = dx / len
         val uy = dy / len
+        // 屏幕坐标：0° 朝右、90° 朝下。脚印绘制时脚尖沿 +X，再按这个角旋转。
         val angle = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat()
         val steps = mutableListOf<RouteStep>()
         var walked = stepPx
