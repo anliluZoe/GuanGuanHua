@@ -101,6 +101,31 @@ test("stop kinds ratings reorder and isolation", async () => {
       ada.token
     );
     assert.equal(first.amountCents, 28000);
+    assert.equal(first.note, null);
+    const withNote = await json(
+      base,
+      "PATCH",
+      `/api/trips/${trip.id}/stops/${first.id}`,
+      { note: "  枕头很软  " },
+      ada.token
+    );
+    assert.equal(withNote.note, "枕头很软");
+    const keepNote = await json(
+      base,
+      "PATCH",
+      `/api/trips/${trip.id}/stops/${first.id}`,
+      { rating: 4 },
+      ada.token
+    );
+    assert.equal(keepNote.note, "枕头很软");
+    const clearedNote = await json(
+      base,
+      "PATCH",
+      `/api/trips/${trip.id}/stops/${first.id}`,
+      { note: "" },
+      ada.token
+    );
+    assert.equal(clearedNote.note, null);
     const second = await json(
       base,
       "POST",
@@ -310,6 +335,7 @@ test("opening an older database adds trip tables", () => {
     assert.ok(tables.includes("trip_stop_photos"));
     const columns = store.db.prepare("PRAGMA table_info(trip_stops)").all().map((row) => row.name);
     assert.ok(columns.includes("amount_cents"));
+    assert.ok(columns.includes("note"));
     const started = store.startTrip(1, 1, "桂林", "2026-10-07");
     assert.equal(started.name, "桂林");
     assert.equal(store.activeTrip(1).id, started.id);

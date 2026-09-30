@@ -58,6 +58,18 @@ fun tripStopsLine(stopCount: Int, spentCents: Long): String =
     listOfNotNull("$stopCount 站", spentCents.takeIf { it > 0 }?.toYuan()).joinToString(" · ")
 
 @Composable
+fun TripNoteField(value: String, onValueChange: (String) -> Unit) {
+    SoftField(
+        value = value,
+        onValueChange = { onValueChange(it.take(TripMath.MAX_NOTE)) },
+        label = "笔记（可选）",
+        singleLine = false,
+        minLines = 3,
+        supportingText = if (value.isBlank()) "写给自己看的，比如味道、心情" else "${value.length}/${TripMath.MAX_NOTE}",
+    )
+}
+
+@Composable
 fun TripAmountField(value: String, onValueChange: (String) -> Unit) {
     val invalid = value.isNotBlank() && value.yuanToCentsOrNull() == null
     SoftField(

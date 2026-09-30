@@ -59,6 +59,7 @@ fun RecordStopScreen(viewModel: AppViewModel, onBack: () -> Unit, onOpenRoute: (
     var kind by rememberSaveable { mutableStateOf("") }
     var rating by rememberSaveable { mutableStateOf(0) }
     var amountText by rememberSaveable { mutableStateOf("") }
+    var noteText by rememberSaveable { mutableStateOf("") }
     var photoUris by rememberSaveable { mutableStateOf(listOf<String>()) }
     var visitedOn by rememberSaveable { mutableStateOf(LocalDate.now().toString()) }
     var lat by rememberSaveable { mutableStateOf<String?>(null) }
@@ -193,6 +194,7 @@ fun RecordStopScreen(viewModel: AppViewModel, onBack: () -> Unit, onOpenRoute: (
                 Text("评分", style = MaterialTheme.typography.labelLarge)
                 TripStars(rating.takeIf { it > 0 }) { rating = it ?: 0 }
                 TripAmountField(amountText) { amountText = it }
+                TripNoteField(noteText) { noteText = it }
                 TripPhotoStrip(
                     photos = emptyList(),
                     localUris = photoUris,
@@ -226,12 +228,14 @@ fun RecordStopScreen(viewModel: AppViewModel, onBack: () -> Unit, onOpenRoute: (
                             lng = lng?.toDoubleOrNull(),
                             visitedOn = visitedOn,
                             amountCents = amountText.yuanToCentsOrNull(),
+                            note = noteText,
                             photoUris = photoUris.map { Uri.parse(it) },
                             onSuccess = {
                                 name = ""
                                 kind = ""
                                 rating = 0
                                 amountText = ""
+                                noteText = ""
                                 photoUris = emptyList()
                                 lat = null
                                 lng = null
@@ -247,6 +251,7 @@ fun RecordStopScreen(viewModel: AppViewModel, onBack: () -> Unit, onOpenRoute: (
                     lng = null
                     rating = 0
                     amountText = ""
+                    noteText = ""
                     photoUris = emptyList()
                     picked = false
                 })
@@ -260,6 +265,7 @@ fun RecordStopScreen(viewModel: AppViewModel, onBack: () -> Unit, onOpenRoute: (
                             stop.rating?.let { "★$it" },
                             stop.kind,
                             stop.name,
+                            stop.note?.takeIf { it.isNotBlank() }?.let { "有笔记" },
                             stop.photos.takeIf { it.isNotEmpty() }?.let { "图${it.size}" },
                         ).joinToString(" · "),
                         style = MaterialTheme.typography.bodyMedium,

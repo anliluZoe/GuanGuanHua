@@ -85,6 +85,7 @@ class Store {
         kind TEXT NOT NULL,
         rating INTEGER,
         amount_cents INTEGER,
+        note TEXT,
         lat REAL,
         lng REAL,
         visited_on TEXT NOT NULL,
@@ -107,6 +108,9 @@ class Store {
     const stopColumns = this.db.prepare("PRAGMA table_info(trip_stops)").all().map((c) => c.name);
     if (!stopColumns.includes("amount_cents")) {
       this.db.exec("ALTER TABLE trip_stops ADD COLUMN amount_cents INTEGER");
+    }
+    if (!stopColumns.includes("note")) {
+      this.db.exec("ALTER TABLE trip_stops ADD COLUMN note TEXT");
     }
   }
 
@@ -180,7 +184,7 @@ class Store {
   listStops(tripId) {
     return this.db
       .prepare(
-        `SELECT s.id, s.trip_id, s.name, s.kind, s.rating, s.amount_cents, s.lat, s.lng, s.visited_on,
+        `SELECT s.id, s.trip_id, s.name, s.kind, s.rating, s.amount_cents, s.note, s.lat, s.lng, s.visited_on,
                 s.sort_order, s.created_by, s.created_at, s.updated_at, m.name AS created_by_name
          FROM trip_stops s
          JOIN members m ON m.id = s.created_by
@@ -195,7 +199,7 @@ class Store {
     if (!trip) return null;
     return this.db
       .prepare(
-        `SELECT s.id, s.trip_id, s.name, s.kind, s.rating, s.amount_cents, s.lat, s.lng, s.visited_on,
+        `SELECT s.id, s.trip_id, s.name, s.kind, s.rating, s.amount_cents, s.note, s.lat, s.lng, s.visited_on,
                 s.sort_order, s.created_by, s.created_at, s.updated_at, m.name AS created_by_name
          FROM trip_stops s
          JOIN members m ON m.id = s.created_by
@@ -222,13 +226,14 @@ class Store {
     if (rating != null && (!Number.isInteger(rating) || rating < 1 || rating > 5)) return { error: "rating" };
     const amountCents = fields.amountCents == null ? null : fields.amountCents;
     if (amountCents != null && (!Number.isInteger(amountCents) || amountCents < 1)) return { error: "amount" };
+    const note = fields.note == null || String(fields.note).trim() === "" ? null : String(fields.note).trim().slice(0, 400);
     const visitedOn = fields.visitedOn;
     const sortOrder = this.nextSortOrder(tripId, visitedOn);
     const id = Number(
       this.db
         .prepare(
-          `INSERT INTO trip_stops(trip_id, name, kind, rating, amount_cents, lat, lng, visited_on, sort_order, created_by, created_at, updated_at)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`
+          `INSERT INTO trip_stops(trip_id, name, kind, rating, amount_cents, note, lat, lng, visited_on, sort_order, created_by, created_at, updated_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`
         )
         .run(
           tripId,
@@ -236,6 +241,7 @@ class Store {
           fields.kind,
           rating,
           amountCents,
+          note,
           fields.lat ?? null,
           fields.lng ?? null,
           visitedOn,
@@ -267,6 +273,10 @@ class Store {
       amountCents = fields.amountCents == null ? null : fields.amountCents;
       if (amountCents != null && (!Number.isInteger(amountCents) || amountCents < 1)) return { error: "amount" };
     }
+    let note = existing.note;
+    if (Object.prototype.hasOwnProperty.call(fields, "note")) {
+      note = fields.note == null || String(fields.note).trim() === "" ? null : String(fields.note).trim().slice(0, 400);
+    }
     const visitedOn = fields.visitedOn != null ? fields.visitedOn : existing.visited_on;
     let sortOrder = existing.sort_order;
     if (visitedOn !== existing.visited_on) {
@@ -275,7 +285,7 @@ class Store {
     this.db
       .prepare(
         `UPDATE trip_stops
-         SET name = ?, kind = ?, rating = ?, amount_cents = ?, lat = ?, lng = ?, visited_on = ?, sort_order = ?, updated_at = ?
+         SET name = ?, kind = ?, rating = ?, amount_cents = ?, note = ?, lat = ?, lng = ?, visited_on = ?, sort_order = ?, updated_at = ?
          WHERE id = ? AND trip_id = ?`
       )
       .run(
@@ -283,6 +293,7 @@ class Store {
         kind,
         rating,
         amountCents,
+        note,
         fields.lat !== undefined ? fields.lat : existing.lat,
         fields.lng !== undefined ? fields.lng : existing.lng,
         visitedOn,

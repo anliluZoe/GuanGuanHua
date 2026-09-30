@@ -4,6 +4,9 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -51,12 +54,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -188,6 +191,7 @@ fun TripRouteScreen(viewModel: AppViewModel, tripId: Long, onBack: () -> Unit) {
     val trip = opened?.takeIf { it.id == tripId } ?: trips.active?.takeIf { it.id == tripId }
     var day by rememberSaveable { mutableStateOf("all") }
     var selectedId by rememberSaveable { mutableStateOf(0L) }
+    var playStopId by rememberSaveable { mutableStateOf(0L) }
     var deletingId by rememberSaveable { mutableStateOf(0L) }
     val shown = trip?.stops.orEmpty().filter { day == "all" || it.visitedOn == day }
     val mapped = shown.count { it.lat != null && it.lng != null }
@@ -215,7 +219,14 @@ fun TripRouteScreen(viewModel: AppViewModel, tripId: Long, onBack: () -> Unit) {
                 expanded = mapExpanded,
                 onToggleExpand = { mapExpanded = !mapExpanded },
                 modifier = if (mapExpanded) Modifier.fillMaxWidth().weight(1f) else Modifier.fillMaxWidth().height(260.dp),
-                onSelect = { selectedId = it },
+                onSelect = {
+                    selectedId = it
+                    playStopId = 0L
+                },
+                onPlayStop = { id ->
+                    playStopId = id
+                    if (id != 0L) selectedId = 0L
+                },
             )
             if (shown.isNotEmpty() && mapped == 0 && !mapExpanded) {
                 Text(
@@ -271,7 +282,7 @@ fun TripRouteScreen(viewModel: AppViewModel, tripId: Long, onBack: () -> Unit) {
                     }
                     item(key = stop.id) {
                         val q = QTheme.colors
-                        val selected = stop.id == selectedId
+                        val selected = stop.id == selectedId || stop.id == playStopId
                         val fill = stopKindFill[stop.kind] ?: q.sky
                         TripAxisNode(
                             leftLabel = "",
@@ -329,6 +340,14 @@ fun TripRouteScreen(viewModel: AppViewModel, tripId: Long, onBack: () -> Unit) {
                                         Text(cents.toYuan(), color = q.coral, style = MaterialTheme.typography.bodySmall)
                                     }
                                 }
+                                stop.note?.takeIf { it.isNotBlank() }?.let { note ->
+                                    Text(
+                                        note,
+                                        color = q.muted,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        maxLines = 2,
+                                    )
+                                }
                                 if (trip.active) {
                                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                         Text("上移", color = q.sky, modifier = Modifier.clickable { viewModel.moveTripStop(stop.id, -1) })
@@ -360,8 +379,8 @@ fun TripRouteScreen(viewModel: AppViewModel, tripId: Long, onBack: () -> Unit) {
             stop = editing,
             canEdit = routeTrip.active,
             busy = isBusy,
-            onSave = { name, kind, rating, amountCents ->
-                viewModel.updateTripStop(routeTrip.id, editing.id, name, kind, rating, editing.visitedOn, amountCents)
+            onSave = { name, kind, rating, amountCents, note ->
+                viewModel.updateTripStop(routeTrip.id, editing.id, name, kind, rating, editing.visitedOn, amountCents, note)
                 selectedId = 0L
             },
             onAddPhotos = { uris ->
@@ -402,6 +421,7 @@ private fun TripMap(
     onToggleExpand: () -> Unit,
     modifier: Modifier,
     onSelect: (Long) -> Unit,
+    onPlayStop: (Long) -> Unit,
 ) {
     val located = stops.mapNotNull { stop ->
         val lat = stop.lat
@@ -460,7 +480,35 @@ private fun TripMap(
                 minMarkerDist,
             )
         }
+        var playing by remember { mutableStateOf(false) }
+        val playAnim = remember { Animatable(0f) }
+        LaunchedEffect(located.map { it.id }) {
+            playing = false
+            playAnim.snapTo(0f)
+            onPlayStop(0L)
+        }
+        LaunchedEffect(playing) {
+            if (!playing) return@LaunchedEffect
+            if (located.size < 2) {
+                playing = false
+                return@LaunchedEffect
+            }
+            playAnim.snapTo(0f)
+            playAnim.animateTo(1f, tween(TripMath.playMs(located.size), easing = LinearEasing))
+            playing = false
+        }
+        val play = playAnim.value
+        val showingPlay = play > 0f
         if (frame == null) return@BoxWithConstraints
+        val pathPts = remember(located, frame) {
+            located.map { TripMath.mapPixel(it.lat as Double, it.lng as Double, frame) }
+        }
+        val head = if (showingPlay) TripMath.routePlayhead(pathPts, play) else null
+        LaunchedEffect(head?.reached, playing) {
+            if (playing && head != null) {
+                located.getOrNull(head.reached)?.let { onPlayStop(it.id) }
+            }
+        }
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -540,39 +588,49 @@ private fun TripMap(
                 )
             }
             Canvas(Modifier.fillMaxSize()) {
-                val stepPx = 18.dp.toPx()
-                val sidePx = 3.5.dp.toPx()
-                val printLen = 7.5.dp.toPx()
-                val printWid = 4.5.dp.toPx()
-                located.zipWithNext().forEach { (from, to) ->
-                    val start = TripMath.mapPixel(from.lat as Double, from.lng as Double, frame)
-                    val end = TripMath.mapPixel(to.lat as Double, to.lng as Double, frame)
+                val progresses = TripMath.routeProgress(located.map { it.visitedOn })
+                val dim = if (showingPlay) 0.35f else 1f
+                val early = lerp(q.sky, Color.White, 0.42f).copy(alpha = 0.42f * dim)
+                val late = lerp(q.sky, Color(0xFF0A2740), 0.62f).copy(alpha = 0.95f * dim)
+                pathPts.zipWithNext().forEachIndexed { index, (start, end) ->
                     val fromPx = Offset(start.first, start.second)
                     val toPx = Offset(end.first, end.second)
                     drawLine(
-                        color = q.sky.copy(alpha = 0.45f),
+                        brush = Brush.linearGradient(
+                            colors = listOf(
+                                lerp(early, late, progresses[index]),
+                                lerp(early, late, progresses[index + 1]),
+                            ),
+                            start = fromPx,
+                            end = toPx,
+                        ),
                         start = fromPx,
                         end = toPx,
-                        strokeWidth = 2.5f,
+                        strokeWidth = 3.5f,
                         cap = StrokeCap.Round,
-                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f)),
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(12f, 8f)),
                     )
-                    TripMath.routeSteps(fromPx.x, fromPx.y, toPx.x, toPx.y, stepPx, sidePx).forEach { step ->
-                        // 椭圆长轴沿 +X，和 angleDeg（0° 朝右）对齐后顺着路线
-                        val turn = if (step.left) -12f else 12f
-                        rotate(step.angleDeg + turn, Offset(step.x, step.y)) {
-                            drawOval(
-                                color = q.sky.copy(alpha = 0.9f),
-                                topLeft = Offset(step.x - printLen / 2f, step.y - printWid / 2f),
-                                size = Size(printLen, printWid),
-                            )
-                        }
+                }
+                if (head != null) {
+                    val ink = q.sky.copy(alpha = 0.92f)
+                    val walked = pathPts.take(head.reached + 1) + (head.x to head.y)
+                    walked.zipWithNext().forEach { (from, to) ->
+                        drawLine(
+                            color = ink,
+                            start = Offset(from.first, from.second),
+                            end = Offset(to.first, to.second),
+                            strokeWidth = 4.5f,
+                            cap = StrokeCap.Round,
+                        )
                     }
+                    val tip = Offset(head.x, head.y)
+                    drawCircle(Color.White, 8.dp.toPx(), tip)
+                    drawCircle(q.sky, 5.5.dp.toPx(), tip)
                 }
                 located.forEachIndexed { index, stop ->
                     val pixel = pixels[index]
                     val center = Offset(pixel.first, pixel.second)
-                    val selected = stop.id == selectedId
+                    val selected = stop.id == selectedId || index == head?.reached
                     val radius = if (selected) 9.dp.toPx() else 7.dp.toPx()
                     drawCircle(stopKindFill[stop.kind] ?: q.sky, radius, center)
                     if (selected) {
@@ -639,6 +697,22 @@ private fun TripMap(
                     fontWeight = FontWeight.Medium,
                 )
             }
+            if (located.size >= 2) {
+                Box(Modifier.width(36.dp).height(1.dp).background(q.line))
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clickable { playing = !playing },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        if (playing) "停" else "播",
+                        color = q.ink,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                    )
+                }
+            }
         }
     }
 }
@@ -649,7 +723,7 @@ private fun StopSheet(
     stop: TripStop,
     canEdit: Boolean,
     busy: Boolean,
-    onSave: (String, String, Int?, Long?) -> Unit,
+    onSave: (String, String, Int?, Long?, String?) -> Unit,
     onAddPhotos: (List<Uri>) -> Unit,
     onRemovePhoto: (Long) -> Unit,
     onClose: () -> Unit,
@@ -660,6 +734,7 @@ private fun StopSheet(
     var amountText by rememberSaveable(stop.id) {
         mutableStateOf(stop.amountCents?.toYuan()?.removePrefix("¥") ?: "")
     }
+    var noteText by rememberSaveable(stop.id) { mutableStateOf(stop.note.orEmpty()) }
     val photoPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.PickMultipleVisualMedia(TripMath.MAX_PHOTOS),
     ) { uris ->
@@ -683,11 +758,15 @@ private fun StopSheet(
                 TripKindChips(kind) { kind = it }
                 TripStars(rating.takeIf { it > 0 }) { rating = it ?: 0 }
                 TripAmountField(amountText) { amountText = it }
+                TripNoteField(noteText) { noteText = it }
             } else {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     TripKindLabel(stop.kind)
                     Text(stop.rating?.let { "★$it" } ?: "未评分", color = QTheme.colors.muted)
                     stop.amountCents?.let { Text(it.toYuan(), color = QTheme.colors.coral) }
+                }
+                stop.note?.takeIf { it.isNotBlank() }?.let { note ->
+                    Text(note, color = QTheme.colors.ink, style = MaterialTheme.typography.bodyMedium)
                 }
             }
             if (stop.photos.isNotEmpty() || canEdit) {
@@ -706,7 +785,13 @@ private fun StopSheet(
                     enabled = !busy && name.trim().isNotBlank() && TripMath.knownKind(kind) &&
                         (amountText.isBlank() || amountText.yuanToCentsOrNull() != null),
                     onClick = {
-                        onSave(name, kind, TripMath.ratingOrNull(rating.takeIf { it > 0 }), amountText.yuanToCentsOrNull())
+                        onSave(
+                            name,
+                            kind,
+                            TripMath.ratingOrNull(rating.takeIf { it > 0 }),
+                            amountText.yuanToCentsOrNull(),
+                            noteText,
+                        )
                     },
                 )
             }

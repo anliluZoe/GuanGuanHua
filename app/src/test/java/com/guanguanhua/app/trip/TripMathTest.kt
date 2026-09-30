@@ -17,6 +17,10 @@ class TripMathTest {
         assertNull(TripMath.ratingOrNull(0))
         assertEquals(5, TripMath.ratingOrNull(5))
         assertEquals(6, TripMath.MAX_PHOTOS)
+        assertEquals(400, TripMath.MAX_NOTE)
+        assertNull(TripMath.noteOrNull("  "))
+        assertEquals("好吃", TripMath.noteOrNull("  好吃  "))
+        assertEquals("a".repeat(400), TripMath.noteOrNull("a".repeat(401)))
         assertEquals(4, TripMath.MAP_MIN_ZOOM)
         assertEquals(18, TripMath.MAP_MAX_ZOOM)
     }
@@ -121,19 +125,48 @@ class TripMathTest {
     }
 
     @Test
-    fun routeStepsAlternateFeetAlongThePath() {
-        val steps = TripMath.routeSteps(0f, 0f, 200f, 0f, 20f, 4f)
-        assertTrue(steps.size >= 6)
-        assertEquals(true, steps[0].left)
-        assertEquals(false, steps[1].left)
-        assertTrue(steps.first().x > 10f)
-        assertTrue(steps.last().x < 190f)
-        assertEquals(0f, steps[0].angleDeg, 1f)
-        assertTrue(steps[0].y < 0f)
-        assertTrue(steps[1].y > 0f)
-        assertEquals(90f, TripMath.routeSteps(0f, 0f, 0f, 200f, 20f, 4f)[0].angleDeg, 1f)
-        assertEquals(180f, TripMath.routeSteps(200f, 0f, 0f, 0f, 20f, 4f)[0].angleDeg, 1f)
-        assertEquals(-90f, TripMath.routeSteps(0f, 200f, 0f, 0f, 20f, 4f)[0].angleDeg, 1f)
-        assertTrue(TripMath.routeSteps(0f, 0f, 10f, 0f, 20f, 4f).isEmpty())
+    fun routeProgressGoesFromEarlyLightToLateDark() {
+        assertEquals(emptyList<Float>(), TripMath.routeProgress(emptyList()))
+        assertEquals(listOf(0f), TripMath.routeProgress(listOf("2026-10-01")))
+        val sameDay = TripMath.routeProgress(listOf("2026-10-01", "2026-10-01", "2026-10-01"))
+        assertEquals(0f, sameDay[0], 0.01f)
+        assertEquals(0.5f, sameDay[1], 0.01f)
+        assertEquals(1f, sameDay[2], 0.01f)
+        val twoDays = TripMath.routeProgress(listOf("2026-10-01", "2026-10-03"))
+        assertEquals(0f, twoDays[0], 0.01f)
+        assertEquals(1f, twoDays[1], 0.01f)
+        val mixed = TripMath.routeProgress(listOf("2026-10-01", "2026-10-01", "2026-10-05"))
+        assertTrue(mixed[0] < mixed[1])
+        assertTrue(mixed[1] < mixed[2])
+        assertTrue(mixed[1] < 0.4f)
+        val broken = TripMath.routeProgress(listOf("bad", "also-bad", "nope"))
+        assertEquals(0f, broken[0], 0.01f)
+        assertEquals(1f, broken[2], 0.01f)
+    }
+
+    @Test
+    fun routePlayheadWalksAlongThePolyline() {
+        val pts = listOf(0f to 0f, 100f to 0f, 100f to 100f)
+        val start = TripMath.routePlayhead(pts, 0f)
+        assertEquals(0f, start!!.x, 0.1f)
+        assertEquals(0f, start.y, 0.1f)
+        assertEquals(0, start.reached)
+        val mid = TripMath.routePlayhead(pts, 0.25f)
+        assertEquals(50f, mid!!.x, 0.1f)
+        assertEquals(0f, mid.y, 0.1f)
+        assertEquals(0, mid.reached)
+        val corner = TripMath.routePlayhead(pts, 0.5f)
+        assertEquals(100f, corner!!.x, 0.1f)
+        assertEquals(0f, corner.y, 0.1f)
+        assertEquals(1, corner.reached)
+        val end = TripMath.routePlayhead(pts, 1f)
+        assertEquals(100f, end!!.x, 0.1f)
+        assertEquals(100f, end.y, 0.1f)
+        assertEquals(2, end.reached)
+        assertNull(TripMath.routePlayhead(emptyList(), 0.5f))
+        assertEquals(0, TripMath.routePlayhead(listOf(3f to 4f), 1f)!!.reached)
+        assertEquals(1800, TripMath.playMs(2))
+        assertEquals(2800, TripMath.playMs(3))
+        assertEquals(12000, TripMath.playMs(20))
     }
 }

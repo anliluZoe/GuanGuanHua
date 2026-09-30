@@ -5,7 +5,6 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 import kotlin.math.PI
-import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.floor
 import kotlin.math.hypot
@@ -15,12 +14,16 @@ import kotlin.math.sin
 object TripMath {
     val KINDS = listOf("住宿", "美食", "风景", "博物馆", "杂物店")
     const val MAX_PHOTOS = 6
+    const val MAX_NOTE = 400
     const val MAP_MIN_ZOOM = 4
     const val MAP_MAX_ZOOM = 18
 
     fun knownKind(kind: String): Boolean = kind in KINDS
 
     fun ratingOrNull(rating: Int?): Int? = rating?.takeIf { it in 1..5 }
+
+    fun noteOrNull(text: String?): String? =
+        text?.trim()?.takeIf { it.isNotEmpty() }?.take(MAX_NOTE)
 
     fun startedDate(startedAt: Long, zone: ZoneId = ZoneId.systemDefault()): LocalDate =
         Instant.ofEpochMilli(startedAt).atZone(zone).toLocalDate()
@@ -185,37 +188,50 @@ object TripMath {
         return out
     }
 
-    fun routeSteps(
-        x0: Float,
-        y0: Float,
-        x1: Float,
-        y1: Float,
-        stepPx: Float,
-        sidePx: Float,
-    ): List<RouteStep> {
-        val dx = x1 - x0
-        val dy = y1 - y0
-        val len = hypot(dx.toDouble(), dy.toDouble()).toFloat()
-        if (len < stepPx * 1.6f || stepPx <= 0f) return emptyList()
-        val ux = dx / len
-        val uy = dy / len
-        // 屏幕坐标：0° 朝右、90° 朝下。脚印椭圆长轴沿 +X，再按这个角旋转。
-        val angle = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat()
-        val steps = mutableListOf<RouteStep>()
-        var walked = stepPx
-        var left = true
-        while (walked < len - stepPx * 0.45f) {
-            val side = if (left) -1f else 1f
-            steps += RouteStep(
-                x = x0 + ux * walked + -uy * sidePx * side,
-                y = y0 + uy * walked + ux * sidePx * side,
-                angleDeg = angle,
-                left = left,
-            )
-            left = !left
-            walked += stepPx
+    /** 0 最早浅色，1 最晚深色；同一天按站序，跨天按日期。 */
+    fun routeProgress(visitedOn: List<String>): List<Float> {
+        if (visitedOn.isEmpty()) return emptyList()
+        if (visitedOn.size == 1) return listOf(0f)
+        val days = visitedOn.map { iso -> runCatching { LocalDate.parse(iso).toEpochDay() }.getOrNull() }
+        val keys = if (days.all { it != null }) {
+            days.mapIndexed { index, day -> requireNotNull(day) * visitedOn.size + index }
+        } else {
+            visitedOn.indices.map { it.toLong() }
         }
-        return steps
+        val lo = keys.min()
+        val hi = keys.max()
+        if (hi <= lo) return visitedOn.indices.map { it.toFloat() / visitedOn.lastIndex }
+        return keys.map { (it - lo).toFloat() / (hi - lo).toFloat() }
+    }
+
+    fun playMs(stopCount: Int): Int =
+        ((stopCount - 1).coerceAtLeast(0) * 1400).coerceIn(1800, 12000)
+
+    fun routePlayhead(points: List<Pair<Float, Float>>, progress: Float): RoutePlayhead? {
+        if (points.isEmpty()) return null
+        val first = points.first()
+        if (points.size == 1) return RoutePlayhead(first.first, first.second, 0)
+        val t = progress.coerceIn(0f, 1f)
+        val lengths = points.zipWithNext { a, b -> hypot(b.first - a.first, b.second - a.second) }
+        val total = lengths.sum()
+        val last = points.last()
+        if (total <= 0f) return RoutePlayhead(last.first, last.second, points.lastIndex)
+        val target = t * total
+        var walked = 0f
+        lengths.forEachIndexed { index, len ->
+            if (walked + len >= target) {
+                val u = if (len <= 0f) 1f else ((target - walked) / len).coerceIn(0f, 1f)
+                val a = points[index]
+                val b = points[index + 1]
+                return RoutePlayhead(
+                    x = a.first + (b.first - a.first) * u,
+                    y = a.second + (b.second - a.second) * u,
+                    reached = if (u >= 0.999f) index + 1 else index,
+                )
+            }
+            walked += len
+        }
+        return RoutePlayhead(last.first, last.second, points.lastIndex)
     }
 
     private fun clampFrame(frame: MapFrame): MapFrame {
@@ -256,9 +272,8 @@ data class MapTile(
     val offsetY: Float,
 )
 
-data class RouteStep(
+data class RoutePlayhead(
     val x: Float,
     val y: Float,
-    val angleDeg: Float,
-    val left: Boolean,
+    val reached: Int,
 )
