@@ -5,6 +5,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 import kotlin.math.PI
+import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.floor
 import kotlin.math.hypot
@@ -184,6 +185,38 @@ object TripMath {
         return out
     }
 
+    fun routeSteps(
+        x0: Float,
+        y0: Float,
+        x1: Float,
+        y1: Float,
+        stepPx: Float,
+        sidePx: Float,
+    ): List<RouteStep> {
+        val dx = x1 - x0
+        val dy = y1 - y0
+        val len = hypot(dx.toDouble(), dy.toDouble()).toFloat()
+        if (len < stepPx * 1.6f || stepPx <= 0f) return emptyList()
+        val ux = dx / len
+        val uy = dy / len
+        val angle = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat()
+        val steps = mutableListOf<RouteStep>()
+        var walked = stepPx
+        var left = true
+        while (walked < len - stepPx * 0.45f) {
+            val side = if (left) -1f else 1f
+            steps += RouteStep(
+                x = x0 + ux * walked + -uy * sidePx * side,
+                y = y0 + uy * walked + ux * sidePx * side,
+                angleDeg = angle,
+                left = left,
+            )
+            left = !left
+            walked += stepPx
+        }
+        return steps
+    }
+
     private fun clampFrame(frame: MapFrame): MapFrame {
         val world = (1 shl frame.zoom).toDouble()
         val widthTiles = frame.widthPx / frame.tileSize.toDouble()
@@ -220,4 +253,11 @@ data class MapTile(
     val url: String,
     val offsetX: Float,
     val offsetY: Float,
+)
+
+data class RouteStep(
+    val x: Float,
+    val y: Float,
+    val angleDeg: Float,
+    val left: Boolean,
 )

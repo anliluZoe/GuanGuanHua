@@ -119,4 +119,18 @@ class TripMathTest {
         assertEquals(pixel.first + 40f, moved.first, 1.5f)
         assertEquals(pixel.second - 16f, moved.second, 1.5f)
     }
+
+    @Test
+    fun routeStepsAlternateFeetAlongThePath() {
+        val steps = TripMath.routeSteps(0f, 0f, 200f, 0f, 20f, 4f)
+        assertTrue(steps.size >= 6)
+        assertEquals(true, steps[0].left)
+        assertEquals(false, steps[1].left)
+        assertTrue(steps.first().x > 10f)
+        assertTrue(steps.last().x < 190f)
+        assertEquals(0f, steps[0].angleDeg, 1f)
+        assertTrue(steps[0].y < 0f)
+        assertTrue(steps[1].y > 0f)
+        assertTrue(TripMath.routeSteps(0f, 0f, 10f, 0f, 20f, 4f).isEmpty())
+    }
 }

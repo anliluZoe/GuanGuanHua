@@ -13,6 +13,7 @@ import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -50,9 +51,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -88,6 +92,92 @@ private val stopKindFill = mapOf(
     "杂物店" to Color(0xFFD4A84B),
 )
 
+@Composable
+private fun TripAxisNode(
+    leftLabel: String,
+    lineAbove: Boolean,
+    lineBelow: Boolean,
+    onClick: (() -> Unit)? = null,
+    node: @Composable BoxScope.() -> Unit,
+    content: @Composable () -> Unit,
+) {
+    val q = QTheme.colors
+    val axis = q.sky.copy(alpha = 0.5f)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(IntrinsicSize.Min)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+    ) {
+        Box(
+            modifier = Modifier
+                .width(36.dp)
+                .fillMaxHeight()
+                .padding(top = 10.dp, end = 6.dp),
+            contentAlignment = Alignment.TopEnd,
+        ) {
+            if (leftLabel.isNotEmpty()) {
+                Text(
+                    leftLabel,
+                    color = q.muted,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Medium,
+                )
+            }
+        }
+        Box(
+            modifier = Modifier
+                .width(22.dp)
+                .fillMaxHeight(),
+            contentAlignment = Alignment.TopCenter,
+        ) {
+            if (lineAbove) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .width(2.dp)
+                        .height(18.dp)
+                        .background(axis),
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .padding(top = 8.dp)
+                    .size(20.dp),
+                contentAlignment = Alignment.Center,
+                content = node,
+            )
+            if (lineBelow) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 28.dp)
+                        .width(2.dp)
+                        .fillMaxHeight()
+                        .background(axis),
+                )
+            }
+        }
+        Row(
+            modifier = Modifier
+                .weight(1f)
+                .padding(top = 6.dp, bottom = 14.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Box(
+                modifier = Modifier
+                    .padding(top = 16.dp)
+                    .width(10.dp)
+                    .height(2.dp)
+                    .background(axis),
+            )
+            Box(modifier = Modifier.weight(1f)) {
+                content()
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TripRouteScreen(viewModel: AppViewModel, tripId: Long, onBack: () -> Unit) {
@@ -118,14 +208,23 @@ fun TripRouteScreen(viewModel: AppViewModel, tripId: Long, onBack: () -> Unit) {
                 "${TripMath.formatRange(trip.startedAt, trip.endedAt)} · ${tripStopsLine(trip.stops.size, trip.spentCents)}",
                 color = QTheme.colors.muted,
             )
-            TripMap(shown, selectedId) { selectedId = it }
-            if (shown.isNotEmpty() && mapped == 0) {
+            var mapExpanded by rememberSaveable { mutableStateOf(false) }
+            TripMap(
+                stops = shown,
+                selectedId = selectedId,
+                expanded = mapExpanded,
+                onToggleExpand = { mapExpanded = !mapExpanded },
+                modifier = if (mapExpanded) Modifier.fillMaxWidth().weight(1f) else Modifier.fillMaxWidth().height(260.dp),
+                onSelect = { selectedId = it },
+            )
+            if (shown.isNotEmpty() && mapped == 0 && !mapExpanded) {
                 Text(
                     "这些站还没有位置，地图上画不出线。记的时候点附近一家，或打开定位再手写。",
                     color = QTheme.colors.muted,
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
+            if (!mapExpanded) {
             Row(
                 modifier = Modifier.horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -138,57 +237,52 @@ fun TripRouteScreen(viewModel: AppViewModel, tripId: Long, onBack: () -> Unit) {
             }
             LazyColumn(
                 modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(bottom = 20.dp),
+                contentPadding = PaddingValues(bottom = 24.dp),
             ) {
                 shown.forEachIndexed { index, stop ->
                     val dayStart = index == 0 || stop.visitedOn != shown[index - 1].visitedOn
-                    val dayEnd = index == shown.lastIndex || stop.visitedOn != shown[index + 1].visitedOn
+                    val lastStop = index == shown.lastIndex
                     if (dayStart) {
                         item(key = "day-${stop.visitedOn}") {
                             val q = QTheme.colors
                             val visited = runCatching { LocalDate.parse(stop.visitedOn) }.getOrNull()
-                            Text(
-                                visited?.let { TripMath.formatDay(trip.startedAt, it) } ?: stop.visitedOn,
-                                color = q.ink,
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.padding(
-                                    top = if (index == 0) 2.dp else 18.dp,
-                                    bottom = 8.dp,
-                                ),
-                            )
+                            val dayNo = visited?.let { TripMath.dayNumber(trip.startedAt, it) }
+                            TripAxisNode(
+                                leftLabel = visited?.let { "${it.monthValue}/${it.dayOfMonth}" }.orEmpty(),
+                                lineAbove = index > 0,
+                                lineBelow = true,
+                                node = {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(12.dp)
+                                            .border(2.dp, q.sky, CircleShape)
+                                            .background(q.paper, CircleShape),
+                                    )
+                                },
+                            ) {
+                                Text(
+                                    dayNo?.let { "第${it}天" } ?: "这一天",
+                                    color = q.sky,
+                                    fontWeight = FontWeight.SemiBold,
+                                    style = MaterialTheme.typography.titleSmall,
+                                )
+                            }
                         }
                     }
                     item(key = stop.id) {
                         val q = QTheme.colors
                         val selected = stop.id == selectedId
                         val fill = stopKindFill[stop.kind] ?: q.sky
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(IntrinsicSize.Min)
-                                .clickable { selectedId = stop.id },
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .width(28.dp)
-                                    .fillMaxHeight(),
-                                contentAlignment = Alignment.TopCenter,
-                            ) {
-                                if (!dayStart) {
-                                    Box(
-                                        modifier = Modifier
-                                            .align(Alignment.TopCenter)
-                                            .width(2.dp)
-                                            .height(12.dp)
-                                            .background(q.sky.copy(alpha = 0.35f)),
-                                    )
-                                }
+                        TripAxisNode(
+                            leftLabel = "",
+                            lineAbove = true,
+                            lineBelow = !lastStop,
+                            onClick = { selectedId = stop.id },
+                            node = {
                                 Box(
                                     modifier = Modifier
-                                        .padding(top = 10.dp)
-                                        .size(18.dp)
-                                        .border(if (selected) 1.5.dp else 0.dp, Color.White, CircleShape)
+                                        .size(20.dp)
+                                        .border(if (selected) 2.dp else 0.dp, Color.White, CircleShape)
                                         .clip(CircleShape)
                                         .background(fill),
                                     contentAlignment = Alignment.Center,
@@ -208,60 +302,53 @@ fun TripRouteScreen(viewModel: AppViewModel, tripId: Long, onBack: () -> Unit) {
                                         ),
                                     )
                                 }
-                                if (!dayEnd) {
-                                    Box(
-                                        modifier = Modifier
-                                            .align(Alignment.TopCenter)
-                                            .padding(top = 30.dp)
-                                            .width(2.dp)
-                                            .fillMaxHeight()
-                                            .background(q.sky.copy(alpha = 0.35f)),
+                            },
+                        ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(if (selected) q.skySoft else q.paper)
+                                .border(1.dp, if (selected) q.sky.copy(alpha = 0.45f) else q.line, RoundedCornerShape(16.dp))
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(stop.name, style = MaterialTheme.typography.titleMedium)
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    TripKindLabel(stop.kind)
+                                    Text(
+                                        stop.rating?.let { "★$it" } ?: "未评分",
+                                        color = q.muted,
+                                        style = MaterialTheme.typography.bodySmall,
                                     )
-                                }
-                            }
-                            Row(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .padding(start = 8.dp, bottom = if (dayEnd) 4.dp else 18.dp, top = 6.dp),
-                                verticalAlignment = Alignment.Top,
-                            ) {
-                                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Text(stop.name, style = MaterialTheme.typography.titleMedium)
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    ) {
-                                        TripKindLabel(stop.kind)
-                                        Text(
-                                            stop.rating?.let { "★$it" } ?: "未评分",
-                                            color = q.muted,
-                                            style = MaterialTheme.typography.bodySmall,
-                                        )
-                                        stop.amountCents?.let { cents ->
-                                            Text(cents.toYuan(), color = q.coral, style = MaterialTheme.typography.bodySmall)
-                                        }
-                                    }
-                                    if (trip.active) {
-                                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                            Text("上移", color = q.sky, modifier = Modifier.clickable { viewModel.moveTripStop(stop.id, -1) })
-                                            Text("下移", color = q.sky, modifier = Modifier.clickable { viewModel.moveTripStop(stop.id, 1) })
-                                            Text("删除", color = q.coral, modifier = Modifier.clickable { deletingId = stop.id })
-                                        }
+                                    stop.amountCents?.let { cents ->
+                                        Text(cents.toYuan(), color = q.coral, style = MaterialTheme.typography.bodySmall)
                                     }
                                 }
-                                if (stop.photos.isNotEmpty()) {
-                                    PhotoSlot(
-                                        model = stop.photos.first().url,
-                                        modifier = Modifier
-                                            .padding(start = 10.dp)
-                                            .size(56.dp),
-                                        showEmpty = false,
-                                    )
+                                if (trip.active) {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                        Text("上移", color = q.sky, modifier = Modifier.clickable { viewModel.moveTripStop(stop.id, -1) })
+                                        Text("下移", color = q.sky, modifier = Modifier.clickable { viewModel.moveTripStop(stop.id, 1) })
+                                        Text("删除", color = q.coral, modifier = Modifier.clickable { deletingId = stop.id })
+                                    }
                                 }
                             }
+                            if (stop.photos.isNotEmpty()) {
+                                PhotoSlot(
+                                    model = stop.photos.first().url,
+                                    modifier = Modifier.padding(start = 10.dp).size(52.dp),
+                                    showEmpty = false,
+                                )
+                            }
+                        }
                         }
                     }
                 }
+            }
             }
         }
     }
@@ -308,7 +395,14 @@ fun TripRouteScreen(viewModel: AppViewModel, tripId: Long, onBack: () -> Unit) {
 }
 
 @Composable
-private fun TripMap(stops: List<TripStop>, selectedId: Long, onSelect: (Long) -> Unit) {
+private fun TripMap(
+    stops: List<TripStop>,
+    selectedId: Long,
+    expanded: Boolean,
+    onToggleExpand: () -> Unit,
+    modifier: Modifier,
+    onSelect: (Long) -> Unit,
+) {
     val located = stops.mapNotNull { stop ->
         val lat = stop.lat
         val lng = stop.lng
@@ -316,9 +410,7 @@ private fun TripMap(stops: List<TripStop>, selectedId: Long, onSelect: (Long) ->
     }
     val q = QTheme.colors
     BoxWithConstraints(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(260.dp)
+        modifier = modifier
             .clip(RoundedCornerShape(18.dp))
             .background(q.mintSoft),
     ) {
@@ -448,16 +540,32 @@ private fun TripMap(stops: List<TripStop>, selectedId: Long, onSelect: (Long) ->
                 )
             }
             Canvas(Modifier.fillMaxSize()) {
+                val stepPx = 18.dp.toPx()
+                val sidePx = 3.5.dp.toPx()
+                val printW = 4.5.dp.toPx()
+                val printH = 7.5.dp.toPx()
                 located.zipWithNext().forEach { (from, to) ->
                     val start = TripMath.mapPixel(from.lat as Double, from.lng as Double, frame)
                     val end = TripMath.mapPixel(to.lat as Double, to.lng as Double, frame)
+                    val fromPx = Offset(start.first, start.second)
+                    val toPx = Offset(end.first, end.second)
                     drawLine(
-                        color = q.sky,
-                        start = Offset(start.first, start.second),
-                        end = Offset(end.first, end.second),
-                        strokeWidth = 4f,
+                        color = q.sky.copy(alpha = 0.45f),
+                        start = fromPx,
+                        end = toPx,
+                        strokeWidth = 2.5f,
                         cap = StrokeCap.Round,
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f)),
                     )
+                    TripMath.routeSteps(fromPx.x, fromPx.y, toPx.x, toPx.y, stepPx, sidePx).forEach { step ->
+                        rotate(step.angleDeg, Offset(step.x, step.y)) {
+                            drawOval(
+                                color = q.sky.copy(alpha = 0.9f),
+                                topLeft = Offset(step.x - printW / 2f, step.y - printH / 2f),
+                                size = Size(printW, printH),
+                            )
+                        }
+                    }
                 }
                 located.forEachIndexed { index, stop ->
                     val pixel = pixels[index]
@@ -514,6 +622,20 @@ private fun TripMap(stops: List<TripStop>, selectedId: Long, onSelect: (Long) ->
                         fontWeight = FontWeight.Medium,
                     )
                 }
+            }
+            Box(Modifier.width(36.dp).height(1.dp).background(q.line))
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clickable(onClick = onToggleExpand),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    if (expanded) "收" else "满",
+                    color = q.ink,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                )
             }
         }
     }
