@@ -8,6 +8,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,6 +23,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
@@ -37,6 +40,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -47,6 +51,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -59,9 +66,11 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.guanguanhua.app.AppViewModel
 import com.guanguanhua.app.data.TripStop
+import com.guanguanhua.app.trip.MapFrame
 import com.guanguanhua.app.trip.TripMath
 import com.guanguanhua.app.ui.theme.QTheme
 import java.time.LocalDate
+import kotlin.math.hypot
 import kotlin.math.roundToInt
 
 private val stopKindFill = mapOf(
@@ -222,9 +231,17 @@ private fun TripMap(stops: List<TripStop>, selectedId: Long, onSelect: (Long) ->
         val widthPx = with(density) { maxWidth.roundToPx() }
         val heightPx = with(density) { maxHeight.roundToPx() }
         val coords = located.map { it.lat as Double to it.lng as Double }
-        val frame = remember(coords, widthPx, heightPx) {
+        val fitted = remember(coords, widthPx, heightPx) {
             if (coords.isEmpty()) null else TripMath.mapFrame(coords, widthPx, heightPx)
         }
+        val viewState = remember { mutableStateOf<MapFrame?>(null) }
+        var pinchScale by remember { mutableFloatStateOf(1f) }
+        var pinchOrigin by remember { mutableStateOf(Offset.Zero) }
+        LaunchedEffect(fitted) {
+            viewState.value = fitted
+            pinchScale = 1f
+        }
+        val frame = viewState.value
         val tiles = remember(frame) { frame?.let { TripMath.mapTiles(it) }.orEmpty() }
         val tileDp = with(density) { (frame?.tileSize ?: 256).toDp() }
         val hitRadius = with(density) { 14.dp.roundToPx() }
@@ -237,59 +254,160 @@ private fun TripMap(stops: List<TripStop>, selectedId: Long, onSelect: (Long) ->
             )
         }
         if (frame == null) return@BoxWithConstraints
-        tiles.forEach { tile ->
-            AsyncImage(
-                model = ImageRequest.Builder(context)
-                    .data(tile.url)
-                    .addHeader("User-Agent", "GuanGuanHua/1.0")
-                    .build(),
-                contentDescription = null,
-                contentScale = ContentScale.FillBounds,
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .offset { IntOffset(tile.offsetX.roundToInt(), tile.offsetY.roundToInt()) }
-                    .size(tileDp),
-            )
-        }
-        Canvas(Modifier.fillMaxSize()) {
-            located.zipWithNext().forEach { (from, to) ->
-                val start = TripMath.mapPixel(from.lat as Double, from.lng as Double, frame)
-                val end = TripMath.mapPixel(to.lat as Double, to.lng as Double, frame)
-                drawLine(
-                    color = q.sky,
-                    start = Offset(start.first, start.second),
-                    end = Offset(end.first, end.second),
-                    strokeWidth = 4f,
-                    cap = StrokeCap.Round,
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    scaleX = pinchScale
+                    scaleY = pinchScale
+                    if (size.width > 0f && size.height > 0f) {
+                        transformOrigin = TransformOrigin(
+                            pinchOrigin.x / size.width,
+                            pinchOrigin.y / size.height,
+                        )
+                    }
+                }
+                .pointerInput(Unit) {
+                    detectTransformGestures { centroid, pan, zoom, _ ->
+                        val current = viewState.value ?: return@detectTransformGestures
+                        if (zoom != 1f) {
+                            pinchOrigin = centroid
+                            pinchScale = (pinchScale * zoom).coerceIn(0.5f, 2f)
+                            when {
+                                pinchScale >= 1.25f && current.zoom < TripMath.MAP_MAX_ZOOM -> {
+                                    viewState.value = TripMath.zoomFrame(
+                                        current, current.zoom + 1, centroid.x, centroid.y,
+                                    )
+                                    pinchScale = 1f
+                                }
+                                pinchScale <= 0.8f && current.zoom > TripMath.MAP_MIN_ZOOM -> {
+                                    viewState.value = TripMath.zoomFrame(
+                                        current, current.zoom - 1, centroid.x, centroid.y,
+                                    )
+                                    pinchScale = 1f
+                                }
+                            }
+                        }
+                        if (pan.x != 0f || pan.y != 0f) {
+                            viewState.value = TripMath.panFrame(viewState.value ?: current, pan.x, pan.y)
+                        }
+                    }
+                }
+                .pointerInput(pixels, located) {
+                    detectTapGestures(
+                        onTap = { tap ->
+                            val hit = located.indices.minByOrNull { index ->
+                                hypot(
+                                    (pixels[index].first - tap.x).toDouble(),
+                                    (pixels[index].second - tap.y).toDouble(),
+                                )
+                            } ?: return@detectTapGestures
+                            val dist = hypot(
+                                (pixels[hit].first - tap.x).toDouble(),
+                                (pixels[hit].second - tap.y).toDouble(),
+                            )
+                            if (dist <= hitRadius * 1.4) onSelect(located[hit].id)
+                        },
+                        onDoubleTap = { tap ->
+                            val current = viewState.value ?: return@detectTapGestures
+                            pinchScale = 1f
+                            viewState.value = TripMath.zoomFrame(
+                                current, current.zoom + 1, tap.x, tap.y,
+                            )
+                        },
+                    )
+                },
+        ) {
+            tiles.forEach { tile ->
+                AsyncImage(
+                    model = ImageRequest.Builder(context)
+                        .data(tile.url)
+                        .addHeader("User-Agent", "GuanGuanHua/1.0")
+                        .build(),
+                    contentDescription = null,
+                    contentScale = ContentScale.FillBounds,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .offset { IntOffset(tile.offsetX.roundToInt(), tile.offsetY.roundToInt()) }
+                        .size(tileDp),
                 )
             }
-        }
-        located.forEachIndexed { index, stop ->
-            val pixel = pixels[index]
-            val selected = stop.id == selectedId
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .offset {
-                        IntOffset(pixel.first.roundToInt() - hitRadius, pixel.second.roundToInt() - hitRadius)
-                    }
-                    .size(28.dp)
-                    .clickable { onSelect(stop.id) },
-                contentAlignment = Alignment.Center,
-            ) {
+            Canvas(Modifier.fillMaxSize()) {
+                located.zipWithNext().forEach { (from, to) ->
+                    val start = TripMath.mapPixel(from.lat as Double, from.lng as Double, frame)
+                    val end = TripMath.mapPixel(to.lat as Double, to.lng as Double, frame)
+                    drawLine(
+                        color = q.sky,
+                        start = Offset(start.first, start.second),
+                        end = Offset(end.first, end.second),
+                        strokeWidth = 4f,
+                        cap = StrokeCap.Round,
+                    )
+                }
+            }
+            located.forEachIndexed { index, stop ->
+                val pixel = pixels[index]
+                val selected = stop.id == selectedId
                 Box(
                     modifier = Modifier
-                        .size(if (selected) 18.dp else 14.dp)
-                        .border(1.dp, if (selected) Color.White else Color.Transparent, CircleShape)
-                        .clip(CircleShape)
-                        .background(stopKindFill[stop.kind] ?: q.sky),
+                        .align(Alignment.TopStart)
+                        .offset {
+                            IntOffset(pixel.first.roundToInt() - hitRadius, pixel.second.roundToInt() - hitRadius)
+                        }
+                        .size(28.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(if (selected) 18.dp else 14.dp)
+                            .border(1.dp, if (selected) Color.White else Color.Transparent, CircleShape)
+                            .clip(CircleShape)
+                            .background(stopKindFill[stop.kind] ?: q.sky),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            "${index + 1}",
+                            color = Color.White,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                }
+            }
+        }
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(10.dp)
+                .width(36.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(q.paper)
+                .border(1.dp, q.line, RoundedCornerShape(10.dp)),
+        ) {
+            listOf("+" to 1, "−" to -1).forEachIndexed { index, (label, delta) ->
+                val enabled = if (delta > 0) frame.zoom < TripMath.MAP_MAX_ZOOM else frame.zoom > TripMath.MAP_MIN_ZOOM
+                if (index > 0) {
+                    Box(Modifier.width(36.dp).height(1.dp).background(q.line))
+                }
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clickable(enabled = enabled) {
+                            pinchScale = 1f
+                            viewState.value = TripMath.zoomFrame(
+                                frame,
+                                frame.zoom + delta,
+                                frame.widthPx / 2f,
+                                frame.heightPx / 2f,
+                            )
+                        },
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        "${index + 1}",
-                        color = Color.White,
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.SemiBold,
+                        label,
+                        color = if (enabled) q.ink else q.muted,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Medium,
                     )
                 }
             }
