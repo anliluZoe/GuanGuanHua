@@ -490,7 +490,7 @@ private fun TripMap(
             playing = false
         }
         val play = playAnim.value
-        val showingPlay = playing || play > 0f && play < 1f
+        val showingPlay = play > 0f
         if (frame == null) return@BoxWithConstraints
         val pathPts = remember(located, frame) {
             located.map { TripMath.mapPixel(it.lat as Double, it.lng as Double, frame) }
