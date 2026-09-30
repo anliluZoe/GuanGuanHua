@@ -34,6 +34,11 @@ object TripMath {
             "${start.monthValue}月${start.dayOfMonth}日–${end.monthValue}月${end.dayOfMonth}日"
     }
 
+    fun formatDay(startedAt: Long, visitedOn: LocalDate, zone: ZoneId = ZoneId.systemDefault()): String {
+        val n = dayNumber(startedAt, visitedOn, zone)
+        return "第${n}天 · ${visitedOn.monthValue}月${visitedOn.dayOfMonth}日"
+    }
+
     fun kindFromTags(amenity: String?, tourism: String?, shop: String?): String? {
         val a = amenity.orEmpty()
         val t = tourism.orEmpty()
