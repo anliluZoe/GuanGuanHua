@@ -15,8 +15,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -25,7 +27,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -136,37 +138,126 @@ fun TripRouteScreen(viewModel: AppViewModel, tripId: Long, onBack: () -> Unit) {
             }
             LazyColumn(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(bottom = 20.dp),
             ) {
-                itemsIndexed(shown, key = { _, stop -> stop.id }) { index, stop ->
-                    SoftCard(modifier = Modifier.fillMaxWidth(), onClick = { selectedId = stop.id }) {
-                        Text("${index + 1}. ${stop.name}", style = MaterialTheme.typography.titleMedium)
-                        Spacer(Modifier.height(4.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            TripKindLabel(stop.kind)
+                shown.forEachIndexed { index, stop ->
+                    val dayStart = index == 0 || stop.visitedOn != shown[index - 1].visitedOn
+                    val dayEnd = index == shown.lastIndex || stop.visitedOn != shown[index + 1].visitedOn
+                    if (dayStart) {
+                        item(key = "day-${stop.visitedOn}") {
+                            val q = QTheme.colors
+                            val visited = runCatching { LocalDate.parse(stop.visitedOn) }.getOrNull()
                             Text(
-                                stop.rating?.let { "★$it" } ?: "未评分",
-                                color = QTheme.colors.muted,
-                                style = MaterialTheme.typography.bodySmall,
+                                visited?.let { TripMath.formatDay(trip.startedAt, it) } ?: stop.visitedOn,
+                                color = q.ink,
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(
+                                    top = if (index == 0) 2.dp else 18.dp,
+                                    bottom = 8.dp,
+                                ),
                             )
-                            stop.amountCents?.let { cents ->
-                                Text(cents.toYuan(), color = QTheme.colors.coral, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                    item(key = stop.id) {
+                        val q = QTheme.colors
+                        val selected = stop.id == selectedId
+                        val fill = stopKindFill[stop.kind] ?: q.sky
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(IntrinsicSize.Min)
+                                .clickable { selectedId = stop.id },
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .width(28.dp)
+                                    .fillMaxHeight(),
+                                contentAlignment = Alignment.TopCenter,
+                            ) {
+                                if (!dayStart) {
+                                    Box(
+                                        modifier = Modifier
+                                            .align(Alignment.TopCenter)
+                                            .width(2.dp)
+                                            .height(12.dp)
+                                            .background(q.sky.copy(alpha = 0.35f)),
+                                    )
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .padding(top = 10.dp)
+                                        .size(18.dp)
+                                        .border(if (selected) 1.5.dp else 0.dp, Color.White, CircleShape)
+                                        .clip(CircleShape)
+                                        .background(fill),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text(
+                                        "${index + 1}",
+                                        color = Color.White,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        lineHeight = 9.sp,
+                                        textAlign = TextAlign.Center,
+                                        style = TextStyle(
+                                            lineHeightStyle = LineHeightStyle(
+                                                alignment = LineHeightStyle.Alignment.Center,
+                                                trim = LineHeightStyle.Trim.Both,
+                                            ),
+                                        ),
+                                    )
+                                }
+                                if (!dayEnd) {
+                                    Box(
+                                        modifier = Modifier
+                                            .align(Alignment.TopCenter)
+                                            .padding(top = 30.dp)
+                                            .width(2.dp)
+                                            .fillMaxHeight()
+                                            .background(q.sky.copy(alpha = 0.35f)),
+                                    )
+                                }
                             }
-                        }
-                        if (stop.photos.isNotEmpty()) {
-                            Spacer(Modifier.height(8.dp))
-                            PhotoSlot(
-                                model = stop.photos.first().url,
-                                modifier = Modifier.fillMaxWidth().height(120.dp),
-                                showEmpty = false,
-                            )
-                        }
-                        if (trip.active) {
-                            Spacer(Modifier.height(8.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Text("上移", color = QTheme.colors.sky, modifier = Modifier.clickable { viewModel.moveTripStop(stop.id, -1) })
-                                Text("下移", color = QTheme.colors.sky, modifier = Modifier.clickable { viewModel.moveTripStop(stop.id, 1) })
-                                Text("删除", color = QTheme.colors.coral, modifier = Modifier.clickable { deletingId = stop.id })
+                            Row(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(start = 8.dp, bottom = if (dayEnd) 4.dp else 18.dp, top = 6.dp),
+                                verticalAlignment = Alignment.Top,
+                            ) {
+                                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text(stop.name, style = MaterialTheme.typography.titleMedium)
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    ) {
+                                        TripKindLabel(stop.kind)
+                                        Text(
+                                            stop.rating?.let { "★$it" } ?: "未评分",
+                                            color = q.muted,
+                                            style = MaterialTheme.typography.bodySmall,
+                                        )
+                                        stop.amountCents?.let { cents ->
+                                            Text(cents.toYuan(), color = q.coral, style = MaterialTheme.typography.bodySmall)
+                                        }
+                                    }
+                                    if (trip.active) {
+                                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                            Text("上移", color = q.sky, modifier = Modifier.clickable { viewModel.moveTripStop(stop.id, -1) })
+                                            Text("下移", color = q.sky, modifier = Modifier.clickable { viewModel.moveTripStop(stop.id, 1) })
+                                            Text("删除", color = q.coral, modifier = Modifier.clickable { deletingId = stop.id })
+                                        }
+                                    }
+                                }
+                                if (stop.photos.isNotEmpty()) {
+                                    PhotoSlot(
+                                        model = stop.photos.first().url,
+                                        modifier = Modifier
+                                            .padding(start = 10.dp)
+                                            .size(56.dp),
+                                        showEmpty = false,
+                                    )
+                                }
                             }
                         }
                     }

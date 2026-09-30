@@ -29,6 +29,8 @@ class TripMathTest {
         assertEquals("10月1日至今", TripMath.formatRange(start, null, ZoneOffset.UTC))
         val end = LocalDate.of(2026, 10, 7).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
         assertEquals("10月1日–10月7日", TripMath.formatRange(start, end, ZoneOffset.UTC))
+        assertEquals("第1天 · 10月1日", TripMath.formatDay(start, LocalDate.of(2026, 10, 1), ZoneOffset.UTC))
+        assertEquals("第3天 · 10月3日", TripMath.formatDay(start, LocalDate.of(2026, 10, 3), ZoneOffset.UTC))
     }
 
     @Test
