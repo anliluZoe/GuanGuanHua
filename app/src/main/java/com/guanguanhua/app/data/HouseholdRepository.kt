@@ -204,6 +204,13 @@ interface GuanGuanHuaApi {
     @POST("api/trips/{id}/end")
     suspend fun endTrip(@Header("Authorization") authorization: String, @Path("id") id: Long): Response<TripDetail>
 
+    @PATCH("api/trips/{id}")
+    suspend fun renameTrip(
+        @Header("Authorization") authorization: String,
+        @Path("id") id: Long,
+        @Body body: okhttp3.RequestBody,
+    ): Response<TripDetail>
+
     @POST("api/trips/{id}/stops")
     suspend fun addTripStop(
         @Header("Authorization") authorization: String,
@@ -404,6 +411,9 @@ class HouseholdRepository(private val app: Application) {
     suspend fun endTrip(id: Long): TripDetail =
         unwrap(api().endTrip(bearer(), id), "没结束成")
 
+    suspend fun renameTrip(id: Long, name: String): TripDetail =
+        unwrap(api().renameTrip(bearer(), id, jsonBody(TripRenameBody(name))), "没改成")
+
     suspend fun addTripStop(tripId: Long, body: TripStopWrite): TripStop =
         unwrap(api().addTripStop(bearer(), tripId, jsonBody(body)), "没记下")
 
@@ -450,6 +460,7 @@ class HouseholdRepository(private val app: Application) {
         unwrap(api().reorderTripStops(bearer(), tripId, jsonBody(TripReorderBody(orderedIds))), "顺序没改成")
 
     private data class TripStartBody(val name: String, val plannedEnd: String?)
+    private data class TripRenameBody(val name: String)
     private data class TripReorderBody(val orderedIds: List<Long>)
 
     private val cycleJson = GsonBuilder().serializeNulls().create()

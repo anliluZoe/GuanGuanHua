@@ -181,6 +181,15 @@ class Store {
     return this.tripById(householdId, tripId);
   }
 
+  renameTrip(householdId, tripId, name) {
+    const trip = this.tripById(householdId, tripId);
+    if (!trip) return null;
+    const trimmed = String(name || "").trim().slice(0, 40);
+    if (!trimmed) return { error: "name" };
+    this.db.prepare("UPDATE trips SET name = ? WHERE id = ? AND household_id = ?").run(trimmed, tripId, householdId);
+    return this.tripById(householdId, tripId);
+  }
+
   listStops(tripId) {
     return this.db
       .prepare(
@@ -257,8 +266,6 @@ class Store {
   updateStop(householdId, tripId, stopId, fields, now = Date.now()) {
     const existing = this.getStop(householdId, tripId, stopId);
     if (!existing) return null;
-    const trip = this.tripById(householdId, tripId);
-    if (trip?.ended_at != null) return { error: "ended" };
     const name = fields.name != null ? String(fields.name).trim().slice(0, 80) : existing.name;
     if (!name) return { error: "name" };
     const kind = fields.kind != null ? fields.kind : existing.kind;
@@ -308,9 +315,7 @@ class Store {
   deleteStop(householdId, tripId, stopId) {
     const existing = this.getStop(householdId, tripId, stopId);
     if (!existing) return null;
-    const trip = this.tripById(householdId, tripId);
     const photos = this.listStopPhotos(stopId);
-    if (trip?.ended_at != null) return { error: "ended" };
     this.db.prepare("DELETE FROM trip_stops WHERE id = ? AND trip_id = ?").run(stopId, tripId);
     for (const photo of photos) this.deletePhoto(photo.filename);
     return { ok: true };
@@ -340,7 +345,6 @@ class Store {
   addStopPhoto(householdId, memberId, tripId, stopId, filename, now = Date.now()) {
     const trip = this.tripById(householdId, tripId);
     if (!trip) return null;
-    if (trip.ended_at != null) return { error: "ended" };
     const stop = this.getStop(householdId, tripId, stopId);
     if (!stop) return null;
     const existing = this.listStopPhotos(stopId);
@@ -358,7 +362,6 @@ class Store {
   deleteStopPhoto(householdId, tripId, stopId, photoId) {
     const trip = this.tripById(householdId, tripId);
     if (!trip) return null;
-    if (trip.ended_at != null) return { error: "ended" };
     const stop = this.getStop(householdId, tripId, stopId);
     if (!stop) return null;
     const photo = this.db
@@ -373,7 +376,6 @@ class Store {
   reorderStops(householdId, tripId, orderedIds) {
     const trip = this.tripById(householdId, tripId);
     if (!trip) return null;
-    if (trip.ended_at != null) return { error: "ended" };
     const ids = orderedIds.map(Number).filter((id) => Number.isSafeInteger(id) && id > 0);
     if (!ids.length) return { error: "order" };
     const existing = this.listStops(tripId);

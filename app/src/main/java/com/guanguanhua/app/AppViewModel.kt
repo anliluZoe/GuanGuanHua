@@ -507,6 +507,25 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun renameTrip(id: Long, name: String, onSuccess: () -> Unit = {}) {
+        val trimmed = name.trim()
+        if (trimmed.isBlank()) {
+            _statusMessage.value = "先给这段旅程起个名字"
+            return
+        }
+        viewModelScope.launch {
+            track(_busyCount) {
+                runCatching { repo.renameTrip(id, trimmed) }
+                    .onSuccess {
+                        runCatching { syncTrips() }
+                        _statusMessage.value = "已改成 · $trimmed"
+                        onSuccess()
+                    }
+                    .onFailure { _statusMessage.value = it.message ?: "没改成" }
+            }
+        }
+    }
+
     fun endTrip(onSuccess: () -> Unit = {}) {
         val id = _trips.value.active?.id ?: return
         viewModelScope.launch {
@@ -640,7 +659,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun moveTripStop(stopId: Long, direction: Int) {
-        val trip = _trips.value.active ?: return
+        val opened = _openedTrip.value
+        val trip = if (opened != null && opened.stops.any { it.id == stopId }) opened else _trips.value.active ?: return
         val list = trip.stops.toMutableList()
         val index = list.indexOfFirst { it.id == stopId }
         val target = index + direction

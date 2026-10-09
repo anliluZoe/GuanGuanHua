@@ -274,16 +274,99 @@ test("stop photos are household scoped and capped at six", async () => {
     assert.equal(afterDelete.photos.length, 5);
 
     await json(base, "POST", `/api/trips/${trip.id}/end`, {}, ada.token);
-    const late = await fetch(`${base}/api/trips/${trip.id}/stops/${stop.id}/photos`, {
+    const latePhoto = await uploadStopPhoto(base, ada.token, trip.id, stop.id, "late");
+    assert.equal(latePhoto.photos.length, 6);
+    const lateStop = await fetch(`${base}/api/trips/${trip.id}/stops`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${ada.token}` },
-      body: (() => {
-        const form = new FormData();
-        form.append("image", new Blob(["late"]), "x.jpg");
-        return form;
-      })(),
+      headers: { Authorization: `Bearer ${ada.token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "补记", kind: "风景", visitedOn: "2026-10-03" }),
     });
-    assert.equal(late.status, 409);
+    assert.equal(lateStop.status, 409);
+  });
+});
+
+test("trips can be renamed and ended stops stay editable", async () => {
+  await withServer(async ({ base }) => {
+    const ada = await json(base, "POST", "/api/households", { name: "Ada" });
+    const other = await json(base, "POST", "/api/households", { name: "Other" });
+    const trip = await json(base, "POST", "/api/trips", { name: "桂林" }, ada.token);
+    const renamed = await json(base, "PATCH", `/api/trips/${trip.id}`, { name: "  桂林阳朔  " }, ada.token);
+    assert.equal(renamed.name, "桂林阳朔");
+
+    const blank = await fetch(`${base}/api/trips/${trip.id}`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${ada.token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "   " }),
+    });
+    assert.equal(blank.status, 400);
+
+    const stolen = await fetch(`${base}/api/trips/${trip.id}`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${other.token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "偷改" }),
+    });
+    assert.equal(stolen.status, 404);
+
+    const first = await json(
+      base,
+      "POST",
+      `/api/trips/${trip.id}/stops`,
+      { name: "客栈", kind: "住宿", visitedOn: "2026-10-01" },
+      ada.token
+    );
+    const second = await json(
+      base,
+      "POST",
+      `/api/trips/${trip.id}/stops`,
+      { name: "米粉", kind: "美食", visitedOn: "2026-10-01" },
+      ada.token
+    );
+    await json(base, "POST", `/api/trips/${trip.id}/end`, {}, ada.token);
+
+    const edited = await json(
+      base,
+      "PATCH",
+      `/api/trips/${trip.id}/stops/${first.id}`,
+      { name: "江景客栈", note: "补一句", rating: 5 },
+      ada.token
+    );
+    assert.equal(edited.name, "江景客栈");
+    assert.equal(edited.note, "补一句");
+    assert.equal(edited.rating, 5);
+
+    const uploaded = await uploadStopPhoto(base, ada.token, trip.id, first.id, "after-end");
+    assert.equal(uploaded.photos.length, 1);
+    const cleared = await json(
+      base,
+      "DELETE",
+      `/api/trips/${trip.id}/stops/${first.id}/photos/${uploaded.photos[0].id}`,
+      null,
+      ada.token
+    );
+    assert.equal(cleared.photos.length, 0);
+
+    const reordered = await json(
+      base,
+      "PATCH",
+      `/api/trips/${trip.id}/stops/reorder`,
+      { orderedIds: [second.id, first.id] },
+      ada.token
+    );
+    assert.equal(reordered[0].id, second.id);
+
+    const removed = await fetch(`${base}/api/trips/${trip.id}/stops/${second.id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${ada.token}` },
+    });
+    assert.equal(removed.status, 200);
+
+    const endedName = await json(base, "PATCH", `/api/trips/${trip.id}`, { name: "阳".repeat(50) }, ada.token);
+    assert.equal(endedName.name, "阳".repeat(40));
+    assert.ok(endedName.endedAt);
+    const listed = await json(base, "GET", `/api/trips/${trip.id}`, null, ada.token);
+    assert.equal(listed.name, "阳".repeat(40));
+    assert.equal(listed.stops.length, 1);
+    assert.equal(listed.stops[0].name, "江景客栈");
   });
 });
 
