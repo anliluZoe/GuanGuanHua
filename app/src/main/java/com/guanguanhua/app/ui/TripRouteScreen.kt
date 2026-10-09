@@ -204,6 +204,7 @@ fun TripRouteScreen(viewModel: AppViewModel, tripId: Long, onBack: () -> Unit) {
     var selectedId by rememberSaveable { mutableStateOf(0L) }
     var playStopId by rememberSaveable { mutableStateOf(0L) }
     var deletingId by rememberSaveable { mutableStateOf(0L) }
+    var renaming by rememberSaveable { mutableStateOf(false) }
     val shown = trip?.stops.orEmpty().filter { day == "all" || it.visitedOn == day }
     val mapped = shown.count { it.lat != null && it.lng != null }
 
@@ -219,10 +220,33 @@ fun TripRouteScreen(viewModel: AppViewModel, tripId: Long, onBack: () -> Unit) {
                 LoadingHint("正在打开这次路线…")
                 return@Column
             }
-            Text(
-                "${TripMath.formatRange(trip.startedAt, trip.endedAt)} · ${tripStopsLine(trip.stops.size, trip.spentCents)}",
-                color = QTheme.colors.muted,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "${TripMath.formatRange(trip.startedAt, trip.endedAt)} · ${tripStopsLine(trip.stops.size, trip.spentCents)}",
+                    color = QTheme.colors.muted,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    "改名字",
+                    color = QTheme.colors.sky,
+                    modifier = Modifier
+                        .clickable(enabled = !isBusy) {
+                            renaming = true
+                        }
+                        .padding(start = 12.dp, top = 4.dp, bottom = 4.dp),
+                )
+            }
+            if (!trip.active) {
+                Text(
+                    "点一站可以改店名、评分、花费和照片。",
+                    color = QTheme.colors.muted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
             var mapExpanded by rememberSaveable { mutableStateOf(false) }
             TripMap(
                 stops = shown,
@@ -360,12 +384,10 @@ fun TripRouteScreen(viewModel: AppViewModel, tripId: Long, onBack: () -> Unit) {
                                         maxLines = 2,
                                     )
                                 }
-                                if (trip.active) {
-                                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                        Text("上移", color = q.sky, modifier = Modifier.clickable { viewModel.moveTripStop(stop.id, -1) })
-                                        Text("下移", color = q.sky, modifier = Modifier.clickable { viewModel.moveTripStop(stop.id, 1) })
-                                        Text("删除", color = q.coral, modifier = Modifier.clickable { deletingId = stop.id })
-                                    }
+                                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    Text("上移", color = q.sky, modifier = Modifier.clickable { viewModel.moveTripStop(stop.id, -1) })
+                                    Text("下移", color = q.sky, modifier = Modifier.clickable { viewModel.moveTripStop(stop.id, 1) })
+                                    Text("删除", color = q.coral, modifier = Modifier.clickable { deletingId = stop.id })
                                 }
                             }
                             if (stop.photos.isNotEmpty()) {
@@ -389,7 +411,7 @@ fun TripRouteScreen(viewModel: AppViewModel, tripId: Long, onBack: () -> Unit) {
     if (editing != null && routeTrip != null) {
         StopSheet(
             stop = editing,
-            canEdit = routeTrip.active,
+            canEdit = true,
             busy = isBusy,
             onSave = { name, kind, rating, amountCents, note ->
                 viewModel.updateTripStop(routeTrip.id, editing.id, name, kind, rating, editing.visitedOn, amountCents, note)
@@ -421,6 +443,17 @@ fun TripRouteScreen(viewModel: AppViewModel, tripId: Long, onBack: () -> Unit) {
             dismissButton = { TextButton(onClick = { deletingId = 0L }) { Text("先不了") } },
             containerColor = MaterialTheme.colorScheme.surface,
             shape = MaterialTheme.shapes.large,
+        )
+    }
+    val naming = trip
+    if (renaming && naming != null) {
+        RenameTripDialog(
+            name = naming.name,
+            busy = isBusy,
+            onDismiss = { renaming = false },
+            onSave = { next ->
+                viewModel.renameTrip(naming.id, next) { renaming = false }
+            },
         )
     }
 }

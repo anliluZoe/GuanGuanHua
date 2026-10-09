@@ -535,6 +535,16 @@ app.post("/api/trips", requireMember, (req, res) => {
   res.json(tripJson(created, req));
 });
 
+app.patch("/api/trips/:id", requireMember, (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id < 1) return res.status(404).json({ detail: "找不到这段旅程" });
+  const named = readTripName(req.body || {});
+  if (named.error) return res.status(400).json({ detail: named.error });
+  const renamed = store.renameTrip(req.member.household_id, id, named.name);
+  if (tripWriteError(renamed, res)) return;
+  res.json(tripJson(renamed, req, true));
+});
+
 app.post("/api/trips/:id/end", requireMember, (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isSafeInteger(id) || id < 1) return res.status(404).json({ detail: "找不到这段旅程" });
