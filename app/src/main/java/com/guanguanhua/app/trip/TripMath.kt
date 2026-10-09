@@ -205,8 +205,9 @@ object TripMath {
         return keys.map { (it - lo).toFloat() / (hi - lo).toFloat() }
     }
 
+    /** 每一段大约 1.4 秒。站多了总时长跟着加长，不再把整条路线挤进 12 秒里越走越快。 */
     fun playMs(stopCount: Int): Int =
-        ((stopCount - 1).coerceAtLeast(0) * 1400).coerceIn(1800, 12000)
+        ((stopCount - 1).coerceAtLeast(0) * 1400).coerceIn(1800, 180_000)
 
     fun routePlayhead(points: List<Pair<Float, Float>>, progress: Float): RoutePlayhead? {
         if (points.isEmpty()) return null

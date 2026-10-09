@@ -169,6 +169,8 @@ class TripMathTest {
         assertEquals(0, TripMath.routePlayhead(listOf(3f to 4f), 1f)!!.reached)
         assertEquals(1800, TripMath.playMs(2))
         assertEquals(2800, TripMath.playMs(3))
-        assertEquals(12000, TripMath.playMs(20))
+        assertEquals(26600, TripMath.playMs(20))
+        assertEquals(54600, TripMath.playMs(40))
+        assertEquals(180000, TripMath.playMs(200))
     }
 }
