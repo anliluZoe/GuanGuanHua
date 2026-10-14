@@ -10,6 +10,7 @@ import kotlin.math.cos
 import kotlin.math.floor
 import kotlin.math.hypot
 import kotlin.math.ln
+import kotlin.math.roundToInt
 import kotlin.math.sin
 
 object TripMath {
@@ -205,24 +206,31 @@ object TripMath {
         return keys.map { (it - lo).toFloat() / (hi - lo).toFloat() }
     }
 
-    /** 每一段大约 1.4 秒。站多了总时长跟着加长，不再把整条路线挤进 12 秒里越走越快。 */
-    fun playMs(stopCount: Int): Int =
-        ((stopCount - 1).coerceAtLeast(0) * 1400).coerceIn(1800, 180_000)
+    /**
+     * 按屏幕上每一段的长短分配时间。短的一段放慢，至少大约 4.8 秒，像素速度更低；
+     * 长的一段可以稍快，单段不超过 10 秒，整条最多 3 分钟。
+     */
+    fun playMs(points: List<Pair<Float, Float>>): Int {
+        val parts = segmentPlayMs(points)
+        if (parts.isEmpty() || parts.sum() <= 0) return 0
+        return parts.sum().coerceAtMost(180_000)
+    }
 
     fun routePlayhead(points: List<Pair<Float, Float>>, progress: Float): RoutePlayhead? {
         if (points.isEmpty()) return null
         val first = points.first()
         if (points.size == 1) return RoutePlayhead(first.first, first.second, 0, 0f)
         val t = progress.coerceIn(0f, 1f)
-        val lengths = points.zipWithNext { a, b -> hypot(b.first - a.first, b.second - a.second) }
-        val total = lengths.sum()
+        val durations = segmentPlayMs(points)
+        val total = durations.sum().toFloat()
         val last = points.last()
         if (total <= 0f) return RoutePlayhead(last.first, last.second, points.lastIndex, 0f)
         val target = t * total
         var walked = 0f
-        lengths.forEachIndexed { index, len ->
-            if (walked + len >= target) {
-                val u = if (len <= 0f) 1f else ((target - walked) / len).coerceIn(0f, 1f)
+        durations.forEachIndexed { index, duration ->
+            val span = duration.toFloat()
+            if (walked + span >= target || index == durations.lastIndex) {
+                val u = if (span <= 0f) 1f else ((target - walked) / span).coerceIn(0f, 1f)
                 val a = points[index]
                 val b = points[index + 1]
                 val dx = b.first - a.first
@@ -234,7 +242,7 @@ object TripMath {
                     angleDeg = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat(),
                 )
             }
-            walked += len
+            walked += span
         }
         val prev = points[points.lastIndex - 1]
         return RoutePlayhead(
@@ -244,6 +252,17 @@ object TripMath {
             Math.toDegrees(atan2((last.second - prev.second).toDouble(), (last.first - prev.first).toDouble())).toFloat(),
         )
     }
+
+    private fun segmentPlayMs(points: List<Pair<Float, Float>>): List<Int> =
+        points.zipWithNext { a, b ->
+            val len = hypot(b.first - a.first, b.second - a.second)
+            if (len < 1f) {
+                0
+            } else {
+                val speed = (18f + len * 0.1f).coerceAtMost(120f)
+                ((len / speed) * 1000f).roundToInt().coerceIn(4_800, 10_000)
+            }
+        }
 
     private fun clampFrame(frame: MapFrame): MapFrame {
         val world = (1 shl frame.zoom).toDouble()
