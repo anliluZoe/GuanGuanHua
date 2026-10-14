@@ -50,8 +50,6 @@ fun TripListScreen(
     val session by viewModel.session.collectAsStateWithLifecycle()
     val isBusy by viewModel.isBusy.collectAsStateWithLifecycle()
     var confirmEnd by rememberSaveable { mutableStateOf(false) }
-    var renamingId by rememberSaveable { mutableStateOf(0L) }
-    var renamingName by rememberSaveable { mutableStateOf("") }
     LaunchedEffect(Unit) { viewModel.refresh() }
     LaunchedEffect(askEnd) {
         if (askEnd && trips.active != null) confirmEnd = true
@@ -84,11 +82,6 @@ fun TripListScreen(
                         Spacer(Modifier.height(10.dp))
                         PillButton("看这次路线", filled = false, onClick = { onOpenRoute(active.id) })
                         Spacer(Modifier.height(10.dp))
-                        PillButton("改名字", filled = false, enabled = !isBusy, onClick = {
-                            renamingId = active.id
-                            renamingName = active.name
-                        })
-                        Spacer(Modifier.height(10.dp))
                         PillButton("结束旅程", filled = false, enabled = !isBusy, onClick = { confirmEnd = true })
                     }
                 }
@@ -106,14 +99,7 @@ fun TripListScreen(
             if (trips.trips.any { !it.active }) {
                 item { Text("以前的旅程", style = MaterialTheme.typography.titleMedium) }
                 items(trips.trips.filter { !it.active }, key = { it.id }) { trip ->
-                    PastTripCard(
-                        trip,
-                        onClick = { onOpenRoute(trip.id) },
-                        onRename = {
-                            renamingId = trip.id
-                            renamingName = trip.name
-                        },
-                    )
+                    PastTripCard(trip, onClick = { onOpenRoute(trip.id) })
                 }
             }
         }
@@ -147,36 +133,17 @@ fun TripListScreen(
             shape = MaterialTheme.shapes.large,
         )
     }
-    if (renamingId != 0L) {
-        RenameTripDialog(
-            name = renamingName,
-            busy = isBusy,
-            onDismiss = { renamingId = 0L },
-            onSave = { next ->
-                viewModel.renameTrip(renamingId, next) { renamingId = 0L }
-            },
-        )
-    }
 }
 
 @Composable
-private fun PastTripCard(trip: TripSummary, onClick: () -> Unit, onRename: () -> Unit) {
-    SoftCard(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.fillMaxWidth().clickable(onClick = onClick)) {
-            Text(trip.name, style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(4.dp))
-            Text(
-                "${TripMath.formatRange(trip.startedAt, trip.endedAt)} · ${tripStopsLine(trip.stopCount, trip.spentCents)}",
-                color = QTheme.colors.muted,
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
-        Spacer(Modifier.height(8.dp))
+private fun PastTripCard(trip: TripSummary, onClick: () -> Unit) {
+    SoftCard(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+        Text(trip.name, style = MaterialTheme.typography.titleMedium)
+        Spacer(Modifier.height(4.dp))
         Text(
-            "改名字",
-            color = QTheme.colors.sky,
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.clickable(onClick = onRename),
+            "${TripMath.formatRange(trip.startedAt, trip.endedAt)} · ${tripStopsLine(trip.stopCount, trip.spentCents)}",
+            color = QTheme.colors.muted,
+            style = MaterialTheme.typography.bodySmall,
         )
     }
 }
