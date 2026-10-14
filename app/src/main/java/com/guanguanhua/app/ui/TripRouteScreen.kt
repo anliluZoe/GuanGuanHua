@@ -526,6 +526,10 @@ private fun TripMap(
                 minMarkerDist,
             )
         }
+        val pathPts = remember(located, frame) {
+            val shown = frame ?: return@remember emptyList()
+            located.map { TripMath.mapPixel(it.lat as Double, it.lng as Double, shown) }
+        }
         var playing by remember { mutableStateOf(false) }
         val playAnim = remember { Animatable(0f) }
         LaunchedEffect(located.map { it.id }) {
@@ -535,20 +539,18 @@ private fun TripMap(
         }
         LaunchedEffect(playing) {
             if (!playing) return@LaunchedEffect
-            if (located.size < 2) {
+            val ms = TripMath.playMs(pathPts)
+            if (ms <= 0) {
                 playing = false
                 return@LaunchedEffect
             }
             playAnim.snapTo(0f)
-            playAnim.animateTo(1f, tween(TripMath.playMs(located.size), easing = LinearEasing))
+            playAnim.animateTo(1f, tween(ms, easing = LinearEasing))
             playing = false
         }
         val play = playAnim.value
         val showingPlay = play > 0f
         if (frame == null) return@BoxWithConstraints
-        val pathPts = remember(located, frame) {
-            located.map { TripMath.mapPixel(it.lat as Double, it.lng as Double, frame) }
-        }
         val head = if (showingPlay) TripMath.routePlayhead(pathPts, play) else null
         LaunchedEffect(head?.reached, playing) {
             if (playing && head != null) {
