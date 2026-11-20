@@ -328,7 +328,7 @@ fun BirthdayPoster(onDismiss: () -> Unit) {
             val foot = smooth(2.0f, 2.7f, t)
             text("11.21", w / 2f, px(764f), px(10f), px(5.2f), PosterCream, foot * 0.55f, serif, false)
             text("IN THEATERS 2026", w / 2f, px(786f), px(7.5f), px(2.2f), PosterCream, foot * 0.32f, serif, false)
-            text("DIRECTED BY 阿哲", w / 2f, px(806f), px(7.5f), px(2.2f), PosterCream, foot * 0.30f, serif, false)
+            text("DIRECTED BY 贝贝", w / 2f, px(806f), px(7.5f), px(2.2f), PosterCream, foot * 0.30f, serif, false)
 
             // 合幕时的提示
             if (!opened) {
