@@ -112,7 +112,26 @@ class MainActivity : ComponentActivity() {
         setContent {
             val viewModel: AppViewModel = viewModel()
             val appearance by viewModel.appearance.collectAsStateWithLifecycle()
-            GuanGuanHuaTheme(darkTheme = appearance.isDark(isSystemInDarkTheme())) {
+            val profile by viewModel.profile.collectAsStateWithLifecycle()
+            val birthday by viewModel.birthday.collectAsStateWithLifecycle()
+            val birthYear by viewModel.birthYear.collectAsStateWithLifecycle()
+            val today = remember { java.time.LocalDate.now() }
+            val todayKey = remember(today) { today.toString() }
+            val birthdayToday = remember(birthday, todayKey) {
+                birthday == "%02d-%02d".format(today.monthValue, today.dayOfMonth)
+            }
+            val prefs = remember { getSharedPreferences("session", android.content.Context.MODE_PRIVATE) }
+            var showPoster by remember(birthdayToday) {
+                mutableStateOf(birthdayToday && prefs.getString(PREF_POSTER_SEEN, null) != todayKey)
+            }
+            val dismissPoster = {
+                prefs.edit().putString(PREF_POSTER_SEEN, todayKey).apply()
+                showPoster = false
+            }
+            GuanGuanHuaTheme(
+                darkTheme = appearance.isDark(isSystemInDarkTheme()),
+                birthday = birthdayToday,
+            ) {
                 val navController = rememberNavController()
                 val session by viewModel.session.collectAsStateWithLifecycle()
                 val trips by viewModel.trips.collectAsStateWithLifecycle()
@@ -332,6 +351,15 @@ class MainActivity : ComponentActivity() {
                         }
                         }
                     }
+                    if (showPoster && birthdayToday) {
+                        com.guanguanhua.app.ui.BirthdayPoster(
+                            name = profile.name.ifBlank { "你" },
+                            director = profile.partnerName ?: "我",
+                            season = birthYear?.let { (today.year - it).coerceIn(1, 120) },
+                            year = today.year,
+                            onDismiss = dismissPoster,
+                        )
+                    }
                     LoadingScrim(visible = isBusy)
                 }
             }
@@ -352,6 +380,7 @@ class MainActivity : ComponentActivity() {
         const val EXTRA_CONFIRM_END_TRIP = "confirmEndTrip"
         const val EXTRA_TRIP_KEEP_GOING = "tripKeepGoing"
         const val ACTION_OPEN_WIDGET = "com.guanguanhua.app.OPEN_WIDGET"
+        const val PREF_POSTER_SEEN = "birthdayPosterSeen"
 
         fun wantsWidget(intent: Intent?): Boolean =
             intent?.getBooleanExtra(EXTRA_OPEN_WIDGET, false) == true || intent?.action == ACTION_OPEN_WIDGET

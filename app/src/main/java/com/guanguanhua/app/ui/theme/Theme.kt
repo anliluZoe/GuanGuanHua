@@ -184,6 +184,51 @@ val DarkQColors = QColors(
 
 val LocalQColors = staticCompositionLocalOf { LightQColors }
 
+/** 生日当天强制使用的深靛蓝 + 灯火金色板，不跟随系统明暗。 */
+val BirthdayQColors = QColors(
+    canvas = Color(0xFF0B0F24),
+    wash = Color(0xFF0E1330),
+    sandDeep = Color(0xFF141A3A),
+    paper = Color(0xFF1A2038),
+    ink = Color(0xFFF2F4FF),
+    inkSoft = Color(0xFFC3CCE8),
+    muted = Color(0xFF8C96B8),
+    muted2 = Color(0xFF6B7494),
+    line = Color(0xFF202849),
+    lineStrong = Color(0xFF2E3554),
+    sky = Color(0xFFF0C070),
+    skySoft = Color(0xFFF0C070).softWash(),
+    mint = Color(0xFF5FE3C6),
+    mintSoft = Color(0xFF5FE3C6).softWash(),
+    lavender = Color(0xFF7C5AC4),
+    lavenderSoft = Color(0xFF7C5AC4).softWash(),
+    coral = Color(0xFFF0728F),
+    coralBright = Color(0xFFFF8FA8),
+    coralSoft = Color(0xFFF0728F).softWash(),
+    cream = Color(0xFFF0C070).softWash(),
+    gold = Color(0xFFE6B872),
+    goldSoft = Color(0xFFE6B872).softWash(),
+    peach = Color(0xFFF0A66C),
+    peachSoft = Color(0xFFF0A66C).softWash(),
+    denim = Color(0xFF7C8CFF),
+    denimSoft = Color(0xFF7C8CFF).softWash(),
+    rose = Color(0xFFF0909C),
+    roseSoft = Color(0xFFF0909C).softWash(),
+    chipWash = Color(0xFF141A3A),
+    pendingInk = Color(0xFFE6B872),
+    rejectedWash = Color(0xFFF0909C).softWash(),
+    rejectedInk = Color(0xFFF0909C),
+    partialInk = Color(0xFFFF8FA8),
+    approvedInk = Color(0xFF5FE3C6),
+    disabledFill = Color(0xFF161C3A),
+    disabledInk = Color(0xFF5B6484),
+    overlay = Color(0xFF0B0F24).copy(alpha = 0.92f),
+    screenGlow = Brush.verticalGradient(
+        colors = listOf(Color(0xFF121A3E), Color(0xFF0B0F24), Color(0xFF0B0F24)),
+    ),
+    isDark = true,
+)
+
 object QTheme {
     val colors: QColors
         @Composable
@@ -311,25 +356,62 @@ private val QTypography = Typography(
     ),
 )
 
+private val BirthdayColors = darkColorScheme(
+    primary = BirthdayQColors.sky,
+    onPrimary = Color(0xFF23180A),
+    primaryContainer = BirthdayQColors.skySoft,
+    onPrimaryContainer = BirthdayQColors.sky,
+    secondary = BirthdayQColors.coral,
+    onSecondary = Color(0xFF2A1018),
+    secondaryContainer = BirthdayQColors.coralSoft,
+    onSecondaryContainer = BirthdayQColors.coral,
+    tertiary = BirthdayQColors.mint,
+    onTertiary = Color(0xFF062820),
+    tertiaryContainer = BirthdayQColors.mintSoft,
+    onTertiaryContainer = BirthdayQColors.mint,
+    error = BirthdayQColors.rose,
+    errorContainer = BirthdayQColors.rejectedWash,
+    onError = Color(0xFF2A1216),
+    onErrorContainer = BirthdayQColors.rejectedInk,
+    background = BirthdayQColors.canvas,
+    onBackground = BirthdayQColors.ink,
+    surface = BirthdayQColors.paper,
+    onSurface = BirthdayQColors.ink,
+    surfaceVariant = BirthdayQColors.skySoft,
+    onSurfaceVariant = BirthdayQColors.muted,
+    outline = BirthdayQColors.lineStrong,
+    outlineVariant = BirthdayQColors.line,
+)
+
 @Composable
 fun GuanGuanHuaTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
+    birthday: Boolean = false,
     content: @Composable () -> Unit,
 ) {
-    val qColors = if (darkTheme) DarkQColors else LightQColors
+    val dark = birthday || darkTheme
+    val qColors = when {
+        birthday -> BirthdayQColors
+        darkTheme -> DarkQColors
+        else -> LightQColors
+    }
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
             WindowCompat.getInsetsController(window, view).apply {
-                isAppearanceLightStatusBars = !darkTheme
-                isAppearanceLightNavigationBars = !darkTheme
+                isAppearanceLightStatusBars = !dark
+                isAppearanceLightNavigationBars = !dark
             }
         }
     }
     CompositionLocalProvider(LocalQColors provides qColors) {
         MaterialTheme(
-            colorScheme = if (darkTheme) DarkColors else LightColors,
+            colorScheme = when {
+                birthday -> BirthdayColors
+                darkTheme -> DarkColors
+                else -> LightColors
+            },
             typography = QTypography,
             shapes = QShapes,
             content = content,

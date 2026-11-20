@@ -112,6 +112,23 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val _appearance = MutableStateFlow(Appearance.fromPref(prefs.getString(PREF_APPEARANCE, null)))
     val appearance: StateFlow<Appearance> = _appearance.asStateFlow()
 
+    /** 生日只存在本机：MM-DD，出生年可选。首屏海报和生日主题都看它。 */
+    private val _birthday = MutableStateFlow(prefs.getString(PREF_BIRTHDAY, null)?.takeIf { it.isNotBlank() })
+    val birthday: StateFlow<String?> = _birthday.asStateFlow()
+
+    private val _birthYear = MutableStateFlow(prefs.getInt(PREF_BIRTH_YEAR, 0).takeIf { it > 0 })
+    val birthYear: StateFlow<Int?> = _birthYear.asStateFlow()
+
+    fun setBirthday(birthday: String?, birthYear: Int?) {
+        val clean = birthday?.trim()?.takeIf { it.matches(Regex("\\d{2}-\\d{2}")) }
+        prefs.edit {
+            if (clean == null) remove(PREF_BIRTHDAY) else putString(PREF_BIRTHDAY, clean)
+            if (birthYear == null) remove(PREF_BIRTH_YEAR) else putInt(PREF_BIRTH_YEAR, birthYear)
+        }
+        _birthday.value = clean
+        _birthYear.value = birthYear
+    }
+
     private val _widget = MutableStateFlow(WidgetCache.read(app))
     val widget: StateFlow<WidgetState> = _widget.asStateFlow()
 
@@ -721,6 +738,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     companion object {
         private const val PREF_APPEARANCE = "appearance"
+        private const val PREF_BIRTHDAY = "birthday"
+        private const val PREF_BIRTH_YEAR = "birthYear"
         const val PREF_MEMBER_ID = "memberId"
     }
 }

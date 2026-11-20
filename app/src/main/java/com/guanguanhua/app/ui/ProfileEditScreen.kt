@@ -65,8 +65,12 @@ import com.guanguanhua.app.widget.WidgetCopy
 fun ProfileEditScreen(viewModel: AppViewModel, onBack: () -> Unit) {
     val profile by viewModel.profile.collectAsStateWithLifecycle()
     val session by viewModel.session.collectAsStateWithLifecycle()
+    val birthday by viewModel.birthday.collectAsStateWithLifecycle()
+    val birthYear by viewModel.birthYear.collectAsStateWithLifecycle()
     val isBusy by viewModel.isBusy.collectAsStateWithLifecycle()
     var name by rememberSaveable(profile.name) { mutableStateOf(profile.name) }
+    var birthdayInput by rememberSaveable(birthday) { mutableStateOf(birthday ?: "") }
+    var birthYearInput by rememberSaveable(birthYear) { mutableStateOf(birthYear?.toString() ?: "") }
     var serverUrl by rememberSaveable(session.serverUrl) { mutableStateOf(session.serverUrl) }
     val context = LocalContext.current
     var notificationsOn by remember { mutableStateOf(CycleReminder.notificationsAllowed(context)) }
@@ -129,6 +133,41 @@ fun ProfileEditScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                 }
                 ChoiceChip("更换", selected = false, onClick = { showPicker = true })
             }
+        }
+        SoftCard(modifier = Modifier.fillMaxWidth()) {
+            Text("生日", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "只存在这台手机上。生日当天打开 App，会先放一张只给她看的海报。",
+                color = QTheme.colors.muted,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Spacer(Modifier.height(12.dp))
+            SoftField(
+                value = birthdayInput,
+                onValueChange = { birthdayInput = it },
+                label = "生日（MM-DD，比如 11-21）",
+            )
+            Spacer(Modifier.height(10.dp))
+            SoftField(
+                value = birthYearInput,
+                onValueChange = { birthYearInput = it.filter(Char::isDigit).take(4) },
+                label = "出生年（可选，用来写 SEASON）",
+            )
+            Spacer(Modifier.height(12.dp))
+            PillButton(
+                "保存生日",
+                enabled = !isBusy,
+                onClick = {
+                    val text = birthdayInput.trim()
+                    if (text.isNotEmpty() && !text.matches(Regex("\\d{2}-\\d{2}"))) {
+                        viewModel.postStatus("生日要写成 MM-DD")
+                    } else {
+                        viewModel.setBirthday(text.ifEmpty { null }, birthYearInput.toIntOrNull())
+                        viewModel.postStatus("生日已保存")
+                    }
+                },
+            )
         }
         SoftCard(modifier = Modifier.fillMaxWidth()) {
             Text("怎么称呼我", style = MaterialTheme.typography.titleMedium)
