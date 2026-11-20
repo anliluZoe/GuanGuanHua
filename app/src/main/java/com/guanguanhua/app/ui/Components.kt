@@ -223,7 +223,22 @@ fun PillButton(
         border = if (filled) null else BorderStroke(1.5.dp, colors.secondaryStroke),
         elevation = ButtonDefaults.buttonElevation(0.dp),
     ) {
-        Text(text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text(
+            text,
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 0.6.sp,
+                shadow = if (!filled && colors.isDark) {
+                    androidx.compose.ui.graphics.Shadow(
+                        color = colors.sky.copy(alpha = 0.35f),
+                        blurRadius = 9f,
+                    )
+                } else {
+                    null
+                },
+            ),
+            color = if (!filled && colors.isDark) colors.sky else fg,
+        )
     }
 }
 
