@@ -227,7 +227,7 @@ fun ProfileScreen(
             }
             Spacer(Modifier.height(6.dp))
             Text(
-                if (isBirthdayToday) "今晚，她是主角" else "距离 11·21 还有 $daysToBirthday 天",
+                if (isBirthdayToday) "今晚，妞妞最大！" else "距离 11·21 还有 $daysToBirthday 天",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.SemiBold,
             )
