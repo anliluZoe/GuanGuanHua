@@ -85,7 +85,7 @@ fun TripAmountField(value: String, onValueChange: (String) -> Unit) {
         prefix = "¥",
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
         isError = invalid,
-        supportingText = if (invalid) "最多两位小数" else "不进账本，只记在这一站上",
+        supportingText = if (invalid) "最多两位小数" else "只记在这一站上",
     )
 }
 

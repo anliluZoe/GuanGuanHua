@@ -185,7 +185,6 @@ test("opening an older database adds cycle tables and leaving keeps that member'
       .map((row) => row.name);
     assert.ok(tables.includes("cycle_records"));
     assert.ok(tables.includes("cycle_settings"));
-    assert.ok(tables.includes("purchase_requests"));
 
     const ada = store.memberByToken("tok-ada");
     const cycle = store.createCycle(ada.id, "2026-09-18", "2026-09-22");

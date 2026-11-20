@@ -62,7 +62,7 @@ base64 -i upload.jks | tr -d '\n'
 3. 否则若存在 `~/saveMoney`，用它（兼容旧目录名）
 4. 否则 clone 到 **`~/watchMoney`**
 
-该目录只是 Docker 构建用的代码副本；**账本、照片、已发布 APK 在 `/data/savemoney`，重建容器不会删。**
+该目录只是 Docker 构建用的代码副本；**家庭数据、照片、已发布 APK 在 `/data/savemoney`，重建容器不会删。**
 
 ### 配置 SSH 密钥（不要提交私钥）
 
@@ -89,7 +89,7 @@ sudo apt-get update
 sudo apt-get install -y docker.io git curl ca-certificates
 sudo usermod -aG docker "$USER"   # 若 DEPLOY_USER 不是 root，执行后重新登录
 sudo mkdir -p /data/savemoney
-# 让容器进程能写入账本和 updates/
+# 让容器进程能写入数据和 updates/
 sudo chown -R 0:0 /data/savemoney
 ```
 
@@ -104,7 +104,7 @@ sudo chown -R 0:0 /data/savemoney
 
 ### 如果以前用过 docker compose
 
-CI 使用的容器名是 **`savemoney-api`**，端口 **8080**，数据在 **`/data/savemoney`**。若旧实例是 compose 起的（容器名可能是 `backend-api-1`，数据在 named volume `savemoney-data`），先迁数据再停旧容器，避免端口冲突，也避免把账本丢了：
+CI 使用的容器名是 **`savemoney-api`**，端口 **8080**，数据在 **`/data/savemoney`**。若旧实例是 compose 起的（容器名可能是 `backend-api-1`，数据在 named volume `savemoney-data`），先迁数据再停旧容器，避免端口冲突，也避免把数据丢了：
 
 ```bash
 sudo mkdir -p /data/savemoney

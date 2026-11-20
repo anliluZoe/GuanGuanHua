@@ -23,7 +23,6 @@ import retrofit2.http.PUT
 import retrofit2.http.PATCH
 import retrofit2.http.Part
 import retrofit2.http.Path
-import retrofit2.http.Query
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
@@ -50,16 +49,7 @@ data class JoinBody(
     val memberId: Long? = null,
 )
 
-data class ReviewBody(
-    val approve: Boolean,
-    val comment: String,
-    val unitPriceCents: Long? = null,
-    val quantity: Int? = null,
-)
-
 data class ProfileBody(val name: String? = null, val avatarPreset: String? = null)
-
-data class BudgetBody(val amountCents: Long)
 
 data class WidgetDto(
     val widgetImageUrl: String? = null,
@@ -96,51 +86,6 @@ interface GuanGuanHuaApi {
         @Header("Authorization") authorization: String,
         @Part avatar: MultipartBody.Part,
     ): SessionDto
-
-    @GET("api/requests")
-    suspend fun listRequests(@Header("Authorization") authorization: String): List<PurchaseRequest>
-
-    @Multipart
-    @POST("api/requests")
-    suspend fun createRequest(
-        @Header("Authorization") authorization: String,
-        @Part("itemName") itemName: okhttp3.RequestBody,
-        @Part("category") category: okhttp3.RequestBody,
-        @Part("unitPriceCents") unitPriceCents: okhttp3.RequestBody,
-        @Part("quantity") quantity: okhttp3.RequestBody,
-        @Part("reason") reason: okhttp3.RequestBody,
-        @Part image: MultipartBody.Part?,
-    ): PurchaseRequest
-
-    @POST("api/requests/{id}/review")
-    suspend fun review(
-        @Header("Authorization") authorization: String,
-        @Path("id") id: Long,
-        @Body body: ReviewBody,
-    ): PurchaseRequest
-
-    @DELETE("api/requests/{id}")
-    suspend fun withdraw(@Header("Authorization") authorization: String, @Path("id") id: Long)
-
-    @GET("api/expenses")
-    suspend fun listExpenses(
-        @Header("Authorization") authorization: String,
-        @Query("yearMonth") yearMonth: String,
-    ): List<ExpenseRecord>
-
-    /** 没设预算时服务器返回 JSON null，用 Response 包一层才能拿到空 body。 */
-    @GET("api/budget")
-    suspend fun getBudget(
-        @Header("Authorization") authorization: String,
-        @Query("yearMonth") yearMonth: String,
-    ): Response<MonthlyBudget>
-
-    @PUT("api/budget")
-    suspend fun setBudget(
-        @Header("Authorization") authorization: String,
-        @Query("yearMonth") yearMonth: String,
-        @Body body: BudgetBody,
-    ): MonthlyBudget
 
     @GET("api/widget")
     suspend fun getWidget(@Header("Authorization") authorization: String): WidgetDto
@@ -262,7 +207,6 @@ private data class CycleWriteBody(val start: String, val end: String?)
 
 class HouseholdRepository(private val app: Application) {
     private val prefs = app.getSharedPreferences("session", Context.MODE_PRIVATE)
-    private val text = "text/plain".toMediaType()
 
     private fun api(): GuanGuanHuaApi {
         val base = ApiConfig.resolvedServerUrl(prefs.getString("serverUrl", null)) + "/"
@@ -312,54 +256,6 @@ class HouseholdRepository(private val app: Application) {
             bearer(),
             jpegPart(imageUri, field = "avatar", filename = "avatar.jpg", maxEdge = ImageCompress.AVATAR_MAX_EDGE),
         )
-
-    suspend fun listRequests(): List<PurchaseRequest> = api().listRequests(bearer())
-
-    suspend fun createRequest(
-        itemName: String,
-        category: String,
-        unitPriceCents: Long,
-        quantity: Int,
-        reason: String,
-        imageUri: Uri?,
-    ): PurchaseRequest {
-        val imagePart = imageUri?.let { uri ->
-            jpegPart(uri, field = "image", filename = "photo.jpg", maxEdge = ImageCompress.PHOTO_MAX_EDGE)
-        }
-        return api().createRequest(
-            bearer(),
-            itemName.toRequestBody(text),
-            category.toRequestBody(text),
-            unitPriceCents.toString().toRequestBody(text),
-            quantity.toString().toRequestBody(text),
-            reason.toRequestBody(text),
-            imagePart,
-        )
-    }
-
-    suspend fun review(
-        id: Long,
-        approve: Boolean,
-        comment: String,
-        unitPriceCents: Long? = null,
-        quantity: Int? = null,
-    ): PurchaseRequest =
-        api().review(bearer(), id, ReviewBody(approve, comment, unitPriceCents, quantity))
-
-    suspend fun withdraw(id: Long) {
-        api().withdraw(bearer(), id)
-    }
-
-    suspend fun listExpenses(yearMonth: String): List<ExpenseRecord> = api().listExpenses(bearer(), yearMonth)
-
-    suspend fun getBudget(yearMonth: String): MonthlyBudget? {
-        val response = api().getBudget(bearer(), yearMonth)
-        if (!response.isSuccessful) throw retrofit2.HttpException(response)
-        return response.body()
-    }
-
-    suspend fun setBudget(yearMonth: String, amountCents: Long): MonthlyBudget =
-        api().setBudget(bearer(), yearMonth, BudgetBody(amountCents))
 
     suspend fun getWidget(): WidgetDto = api().getWidget(bearer())
 

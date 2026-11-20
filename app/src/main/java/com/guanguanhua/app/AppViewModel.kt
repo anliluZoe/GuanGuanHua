@@ -14,19 +14,14 @@ import com.guanguanhua.app.data.ApiConfig
 import com.guanguanhua.app.data.CycleRecord
 import com.guanguanhua.app.data.CycleSettings
 import com.guanguanhua.app.data.CycleState
-import com.guanguanhua.app.data.ExpenseRecord
 import com.guanguanhua.app.data.HouseholdFullException
 import com.guanguanhua.app.data.MemberDto
-import com.guanguanhua.app.data.MonthlyBudget
-import com.guanguanhua.app.data.PurchaseRequest
 import com.guanguanhua.app.data.SessionDto
 import com.guanguanhua.app.data.TripDetail
 import com.guanguanhua.app.data.TripState
 import com.guanguanhua.app.data.TripStopWrite
 import com.guanguanhua.app.data.WidgetDto
 import com.guanguanhua.app.notify.CycleReminder
-import com.guanguanhua.app.notify.ReviewActivity
-import com.guanguanhua.app.notify.ReviewActivityWorker
 import com.guanguanhua.app.notify.TripEndReminderWorker
 import com.guanguanhua.app.notify.TripOngoing
 import com.guanguanhua.app.ui.theme.Appearance
@@ -34,7 +29,6 @@ import com.guanguanhua.app.widget.WidgetCache
 import com.guanguanhua.app.widget.WidgetCopy
 import com.guanguanhua.app.widget.WidgetRefreshWorker
 import com.guanguanhua.app.widget.WidgetState
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -44,9 +38,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
-import java.time.YearMonth
 
-/** 我叫什么、另一半叫什么。谁都能发申请，由对方来审。头像跟「我的头像」同步。 */
+/** 我叫什么、另一半叫什么。头像跟「我的头像」同步。 */
 data class UserProfile(
     val name: String,
     val partnerName: String?,
@@ -98,29 +91,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     )
     val profile: StateFlow<UserProfile> = _profile.asStateFlow()
 
-    private val _requests = MutableStateFlow<List<PurchaseRequest>>(emptyList())
-    val requests: StateFlow<List<PurchaseRequest>> = _requests.asStateFlow()
-
-    private val _selectedMonth = MutableStateFlow(YearMonth.now())
-    val selectedMonth: StateFlow<YearMonth> = _selectedMonth.asStateFlow()
-
-    private val _monthExpenses = MutableStateFlow<List<ExpenseRecord>>(emptyList())
-    val monthExpenses: StateFlow<List<ExpenseRecord>> = _monthExpenses.asStateFlow()
-
-    private val _monthBudget = MutableStateFlow<MonthlyBudget?>(null)
-    val monthBudget: StateFlow<MonthlyBudget?> = _monthBudget.asStateFlow()
-
     private val _statusMessage = MutableStateFlow<String?>(null)
     val statusMessage: StateFlow<String?> = _statusMessage.asStateFlow()
 
     private val _busyCount = MutableStateFlow(0)
-    /** 提交、审核、建家等写操作进行中；界面用遮罩并禁用主按钮。 */
+    /** 提交、建家等写操作进行中；界面用遮罩并禁用主按钮。 */
     val isBusy: StateFlow<Boolean> = _busyCount
         .map { it > 0 }
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     private val _refreshCount = MutableStateFlow(0)
-    /** 拉列表/账本/资料。首次居中转圈，之后由下拉刷新指示器表示；后台 30 秒轮询走 quiet。 */
+    /** 拉资料和各个页面。首次居中转圈，之后由下拉刷新指示器表示；后台 30 秒轮询走 quiet。 */
     val isRefreshing: StateFlow<Boolean> = _refreshCount
         .map { it > 0 }
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
@@ -156,9 +137,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun observeRequest(id: Long): Flow<PurchaseRequest?> =
-        requests.map { list -> list.firstOrNull { it.id == id } }
-
     fun refresh(quiet: Boolean = false) {
         if (!_session.value.joined) {
             _ready.value = true
@@ -168,8 +146,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             track(_refreshCount, enabled = !quiet) {
                 runCatching {
                     applyRemoteSession(repo.session())
-                    syncRequests()
-                    loadMonth(_selectedMonth.value)
                 }.onFailure { _statusMessage.value = it.message ?: "同步失败" }
                 runCatching { syncWidget() }
                 runCatching { syncCycles() }.onFailure { error ->
@@ -221,7 +197,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun leaveHome(onSuccess: () -> Unit = {}) {
         viewModelScope.launch {
             track(_busyCount) {
-                ReviewActivityWorker.cancel(getApplication())
                 WidgetRefreshWorker.cancel(getApplication())
                 CycleReminder.cancel(getApplication())
                 TripEndReminderWorker.cancel(getApplication())
@@ -234,13 +209,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 prefs.edit {
                     remove("token")
                     remove("householdCode")
-                    remove(ReviewActivity.PREF_SINCE)
                 }
                 _session.update { it.copy(token = "", householdCode = "") }
                 _joinPicker.value = null
-                _requests.value = emptyList()
-                _monthExpenses.value = emptyList()
-                _monthBudget.value = null
                 _ready.value = true
                 WidgetCache.publish(getApplication())
                 onSuccess()
@@ -277,76 +248,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             track(_busyCount) {
                 runCatching { applyRemoteSession(repo.uploadAvatar(uri)) }
                     .onFailure { _statusMessage.value = it.message ?: "头像上传失败" }
-            }
-        }
-    }
-
-    fun submitRequest(
-        itemName: String,
-        category: String,
-        unitPriceCents: Long,
-        quantity: Int,
-        reason: String,
-        imageUri: String?,
-        onSuccess: () -> Unit = {},
-    ) {
-        viewModelScope.launch {
-            track(_busyCount) {
-                runCatching {
-                    repo.createRequest(itemName.trim(), category, unitPriceCents, quantity, reason.trim(), imageUri?.let(Uri::parse))
-                    syncRequests()
-                }.onSuccess { onSuccess() }
-                    .onFailure { _statusMessage.value = it.message ?: "提交失败" }
-            }
-        }
-    }
-
-    fun review(
-        requestId: Long,
-        approve: Boolean,
-        comment: String,
-        unitPriceCents: Long? = null,
-        quantity: Int? = null,
-        onSuccess: () -> Unit = {},
-    ) {
-        viewModelScope.launch {
-            track(_busyCount) {
-                runCatching {
-                    repo.review(requestId, approve, comment, unitPriceCents, quantity)
-                    syncRequests()
-                    loadMonth(_selectedMonth.value)
-                }.onSuccess { onSuccess() }
-                    .onFailure { _statusMessage.value = it.message ?: "审核失败" }
-            }
-        }
-    }
-
-    fun withdrawRequest(requestId: Long, onSuccess: () -> Unit = {}) {
-        viewModelScope.launch {
-            track(_busyCount) {
-                runCatching {
-                    repo.withdraw(requestId)
-                    syncRequests()
-                }.onSuccess { onSuccess() }
-                    .onFailure { _statusMessage.value = it.message ?: "撤回失败" }
-            }
-        }
-    }
-
-    fun shiftMonth(delta: Long) {
-        _selectedMonth.update { it.plusMonths(delta) }
-        viewModelScope.launch {
-            track(_refreshCount) { runCatching { loadMonth(_selectedMonth.value) } }
-        }
-    }
-
-    fun setBudget(amountCents: Long, onSuccess: () -> Unit = {}) {
-        viewModelScope.launch {
-            track(_busyCount) {
-                runCatching {
-                    _monthBudget.value = repo.setBudget(_selectedMonth.value.toString(), amountCents)
-                }.onSuccess { onSuccess() }
-                    .onFailure { _statusMessage.value = it.message ?: "预算保存失败" }
             }
         }
     }
@@ -693,13 +594,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             applyRemoteSession(remote)
             _session.update { it.copy(token = remote.token, householdCode = remote.householdCode) }
             _joinPicker.value = null
-            syncRequests()
-            loadMonth(_selectedMonth.value)
             runCatching { syncWidget() }
             runCatching { syncCycles() }
             runCatching { syncTrips() }
-            ReviewActivityWorker.schedule(getApplication())
-            ReviewActivityWorker.enqueueSoon(getApplication())
             WidgetRefreshWorker.schedule(getApplication())
             WidgetRefreshWorker.enqueueSoon(getApplication())
         }.onFailure { error ->
@@ -713,32 +610,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
         _ready.value = _session.value.joined
-    }
-
-    /**
-     * 拉取申请列表。前台只弹页内提示；若请求在退到后台之后才返回，改走系统通知，避免水位线被吃掉却没有状态栏提醒。
-     */
-    private suspend fun syncRequests() {
-        val list = repo.listRequests()
-        val since = prefs.getLong(ReviewActivity.PREF_SINCE, 0L)
-        val items = if (since > 0L) ReviewActivity.newItems(list, since) else emptyList()
-        val consume = when {
-            since <= 0L || items.isEmpty() -> true
-            (getApplication() as GuanGuanHuaApp).inForeground -> {
-                _statusMessage.value = items.last().title
-                true
-            }
-            else -> ReviewActivityWorker.notifyItems(getApplication(), items)
-        }
-        if (consume) {
-            prefs.edit(commit = true) { putLong(ReviewActivity.PREF_SINCE, ReviewActivity.watermark(list, since)) }
-        }
-        _requests.value = list
-    }
-
-    private suspend fun loadMonth(month: YearMonth) {
-        _monthExpenses.value = repo.listExpenses(month.toString())
-        _monthBudget.value = repo.getBudget(month.toString())
     }
 
     private suspend fun syncWidget() {

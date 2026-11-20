@@ -142,7 +142,7 @@ fun ProfileScreen(
             subtitle = if (session.joined) {
                 householdPairTitle(profile.name, profile.partnerName)
             } else {
-                "两个人的小金库 · 才不是腻歪呢"
+                "两个人的小窝 · 才不是腻歪呢"
             },
             leading = {
                 StackedAvatars(
@@ -157,17 +157,17 @@ fun ProfileScreen(
         )
         if (!session.joined) {
             SoftCard(modifier = Modifier.fillMaxWidth()) {
-                Text("家庭账本", style = MaterialTheme.typography.titleMedium)
+                Text("家庭", style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "起个名字就能建账本。每个家庭最多两个人。",
+                    "起个名字就能建一个家。每个家庭最多两个人。",
                     color = QTheme.colors.muted,
                     style = MaterialTheme.typography.bodySmall,
                 )
                 Spacer(Modifier.height(12.dp))
                 SoftField(value = name, onValueChange = { name = it }, label = "我的名字")
                 Spacer(Modifier.height(16.dp))
-                PillButton("创建家庭账本", enabled = !isBusy && name.trim().isNotBlank(), onClick = {
+                PillButton("创建家庭", enabled = !isBusy && name.trim().isNotBlank(), onClick = {
                     viewModel.consumeStatus()
                     viewModel.createHome(name)
                 })

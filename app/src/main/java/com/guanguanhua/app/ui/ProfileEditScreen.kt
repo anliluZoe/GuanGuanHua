@@ -56,7 +56,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.guanguanhua.app.AppViewModel
-import com.guanguanhua.app.notify.ReviewActivityWorker
+import com.guanguanhua.app.notify.CycleReminder
 import com.guanguanhua.app.ui.theme.QTheme
 import com.guanguanhua.app.widget.WidgetCopy
 
@@ -69,13 +69,13 @@ fun ProfileEditScreen(viewModel: AppViewModel, onBack: () -> Unit) {
     var name by rememberSaveable(profile.name) { mutableStateOf(profile.name) }
     var serverUrl by rememberSaveable(session.serverUrl) { mutableStateOf(session.serverUrl) }
     val context = LocalContext.current
-    var notificationsOn by remember { mutableStateOf(ReviewActivityWorker.notificationsAllowed(context)) }
+    var notificationsOn by remember { mutableStateOf(CycleReminder.notificationsAllowed(context)) }
     val notificationSettings = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
         .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
     val askNotifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        notificationsOn = ReviewActivityWorker.notificationsAllowed(context)
+        notificationsOn = CycleReminder.notificationsAllowed(context)
         if (granted) {
-            ReviewActivityWorker.enqueueSoon(context)
+            CycleReminder.scheduleFromCache(context)
         } else {
             val activity = context as? Activity
             if (activity != null && !activity.shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS)) {
@@ -92,7 +92,7 @@ fun ProfileEditScreen(viewModel: AppViewModel, onBack: () -> Unit) {
         }
     }
     LifecycleResumeEffect(Unit) {
-        notificationsOn = ReviewActivityWorker.notificationsAllowed(context)
+        notificationsOn = CycleReminder.notificationsAllowed(context)
         onPauseOrDispose { }
     }
 
@@ -160,9 +160,9 @@ fun ProfileEditScreen(viewModel: AppViewModel, onBack: () -> Unit) {
             },
         )
         SoftCard(modifier = Modifier.fillMaxWidth()) {
-            Text("审核动态提醒", style = MaterialTheme.typography.titleMedium)
+            Text("提醒通知", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(6.dp))
-            Text("对方发起或审核申请时会通知你。", style = MaterialTheme.typography.bodySmall)
+            Text("经期提醒和旅程结束提醒会用到系统通知。", style = MaterialTheme.typography.bodySmall)
             if (!notificationsOn) {
                 Spacer(Modifier.height(14.dp))
                 Text(
@@ -190,7 +190,7 @@ fun ProfileEditScreen(viewModel: AppViewModel, onBack: () -> Unit) {
             onSave = { viewModel.setServerUrl(serverUrl) },
         )
         if (session.joined) {
-            PillButton("退出这个家庭账本", filled = false, enabled = !isBusy, onClick = {
+            PillButton("退出这个家庭", filled = false, enabled = !isBusy, onClick = {
                 confirmLeave = true
             })
         }

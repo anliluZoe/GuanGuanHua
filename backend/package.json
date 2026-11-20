@@ -2,7 +2,7 @@
   "name": "save-money-api",
   "version": "1.0.0",
   "private": true,
-  "description": "省钱助手家庭账本 API",
+  "description": "管管花 API",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

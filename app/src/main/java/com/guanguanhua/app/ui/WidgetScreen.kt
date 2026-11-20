@@ -89,7 +89,7 @@ fun WidgetScreen(viewModel: AppViewModel, onBack: () -> Unit) {
         )
         if (!session.joined) {
             SoftCard(modifier = Modifier.fillMaxWidth()) {
-                Text("先加入家庭账本，才能设置桌面照片。", color = QTheme.colors.muted)
+                Text("先加入家庭，才能设置桌面照片。", color = QTheme.colors.muted)
             }
             Spacer(Modifier.height(24.dp))
         } else {

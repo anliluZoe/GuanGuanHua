@@ -8,7 +8,7 @@ v1 每个家庭只有 **一张照片** 和 **一句说明**。谁上传/谁改�
 
 ## 怎么加到桌面
 
-1. 打开 App，进入家庭账本。
+1. 打开 App，进入「我们」页。
 2. **我们 → 编辑桌面组件**：上传照片、编辑说明（建议不超过 40 字）、选文案颜色（预设或自定义 `#RRGGBB`）。空状态显示「还没有照片」。相册上传会在客户端压成 JPEG。
 3. 把系统小组件加到桌面：
    - 点页面里的 **添加到桌面**（部分系统会弹出确认）；或
@@ -40,4 +40,4 @@ v1 每个家庭只有 **一张照片** 和 **一句说明**。谁上传/谁改�
 }
 ```
 
-还没传过照片时 `widgetImageUrl`、`widgetUpdatedBy`、`widgetUpdatedAt` 为 `null`，`widgetCaption` 为 `""`，`widgetCaptionColor` 为 `"#FFFFFF"`。图片 URL 与申请照片一样走 `GET /api/files/:filename`。
+还没传过照片时 `widgetImageUrl`、`widgetUpdatedBy`、`widgetUpdatedAt` 为 `null`，`widgetCaption` 为 `""`，`widgetCaptionColor` 为 `"#FFFFFF"`。图片 URL 与头像、足迹照片一样走 `GET /api/files/:filename`。

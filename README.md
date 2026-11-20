@@ -1,22 +1,21 @@
 # 管管花（GuanGuanHua）
 
-两人协作的购买申请审核与月度消费记录。**数据存在自己的后端**，两部手机用同一个家庭码同步申请、审核、照片和账本。
+两人共享的小空间：经期记录、旅行足迹和桌面组件。**数据存在自己的后端**，两部手机用同一个家庭码同步。
 
 应用身份：桌面名 **管管花**（英文环境 **GuanGuanHua**），`applicationId` 为 **`com.guanguanhua.app`**。这是一次新的应用身份，**不能覆盖安装**旧的 `com.savemoney.app`；请装新包。旧 App 可自行卸载，本地数据不会自动迁移。
 
-- 两个人**谁都可以**发起购买申请（可附照片）
-- 每一条申请由**另一个人**通过或拒绝，不能审自己的；通过时可以改数量或单价，但总额不能超过申请金额，入账按改过的金额
-- 按月看总额、预算、分类占比和明细
-- 对方提交申请或给出审核结果时收到**系统状态栏通知**（需授予通知权限）：App 打开时每 30 秒刷新，放到后台后大约 20 秒会检查一次，之后约每 15 分钟再查。不依赖 Google 推送。部分手机厂商会限制后台任务，需允许自启动/关掉电池优化。
+- 记录经期开始和结束，预测下次，并提前提醒
+- 开始一段**旅程**，记下每一站（住宿、美食、风景、博物馆、杂物店），可加评分、消费、照片和路线
 - **桌面组件**：每个家庭一张共享照片和一句说明（叠在照片正中间，可设颜色）；谁改了，两部手机的小组件一起变。详见 **[docs/widget.md](docs/widget.md)**。
+- 经期提醒和旅程结束提醒走**系统状态栏通知**（需授予通知权限）；App 打开时每 30 秒同步一次，后台大约每 15 分钟同步一次小组件。不依赖 Google 推送。部分手机厂商会限制后台任务，需允许自启动/关掉电池优化。
 
 ## 两部手机怎么一起用
 
 1. 打开 App，默认连生产服务器 `http://xxxxx`，不用填地址。
-2. 第一部手机打开「我们」，填自己的名字，点 **创建家庭账本**，记下 6 位家庭码。
+2. 第一部手机打开「我们」，填自己的名字，点 **创建家庭**，记下 6 位家庭码。
 3. 第二部手机同样打开「我们」，填名字，输入家庭码，点 **加入**。
-4. 每个家庭**暂时最多两个人**。在「编辑资料」点「退出这个家庭账本」只让这台手机退出登录，**不会删**服务器上的身份、经期和账本。再用家庭码加入：名字对得上就回到原来的身份；已经有两个人且名字对不上时，会列出这两人的名字和头像，点选其中一个进入（沿用对方的登录令牌，没有密码）。
-5. 之后两边的申请、照片和消费都会同步；在「我们」页可以看到家庭码，改名字/头像走 **编辑资料**。
+4. 每个家庭**暂时最多两个人**。在「编辑资料」点「退出这个家庭」只让这台手机退出登录，**不会删**服务器上的身份、经期和足迹。再用家庭码加入：名字对得上就回到原来的身份；已经有两个人且名字对不上时，会列出这两人的名字和头像，点选其中一个进入（沿用对方的登录令牌，没有密码）。
+5. 之后两边的经期、足迹、头像和桌面组件都会同步；在「我们」页可以看到家庭码，改名字/头像走 **编辑资料**。
 6. 桌面组件：打开「我们 → 编辑桌面组件」上传一张合照、写一句说明（建议 ≤40 字，叠在照片正中间，可设颜色），再把「管管花」小组件加到桌面。空状态是「还没有照片」。相册上传会先压成 JPEG。怎么加、以及 `GET/PATCH /api/widget`、`POST/DELETE /api/widget/image`：见 **[docs/widget.md](docs/widget.md)**。
 
 若库里已经有超过两人的旧家庭，加入选择器只列出**当前还在的成员**，不会自动删人；需要的话请在服务器上手动清理多余成员。
@@ -57,8 +56,8 @@ cd backend && docker compose up --build
 每次给已经装过的手机再装一包，**`appVersionCode` 必须比手机上的大**，否则系统会拒绝覆盖。数字写在根目录 `gradle.properties`：
 
 ```
-appVersionCode=2
-appVersionName=1.1.0
+appVersionCode=3
+appVersionName=1.1.1
 ```
 
 改完再 `./gradlew assembleDebug`。也可以临时覆盖，不必改文件：
@@ -71,7 +70,7 @@ appVersionName=1.1.0
 
 ## 应用内检查更新（自家服务器）
 
-App 在「我们」页可以「检查更新」；进家庭账本后每天最多自动查一次，有新版本才提醒。它请求的是**当前配置的 API 地址**：
+App 在「我们」页可以「检查更新」；进家庭后每天最多自动查一次，有新版本才提醒。它请求的是**当前配置的 API 地址**：
 
 `GET {serverUrl}/api/update/latest`
 
@@ -123,7 +122,7 @@ backend/scripts/publish-update.sh app/build/outputs/apk/debug/app-debug.apk 3 1.
 
 `ANDROID_KEYSTORE_BASE64` 是 **keystore 文件**的 base64（建议单行、无换行），不要把 `.jks` / 密码 / 这段 base64 提交进仓库。本地 `assembleDebug` 不设这些变量时仍用默认 debug 签名。详细生成步骤见 **[docs/deploy.md](docs/deploy.md)**。
 
-首次需要服务器已安装 Docker、git、curl，并建好数据目录 `/data/savemoney`（重建容器也不会删账本）。完整步骤、密钥怎么配、从旧 compose 迁数据：见 **[docs/deploy.md](docs/deploy.md)**。
+首次需要服务器已安装 Docker、git、curl，并建好数据目录 `/data/savemoney`（重建容器也不会删数据）。完整步骤、密钥怎么配、从旧 compose 迁数据：见 **[docs/deploy.md](docs/deploy.md)**。
 
 生产健康检查 / 最新版本：
 
@@ -134,21 +133,13 @@ curl http://xxxxx/api/update/latest
 
 确认 JSON 后，手机上打开「我们」→「检查更新」。安装时如系统要求，需要允许「管管花」安装未知应用。
 
-**从旧包 `com.savemoney.app` 换过来：** 这是新 App，系统不会覆盖旧安装。先装新包，再按需卸载旧的「管管花」；家庭账本在服务器上，用同一家庭码重新加入即可。之后同一 `applicationId` 的更新仍走覆盖安装。
+**从旧包 `com.savemoney.app` 换过来：** 这是新 App，系统不会覆盖旧安装。先装新包，再按需卸载旧的「管管花」；家庭和记录在服务器上，用同一家庭码重新加入即可。之后同一 `applicationId` 的更新仍走覆盖安装。
 
 ## 界面截图
 
-| 申请列表 | 新建申请 | 加点照片 |
-| --- | --- | --- |
-| ![申请列表](docs/screenshots/request_list.png) | ![新建申请](docs/screenshots/new_request_form.png) | ![加点照片](docs/screenshots/photo_attach.png) |
-
-| 帮对方把关 | 部分通过 | 我们俩 |
-| --- | --- | --- |
-| ![审核](docs/screenshots/request_detail_approver.png) | ![部分通过](docs/screenshots/request_detail_partial.png) | ![我们俩](docs/screenshots/profile_partner.png) |
-
-| 小账本 | 审核人收到新申请通知 | 申请人收到审核结果 |
-| --- | --- | --- |
-| ![小账本](docs/screenshots/expenses_summary.png) | ![新申请通知](docs/screenshots/notification_new_request.png) | ![审核结果通知](docs/screenshots/notification_review_result.png) |
+| 我们俩 |
+| --- |
+| ![我们俩](docs/screenshots/profile_partner.png) |
 
 ## 技术栈
 

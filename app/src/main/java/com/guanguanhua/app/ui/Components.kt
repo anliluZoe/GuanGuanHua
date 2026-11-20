@@ -33,15 +33,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.outlined.MenuBook
-import androidx.compose.material.icons.outlined.Checkroom
-import androidx.compose.material.icons.outlined.Devices
-import androidx.compose.material.icons.outlined.DirectionsBus
-import androidx.compose.material.icons.outlined.FavoriteBorder
-import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.MoreHoriz
-import androidx.compose.material.icons.outlined.Restaurant
-import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -61,48 +52,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import coil.compose.AsyncImage
-import com.guanguanhua.app.data.RequestStatus
 import com.guanguanhua.app.notify.CycleReminder
-import com.guanguanhua.app.notify.ReviewActivityWorker
 import com.guanguanhua.app.ui.theme.Appearance
 import com.guanguanhua.app.ui.theme.QTheme
 import java.io.File
-
-data class CategoryLook(
-    val icon: ImageVector,
-    val accent: Color,
-    val wash: Color,
-)
-
-@Composable
-fun categoryLook(name: String): CategoryLook {
-    val colors = QTheme.colors
-    return when (name) {
-        "餐饮" -> if (colors.isDark) {
-            CategoryLook(Icons.Outlined.Restaurant, colors.peach, colors.peachSoft)
-        } else {
-            CategoryLook(Icons.Outlined.Restaurant, colors.coral, colors.coralSoft)
-        }
-        "日用品" -> CategoryLook(Icons.Outlined.Home, colors.sky, colors.skySoft)
-        "服饰" -> CategoryLook(Icons.Outlined.Checkroom, colors.lavender, colors.lavenderSoft)
-        "数码" -> CategoryLook(Icons.Outlined.Devices, colors.gold, colors.goldSoft)
-        "交通" -> CategoryLook(Icons.Outlined.DirectionsBus, colors.mint, colors.mintSoft)
-        "娱乐" -> CategoryLook(Icons.Outlined.SportsEsports, colors.peach, colors.peachSoft)
-        "学习" -> CategoryLook(Icons.AutoMirrored.Outlined.MenuBook, colors.denim, colors.denimSoft)
-        "医疗" -> CategoryLook(Icons.Outlined.FavoriteBorder, colors.rose, colors.roseSoft)
-        else -> CategoryLook(Icons.Outlined.MoreHoriz, colors.muted, colors.chipWash)
-    }
-}
 
 @Composable
 fun SoftCard(
@@ -341,75 +302,11 @@ fun ChoiceChip(
 }
 
 @Composable
-fun StatusBadge(status: RequestStatus, modifier: Modifier = Modifier, partial: Boolean = false) {
-    val colors = QTheme.colors
-    val (bg, fg, label) = when {
-        status == RequestStatus.PENDING -> Triple(colors.cream, colors.pendingInk, status.label)
-        status == RequestStatus.REJECTED -> Triple(colors.rejectedWash, colors.rejectedInk, status.label)
-        partial -> Triple(colors.coralSoft, colors.partialInk, "部分通过")
-        else -> Triple(colors.mintSoft, colors.approvedInk, status.label)
-    }
-    Text(
-        text = label,
-        style = MaterialTheme.typography.labelMedium,
-        color = fg,
-        modifier = modifier
-            .clip(RoundedCornerShape(20.dp))
-            .background(bg)
-            .padding(horizontal = 10.dp, vertical = 5.dp),
-    )
-}
-
-@Composable
-fun CategoryChip(category: String, modifier: Modifier = Modifier) {
-    val look = categoryLook(category)
-    Row(
-        modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(look.wash)
-            .padding(horizontal = 8.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Box(
-            modifier = Modifier
-                .size(6.dp)
-                .clip(CircleShape)
-                .background(look.accent),
-        )
-        Text(category, style = MaterialTheme.typography.labelMedium, color = QTheme.colors.ink)
-    }
-}
-
-@Composable
-fun CategoryBubble(category: String, modifier: Modifier = Modifier, size: Dp = 48.dp) {
-    val look = categoryLook(category)
-    Box(
-        modifier = modifier
-            .size(size)
-            .clip(RoundedCornerShape(16.dp))
-            .background(look.wash),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(look.icon, contentDescription = category, tint = look.accent, modifier = Modifier.size(size * 0.46f))
-    }
-}
-
-@Composable
-fun RequestThumb(category: String, imagePath: String?, modifier: Modifier = Modifier) {
-    if (imagePath.isNullOrBlank()) {
-        CategoryBubble(category, modifier)
-    } else {
-        PhotoSlot(model = imagePath, modifier = modifier.size(56.dp), showEmpty = false)
-    }
-}
-
-@Composable
 fun PhotoSlot(
     model: String?,
     modifier: Modifier = Modifier,
     showEmpty: Boolean = true,
-    emptyLabel: String = "加点照片，给审核的人看看",
+    emptyLabel: String = "加点照片",
     onClick: (() -> Unit)? = null,
     onClear: (() -> Unit)? = null,
 ) {
@@ -428,7 +325,7 @@ fun PhotoSlot(
         if (imageModel != null) {
             AsyncImage(
                 model = imageModel,
-                contentDescription = "物品照片",
+                contentDescription = "照片",
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
             )
@@ -595,7 +492,6 @@ fun rememberAskNotifications(): () -> Unit {
     val context = LocalContext.current
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) {
-            ReviewActivityWorker.enqueueSoon(context)
             CycleReminder.scheduleFromCache(context)
         }
     }

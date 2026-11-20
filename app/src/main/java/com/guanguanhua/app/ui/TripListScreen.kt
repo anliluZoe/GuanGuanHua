@@ -66,7 +66,7 @@ fun TripListScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             if (!session.joined) {
-                item { EmptyHint("还没连上账本", "先加入家庭，旅程会跟两个人一起走。") }
+                item { EmptyHint("还没连上家庭", "先加入家庭，旅程会跟两个人一起走。") }
             } else if (active != null) {
                 item {
                     SoftCard(modifier = Modifier.fillMaxWidth()) {

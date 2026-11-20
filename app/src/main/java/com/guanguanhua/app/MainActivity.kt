@@ -23,8 +23,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.Assignment
-import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.People
 import androidx.compose.material3.Icon
@@ -36,7 +34,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -59,15 +56,10 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.guanguanhua.app.notify.ReviewActivityWorker
-import com.guanguanhua.app.ui.ExpensesScreen
 import com.guanguanhua.app.ui.CycleScreen
 import com.guanguanhua.app.ui.LoadingScrim
-import com.guanguanhua.app.ui.NewRequestScreen
 import com.guanguanhua.app.ui.ProfileEditScreen
 import com.guanguanhua.app.ui.ProfileScreen
-import com.guanguanhua.app.ui.RequestDetailScreen
-import com.guanguanhua.app.ui.RequestListScreen
 import com.guanguanhua.app.ui.WidgetScreen
 import com.guanguanhua.app.ui.theme.QTheme
 import com.guanguanhua.app.ui.theme.GuanGuanHuaTheme
@@ -75,23 +67,17 @@ import com.guanguanhua.app.update.AppUpdates
 import com.guanguanhua.app.update.UpdateCheckResult
 import com.guanguanhua.app.widget.WidgetRefreshWorker
 import kotlinx.coroutines.delay
-import java.util.concurrent.TimeUnit
 
 private const val FOREGROUND_POLL_MS = 30_000L
 
 private data class Tab(val route: String, val label: String, val icon: ImageVector)
 
 private val TABS = listOf(
-    Tab("requests", "申请", Icons.AutoMirrored.Outlined.Assignment),
-    Tab("expenses", "账本", Icons.AutoMirrored.Outlined.MenuBook),
     Tab("cycle", "周期", Icons.Outlined.CalendarMonth),
     Tab("profile", "我们", Icons.Outlined.People),
 )
 
 class MainActivity : ComponentActivity() {
-
-    /** 从通知点进来要打开的申请 id；0 表示没有。 */
-    private val openRequestId = mutableLongStateOf(0L)
 
     /** 从桌面组件点进来，打开「我们 → 桌面组件」。 */
     private val openWidget = mutableStateOf(false)
@@ -106,7 +92,6 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        openRequestId.longValue = intent.getLongExtra(EXTRA_REQUEST_ID, 0L)
         openWidget.value = wantsWidget(intent)
         openCycle.value = wantsCycle(intent)
         openRecordStop.value = intent.getBooleanExtra(EXTRA_OPEN_RECORD_STOP, false)
@@ -117,7 +102,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        openRequestId.longValue = intent.getLongExtra(EXTRA_REQUEST_ID, 0L)
         openWidget.value = wantsWidget(intent)
         openCycle.value = wantsCycle(intent)
         openRecordStop.value = intent.getBooleanExtra(EXTRA_OPEN_RECORD_STOP, false)
@@ -135,7 +119,7 @@ class MainActivity : ComponentActivity() {
                 val backStackEntry by navController.currentBackStackEntryAsState()
                 val currentRoute = backStackEntry?.destination?.route
                 val showBottomBar = session.joined && TABS.any { it.route == currentRoute }
-                val startDestination = remember { if (session.joined) "requests" else "profile" }
+                val startDestination = remember { if (session.joined) "cycle" else "profile" }
                 val snackbar = remember { SnackbarHostState() }
                 var askEndOnList by remember { mutableStateOf(false) }
 
@@ -167,14 +151,6 @@ class MainActivity : ComponentActivity() {
                                 message = "发现新版本 ${result.update.versionName}，去「我们」页更新",
                                 duration = SnackbarDuration.Long,
                             )
-                        }
-                    }
-
-                    val pendingRequestId = openRequestId.longValue
-                    LaunchedEffect(pendingRequestId, session.joined) {
-                        if (session.joined && pendingRequestId != 0L) {
-                            navController.navigate("requests/$pendingRequestId") { launchSingleTop = true }
-                            openRequestId.longValue = 0L
                         }
                     }
 
@@ -304,32 +280,6 @@ class MainActivity : ComponentActivity() {
                             startDestination = startDestination,
                             modifier = Modifier.weight(1f).fillMaxWidth(),
                         ) {
-                            composable("requests") {
-                                RequestListScreen(
-                                    viewModel = viewModel,
-                                    onCreate = { navController.navigate("requests/new") },
-                                    onOpen = { id -> navController.navigate("requests/$id") },
-                                )
-                            }
-                            composable("requests/new") {
-                                NewRequestScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
-                            }
-                            composable(
-                                route = "requests/{id}",
-                                arguments = listOf(navArgument("id") { type = NavType.LongType }),
-                            ) { entry ->
-                                RequestDetailScreen(
-                                    viewModel = viewModel,
-                                    requestId = entry.arguments?.getLong("id") ?: 0L,
-                                    onBack = { navController.popBackStack() },
-                                )
-                            }
-                            composable("expenses") {
-                                ExpensesScreen(
-                                    viewModel = viewModel,
-                                    onOpenRequest = { id -> navController.navigate("requests/$id") },
-                                )
-                            }
                             composable("cycle") { CycleScreen(viewModel = viewModel) }
                             composable("profile") {
                                 ProfileScreen(
@@ -388,26 +338,14 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    override fun onResume() {
-        super.onResume()
-        (application as GuanGuanHuaApp).inForeground = true
-    }
-
-    override fun onPause() {
-        (application as GuanGuanHuaApp).inForeground = false
-        super.onPause()
-    }
-
     override fun onStop() {
         super.onStop()
         if (!isChangingConfigurations) {
-            ReviewActivityWorker.enqueueSoon(this, delay = 20, unit = TimeUnit.SECONDS)
-            WidgetRefreshWorker.enqueueSoon(this, delay = 20, unit = TimeUnit.SECONDS)
+            WidgetRefreshWorker.enqueueSoon(this, delay = 20)
         }
     }
 
     companion object {
-        const val EXTRA_REQUEST_ID = "requestId"
         const val EXTRA_OPEN_WIDGET = "openWidget"
         const val EXTRA_OPEN_CYCLE = "openCycle"
         const val EXTRA_OPEN_RECORD_STOP = "openRecordStop"

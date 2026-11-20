@@ -5,10 +5,10 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import androidx.core.content.edit
+import androidx.work.WorkManager
 import com.guanguanhua.app.data.ApiConfig
 import com.guanguanhua.app.data.HouseholdRepository
 import com.guanguanhua.app.notify.CycleReminder
-import com.guanguanhua.app.notify.ReviewActivityWorker
 import com.guanguanhua.app.notify.TripEndReminderWorker
 import com.guanguanhua.app.notify.TripOngoing
 import com.guanguanhua.app.trip.TripCache
@@ -35,35 +35,27 @@ class GuanGuanHuaApp : Application() {
         )
     }
 
-    @Volatile
-    var inForeground: Boolean = false
-
     override fun onCreate() {
         super.onCreate()
         val prefs = getSharedPreferences("session", Context.MODE_PRIVATE)
         prefs.edit(commit = true) {
             putString("serverUrl", ApiConfig.resolvedServerUrl(prefs.getString("serverUrl", null)))
         }
-        ensureReviewChannel()
+        clearOldReviewActivity()
         ensureCycleChannel()
         TripOngoing.ensureChannels(this)
-        ReviewActivityWorker.schedule(this)
         CycleReminder.scheduleFromCache(this)
         TripOngoing.refresh(this, TripCache.read(this)?.active)
         TripEndReminderWorker.schedule(this)
         WidgetRefreshWorker.schedule(this)
     }
 
-    fun ensureReviewChannel() {
-        getSystemService(NotificationManager::class.java).createNotificationChannel(
-            NotificationChannel(ReviewActivityWorker.CHANNEL_ID, "审核动态", NotificationManager.IMPORTANCE_HIGH).apply {
-                description = "对方提交申请或给出审核结果时提醒你"
-                enableVibration(true)
-                enableLights(true)
-                setShowBadge(true)
-                lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
-            },
-        )
+    /** 申请/审核功能已移除；升级后清掉旧版本留下的后台任务和通知通道。 */
+    private fun clearOldReviewActivity() {
+        val work = WorkManager.getInstance(this)
+        work.cancelUniqueWork("review-activity")
+        work.cancelUniqueWork("review-activity-once")
+        getSystemService(NotificationManager::class.java).deleteNotificationChannel("review_activity")
     }
 
     fun ensureCycleChannel() {
