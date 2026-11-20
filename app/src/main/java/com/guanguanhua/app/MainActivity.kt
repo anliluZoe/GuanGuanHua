@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.Map
 import androidx.compose.material.icons.outlined.People
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -74,6 +75,7 @@ private data class Tab(val route: String, val label: String, val icon: ImageVect
 
 private val TABS = listOf(
     Tab("cycle", "周期", Icons.Outlined.CalendarMonth),
+    Tab("trips", "足迹", Icons.Outlined.Map),
     Tab("profile", "我们", Icons.Outlined.People),
 )
 
@@ -196,14 +198,14 @@ class MainActivity : ComponentActivity() {
                     val pendingRecord = openRecordStop.value
                     LaunchedEffect(pendingRecord, session.joined) {
                         if (!pendingRecord || !session.joined) return@LaunchedEffect
-                        navController.navigate("profile/trips/record") { launchSingleTop = true }
+                        navController.navigate("trips/record") { launchSingleTop = true }
                         openRecordStop.value = false
                     }
                     val pendingEnd = confirmEndTrip.value
                     LaunchedEffect(pendingEnd, session.joined) {
                         if (!pendingEnd || !session.joined) return@LaunchedEffect
                         askEndOnList = true
-                        navController.navigate("profile/trips") { launchSingleTop = true }
+                        navController.navigate("trips") { launchSingleTop = true }
                         confirmEndTrip.value = false
                     }
                     LaunchedEffect(keepTripGoing.value) {
@@ -268,11 +270,11 @@ class MainActivity : ComponentActivity() {
                     ) { padding ->
                         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
                             val activeTrip = trips.active
-                            if (session.joined && activeTrip != null && currentRoute?.startsWith("profile/trips") != true) {
+                            if (session.joined && activeTrip != null && currentRoute?.startsWith("trips") != true) {
                                 com.guanguanhua.app.ui.TripBanner(
                                     name = activeTrip.name,
-                                    onRecord = { navController.navigate("profile/trips/record") { launchSingleTop = true } },
-                                    onOpen = { navController.navigate("profile/trips") { launchSingleTop = true } },
+                                    onRecord = { navController.navigate("trips/record") { launchSingleTop = true } },
+                                    onOpen = { navController.navigate("trips") { launchSingleTop = true } },
                                 )
                             }
                         NavHost(
@@ -286,35 +288,33 @@ class MainActivity : ComponentActivity() {
                                     viewModel = viewModel,
                                     onOpenWidget = { navController.navigate("profile/widget") },
                                     onOpenEdit = { navController.navigate("profile/edit") },
-                                    onOpenTrips = { navController.navigate("profile/trips") },
                                 )
                             }
-                            composable("profile/trips") {
+                            composable("trips") {
                                 com.guanguanhua.app.ui.TripListScreen(
                                     viewModel = viewModel,
-                                    onBack = { navController.popBackStack() },
-                                    onStart = { navController.navigate("profile/trips/start") },
-                                    onRecord = { navController.navigate("profile/trips/record") },
-                                    onOpenRoute = { id -> navController.navigate("profile/trips/$id") },
+                                    onStart = { navController.navigate("trips/start") },
+                                    onRecord = { navController.navigate("trips/record") },
+                                    onOpenRoute = { id -> navController.navigate("trips/$id") },
                                     askEnd = askEndOnList,
                                     onAskEndConsumed = { askEndOnList = false },
                                 )
                             }
-                            composable("profile/trips/start") {
+                            composable("trips/start") {
                                 com.guanguanhua.app.ui.StartTripScreen(
                                     viewModel = viewModel,
                                     onBack = { navController.popBackStack() },
                                 )
                             }
-                            composable("profile/trips/record") {
+                            composable("trips/record") {
                                 com.guanguanhua.app.ui.RecordStopScreen(
                                     viewModel = viewModel,
                                     onBack = { navController.popBackStack() },
-                                    onOpenRoute = { id -> navController.navigate("profile/trips/$id") },
+                                    onOpenRoute = { id -> navController.navigate("trips/$id") },
                                 )
                             }
                             composable(
-                                route = "profile/trips/{id}",
+                                route = "trips/{id}",
                                 arguments = listOf(navArgument("id") { type = NavType.LongType }),
                             ) { entry ->
                                 com.guanguanhua.app.ui.TripRouteScreen(

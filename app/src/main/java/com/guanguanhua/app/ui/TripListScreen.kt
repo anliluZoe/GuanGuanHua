@@ -1,5 +1,6 @@
 package com.guanguanhua.app.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -39,7 +40,6 @@ import java.time.ZoneOffset
 @Composable
 fun TripListScreen(
     viewModel: AppViewModel,
-    onBack: () -> Unit,
     onStart: () -> Unit,
     onRecord: () -> Unit,
     onOpenRoute: (Long) -> Unit,
@@ -56,13 +56,27 @@ fun TripListScreen(
         if (askEnd) onAskEndConsumed()
     }
     val active = trips.active
-    SubpageScaffold(title = "足迹", onBack = onBack) { inner ->
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(QTheme.colors.screenGlow)
+            .padding(horizontal = 20.dp),
+    ) {
+        Spacer(Modifier.height(12.dp))
+        PageHeader(
+            title = "足迹",
+            subtitle = when {
+                !session.joined -> "先加入家庭，旅程会跟两个人一起走"
+                active != null -> "旅行中 · ${active.name}"
+                else -> "开始一段旅程，记下店和景点"
+            },
+        )
+        Spacer(Modifier.height(8.dp))
         LazyColumn(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(inner)
-                .padding(horizontal = 20.dp),
-            contentPadding = PaddingValues(bottom = 28.dp),
+                .weight(1f)
+                .fillMaxWidth(),
+            contentPadding = PaddingValues(top = 8.dp, bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             if (!session.joined) {

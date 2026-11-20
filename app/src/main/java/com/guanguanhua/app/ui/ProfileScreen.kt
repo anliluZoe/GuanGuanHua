@@ -106,7 +106,6 @@ fun ProfileScreen(
     viewModel: AppViewModel,
     onOpenWidget: () -> Unit = {},
     onOpenEdit: () -> Unit = {},
-    onOpenTrips: () -> Unit = {},
 ) {
     val profile by viewModel.profile.collectAsStateWithLifecycle()
     val session by viewModel.session.collectAsStateWithLifecycle()
@@ -115,7 +114,6 @@ fun ProfileScreen(
     val isReady by viewModel.isReady.collectAsStateWithLifecycle()
     val appearance by viewModel.appearance.collectAsStateWithLifecycle()
     val widget by viewModel.widget.collectAsStateWithLifecycle()
-    val trips by viewModel.trips.collectAsStateWithLifecycle()
     val joinPicker by viewModel.joinPicker.collectAsStateWithLifecycle()
     var name by rememberSaveable(profile.name) { mutableStateOf(profile.name) }
     var householdCode by rememberSaveable { mutableStateOf("") }
@@ -207,17 +205,6 @@ fun ProfileScreen(
             }
             Spacer(Modifier.height(16.dp))
             PillButton("编辑资料", filled = false, onClick = onOpenEdit)
-        }
-        SoftCard(modifier = Modifier.fillMaxWidth(), onClick = onOpenTrips) {
-            Text("足迹", style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(4.dp))
-            Text(
-                trips.active?.let { "旅行中 · ${it.name}" } ?: "开始一段旅程，记下店和景点",
-                color = QTheme.colors.muted,
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Spacer(Modifier.height(14.dp))
-            PillButton(if (trips.active != null) "记一站 / 看路线" else "打开足迹", filled = false, onClick = onOpenTrips)
         }
         SoftCard(modifier = Modifier.fillMaxWidth()) {
             val hasPhoto = !widget.imageUrl.isNullOrBlank() || !widget.localImagePath.isNullOrBlank()

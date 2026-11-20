@@ -56,8 +56,8 @@ cd backend && docker compose up --build
 每次给已经装过的手机再装一包，**`appVersionCode` 必须比手机上的大**，否则系统会拒绝覆盖。数字写在根目录 `gradle.properties`：
 
 ```
-appVersionCode=3
-appVersionName=1.1.1
+appVersionCode=4
+appVersionName=1.1.2
 ```
 
 改完再 `./gradlew assembleDebug`。也可以临时覆盖，不必改文件：
