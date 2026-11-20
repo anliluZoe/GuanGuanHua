@@ -369,18 +369,14 @@ fun BirthdayPoster(onDismiss: () -> Unit) {
 
 /** 左右两片幕布 + 顶部帷幔，内缘带细波浪。open 0..1。 */
 private fun DrawScope.drawCurtains(open: Float, w: Float, h: Float) {
-    val panelW = w * 0.52f
-    val travel = w * 0.90f * open
+    val panelW = w * 1.02f
+    val travel = w * 0.94f * open
     val redTop = Color(0xFF5A1418)
     val redMid = Color(0xFF3A0D10)
     val redBottom = Color(0xFF210708)
 
-    // 左侧
+    // 一整幅幕布，从右往左收，左边留一束
     drawPanel(left = -travel, panelW = panelW, h = h, top = redTop, mid = redMid, bottom = redBottom)
-    // 右侧（镜像）
-    scale(scaleX = -1f, scaleY = 1f, pivot = Offset.Zero) {
-        drawPanel(left = -w + travel, panelW = panelW, h = h, top = redTop, mid = redMid, bottom = redBottom)
-    }
 
     // 顶部帷幔
     drawRect(
