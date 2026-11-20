@@ -472,7 +472,7 @@ fun AppearancePicker(
         Text("外观", style = MaterialTheme.typography.titleMedium)
         Spacer(Modifier.height(6.dp))
         Text(
-            "浅色清爽，深色夜里看。",
+            "剧场是深松绿 + 灯火金；浅色清爽，深色夜里看。",
             style = MaterialTheme.typography.bodySmall,
             color = QTheme.colors.secondary,
         )
@@ -481,6 +481,7 @@ fun AppearancePicker(
             modifier = Modifier.horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            ChoiceChip("剧场", value == Appearance.Theater, onClick = { onChange(Appearance.Theater) })
             ChoiceChip("浅色", value == Appearance.Light, onClick = { onChange(Appearance.Light) })
             ChoiceChip("深色", value == Appearance.Dark, onClick = { onChange(Appearance.Dark) })
         }

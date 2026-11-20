@@ -50,7 +50,12 @@ import com.guanguanhua.app.update.UpdateCheckResult
 import com.guanguanhua.app.update.UpdatePresentation
 import com.guanguanhua.app.update.presentUpdate
 import com.guanguanhua.app.widget.WidgetCopy
+import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 import kotlinx.coroutines.launch
+
+/** 在一起的第一天：2022-01-01，算第 1 天。 */
+private val TOGETHER_SINCE: LocalDate = LocalDate.of(2022, 1, 1)
 
 internal fun householdPairTitle(name: String, partnerName: String?): String =
     "${name.ifBlank { "我" }} × ${partnerName ?: "另一半"}"
@@ -198,6 +203,37 @@ fun ProfileScreen(
                 )
             }
         } else {
+        val today = LocalDate.now()
+        val togetherDays = ChronoUnit.DAYS.between(TOGETHER_SINCE, today).toInt() + 1
+        val isBirthdayToday = today.monthValue == 11 && today.dayOfMonth == 21
+        val thisYearBirthday = LocalDate.of(today.year, 11, 21)
+        val nextBirthday = if (today.isAfter(thisYearBirthday)) thisYearBirthday.plusYears(1) else thisYearBirthday
+        val daysToBirthday = ChronoUnit.DAYS.between(today, nextBirthday).toInt()
+        SoftCard(modifier = Modifier.fillMaxWidth(), accent = QTheme.colors.sky) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    "在一起 第 $togetherDays 天",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = QTheme.colors.muted,
+                )
+                Text(
+                    "%02d·%02d".format(today.monthValue, today.dayOfMonth),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = QTheme.colors.muted,
+                )
+            }
+            Spacer(Modifier.height(6.dp))
+            Text(
+                if (isBirthdayToday) "今晚，她是主角" else "距离 11·21 还有 $daysToBirthday 天",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Spacer(Modifier.height(12.dp))
+            PillButton("再看一遍海报", filled = false, onClick = onReplayPoster)
+        }
         SoftCard(modifier = Modifier.fillMaxWidth()) {
             Text("家庭码", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(8.dp))
@@ -230,17 +266,6 @@ fun ProfileScreen(
             }
             Spacer(Modifier.height(16.dp))
             PillButton("编辑桌面组件", filled = false, onClick = onOpenWidget)
-        }
-        SoftCard(modifier = Modifier.fillMaxWidth()) {
-            Text("开屏彩蛋", style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(4.dp))
-            Text(
-                "剧院海报：红幕、追光、她。每次打开 App 都会先放一遍。",
-                color = QTheme.colors.muted,
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Spacer(Modifier.height(14.dp))
-            PillButton("再看一遍", filled = false, onClick = onReplayPoster)
         }
         }
         AppearancePicker(value = appearance, onChange = viewModel::setAppearance)

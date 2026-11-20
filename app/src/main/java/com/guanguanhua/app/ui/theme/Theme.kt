@@ -25,11 +25,13 @@ import androidx.core.view.WindowCompat
 
 /** 浅色 / 深色 / 跟随系统。保存在本地，不经过后端。 */
 enum class Appearance(val prefValue: String) {
+    Theater("theater"),
     System("system"),
     Light("light"),
     Dark("dark");
 
     fun isDark(systemDark: Boolean): Boolean = when (this) {
+        Theater -> true
         System -> systemDark
         Light -> false
         Dark -> true
@@ -37,7 +39,7 @@ enum class Appearance(val prefValue: String) {
 
     companion object {
         fun fromPref(value: String?): Appearance =
-            entries.find { it.prefValue == value } ?: System
+            entries.find { it.prefValue == value } ?: Theater
     }
 }
 
@@ -185,46 +187,46 @@ val DarkQColors = QColors(
 val LocalQColors = staticCompositionLocalOf { LightQColors }
 
 /** 生日当天强制使用的深靛蓝 + 灯火金色板，不跟随系统明暗。 */
-val BirthdayQColors = QColors(
-    canvas = Color(0xFF0B0F24),
-    wash = Color(0xFF0E1330),
-    sandDeep = Color(0xFF141A3A),
-    paper = Color(0xFF1A2038),
-    ink = Color(0xFFF2F4FF),
-    inkSoft = Color(0xFFC3CCE8),
-    muted = Color(0xFF8C96B8),
-    muted2 = Color(0xFF6B7494),
-    line = Color(0xFF202849),
-    lineStrong = Color(0xFF2E3554),
-    sky = Color(0xFFF0C070),
-    skySoft = Color(0xFFF0C070).softWash(),
-    mint = Color(0xFF5FE3C6),
-    mintSoft = Color(0xFF5FE3C6).softWash(),
-    lavender = Color(0xFF7C5AC4),
-    lavenderSoft = Color(0xFF7C5AC4).softWash(),
-    coral = Color(0xFFF0728F),
-    coralBright = Color(0xFFFF8FA8),
-    coralSoft = Color(0xFFF0728F).softWash(),
-    cream = Color(0xFFF0C070).softWash(),
-    gold = Color(0xFFE6B872),
-    goldSoft = Color(0xFFE6B872).softWash(),
-    peach = Color(0xFFF0A66C),
-    peachSoft = Color(0xFFF0A66C).softWash(),
-    denim = Color(0xFF7C8CFF),
-    denimSoft = Color(0xFF7C8CFF).softWash(),
-    rose = Color(0xFFF0909C),
-    roseSoft = Color(0xFFF0909C).softWash(),
-    chipWash = Color(0xFF141A3A),
-    pendingInk = Color(0xFFE6B872),
-    rejectedWash = Color(0xFFF0909C).softWash(),
-    rejectedInk = Color(0xFFF0909C),
-    partialInk = Color(0xFFFF8FA8),
-    approvedInk = Color(0xFF5FE3C6),
-    disabledFill = Color(0xFF161C3A),
-    disabledInk = Color(0xFF5B6484),
-    overlay = Color(0xFF0B0F24).copy(alpha = 0.92f),
+val TheaterQColors = QColors(
+    canvas = Color(0xFF0A100E),
+    wash = Color(0xFF0E1613),
+    sandDeep = Color(0xFF121C17),
+    paper = Color(0xFF15201A),
+    ink = Color(0xFFEAF1E8),
+    inkSoft = Color(0xFFC2CEC5),
+    muted = Color(0xFF8B9A90),
+    muted2 = Color(0xFF6F7E74),
+    line = Color(0xFF26342C),
+    lineStrong = Color(0xFF33463A),
+    sky = Color(0xFFE0B36A),
+    skySoft = Color(0xFFE0B36A).softWash(),
+    mint = Color(0xFF5E8F74),
+    mintSoft = Color(0xFF5E8F74).softWash(),
+    lavender = Color(0xFF9FB8C4),
+    lavenderSoft = Color(0xFF9FB8C4).softWash(),
+    coral = Color(0xFFD98BA8),
+    coralBright = Color(0xFFF0A8BF),
+    coralSoft = Color(0xFFD98BA8).softWash(),
+    cream = Color(0xFFE0B36A).softWash(),
+    gold = Color(0xFFE0B36A),
+    goldSoft = Color(0xFFE0B36A).softWash(),
+    peach = Color(0xFFD9A45B),
+    peachSoft = Color(0xFFD9A45B).softWash(),
+    denim = Color(0xFF6E8FA8),
+    denimSoft = Color(0xFF6E8FA8).softWash(),
+    rose = Color(0xFFD98BA8),
+    roseSoft = Color(0xFFD98BA8).softWash(),
+    chipWash = Color(0xFF16221B),
+    pendingInk = Color(0xFFE0B36A),
+    rejectedWash = Color(0xFFD98BA8).softWash(),
+    rejectedInk = Color(0xFFD98BA8),
+    partialInk = Color(0xFFE8A06A),
+    approvedInk = Color(0xFF7FBF9E),
+    disabledFill = Color(0xFF121C17),
+    disabledInk = Color(0xFF5C6B61),
+    overlay = Color(0xFF0A100E).copy(alpha = 0.92f),
     screenGlow = Brush.verticalGradient(
-        colors = listOf(Color(0xFF121A3E), Color(0xFF0B0F24), Color(0xFF0B0F24)),
+        colors = listOf(Color(0xFF1B2A22), Color(0xFF0A100E), Color(0xFF0A100E)),
     ),
     isDark = true,
 )
@@ -356,42 +358,44 @@ private val QTypography = Typography(
     ),
 )
 
-private val BirthdayColors = darkColorScheme(
-    primary = BirthdayQColors.sky,
+private val TheaterColors = darkColorScheme(
+    primary = TheaterQColors.sky,
     onPrimary = Color(0xFF23180A),
-    primaryContainer = BirthdayQColors.skySoft,
-    onPrimaryContainer = BirthdayQColors.sky,
-    secondary = BirthdayQColors.coral,
+    primaryContainer = TheaterQColors.skySoft,
+    onPrimaryContainer = TheaterQColors.sky,
+    secondary = TheaterQColors.coral,
     onSecondary = Color(0xFF2A1018),
-    secondaryContainer = BirthdayQColors.coralSoft,
-    onSecondaryContainer = BirthdayQColors.coral,
-    tertiary = BirthdayQColors.mint,
+    secondaryContainer = TheaterQColors.coralSoft,
+    onSecondaryContainer = TheaterQColors.coral,
+    tertiary = TheaterQColors.mint,
     onTertiary = Color(0xFF062820),
-    tertiaryContainer = BirthdayQColors.mintSoft,
-    onTertiaryContainer = BirthdayQColors.mint,
-    error = BirthdayQColors.rose,
-    errorContainer = BirthdayQColors.rejectedWash,
+    tertiaryContainer = TheaterQColors.mintSoft,
+    onTertiaryContainer = TheaterQColors.mint,
+    error = TheaterQColors.rose,
+    errorContainer = TheaterQColors.rejectedWash,
     onError = Color(0xFF2A1216),
-    onErrorContainer = BirthdayQColors.rejectedInk,
-    background = BirthdayQColors.canvas,
-    onBackground = BirthdayQColors.ink,
-    surface = BirthdayQColors.paper,
-    onSurface = BirthdayQColors.ink,
-    surfaceVariant = BirthdayQColors.skySoft,
-    onSurfaceVariant = BirthdayQColors.muted,
-    outline = BirthdayQColors.lineStrong,
-    outlineVariant = BirthdayQColors.line,
+    onErrorContainer = TheaterQColors.rejectedInk,
+    background = TheaterQColors.canvas,
+    onBackground = TheaterQColors.ink,
+    surface = TheaterQColors.paper,
+    onSurface = TheaterQColors.ink,
+    surfaceVariant = TheaterQColors.skySoft,
+    onSurfaceVariant = TheaterQColors.muted,
+    outline = TheaterQColors.lineStrong,
+    outlineVariant = TheaterQColors.line,
 )
 
 @Composable
 fun GuanGuanHuaTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
+    theater: Boolean = false,
     birthday: Boolean = false,
     content: @Composable () -> Unit,
 ) {
-    val dark = birthday || darkTheme
+    val useTheater = theater || birthday
+    val dark = useTheater || darkTheme
     val qColors = when {
-        birthday -> BirthdayQColors
+        useTheater -> TheaterQColors
         darkTheme -> DarkQColors
         else -> LightQColors
     }
@@ -408,7 +412,7 @@ fun GuanGuanHuaTheme(
     CompositionLocalProvider(LocalQColors provides qColors) {
         MaterialTheme(
             colorScheme = when {
-                birthday -> BirthdayColors
+                useTheater -> TheaterColors
                 darkTheme -> DarkColors
                 else -> LightColors
             },

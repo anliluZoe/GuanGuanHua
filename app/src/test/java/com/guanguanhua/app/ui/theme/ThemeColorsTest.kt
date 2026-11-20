@@ -58,7 +58,7 @@ class ThemeColorsTest {
 
     @Test
     fun appearancePrefRoundTrips() {
-        assertEquals(Appearance.System, Appearance.fromPref(null))
+        assertEquals(Appearance.Theater, Appearance.fromPref(null))
         assertEquals(Appearance.Dark, Appearance.fromPref("dark"))
         assertTrue(Appearance.Dark.isDark(systemDark = false))
         assertFalse(Appearance.Light.isDark(systemDark = true))

@@ -114,7 +114,10 @@ class MainActivity : ComponentActivity() {
             val appearance by viewModel.appearance.collectAsStateWithLifecycle()
             var showPoster by remember { mutableStateOf(true) }
             val dismissPoster = { showPoster = false }
-            GuanGuanHuaTheme(darkTheme = appearance.isDark(isSystemInDarkTheme())) {
+            GuanGuanHuaTheme(
+                darkTheme = appearance.isDark(isSystemInDarkTheme()),
+                theater = appearance == com.guanguanhua.app.ui.theme.Appearance.Theater,
+            ) {
                 val navController = rememberNavController()
                 val session by viewModel.session.collectAsStateWithLifecycle()
                 val trips by viewModel.trips.collectAsStateWithLifecycle()
