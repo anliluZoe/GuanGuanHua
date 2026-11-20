@@ -112,16 +112,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             val viewModel: AppViewModel = viewModel()
             val appearance by viewModel.appearance.collectAsStateWithLifecycle()
-            val today = remember { java.time.LocalDate.now() }
-            val todayKey = remember(today) { today.toString() }
-            val prefs = remember { getSharedPreferences("session", android.content.Context.MODE_PRIVATE) }
-            var showPoster by remember {
-                mutableStateOf(prefs.getString(PREF_POSTER_SEEN, null) != todayKey)
-            }
-            val dismissPoster = {
-                prefs.edit().putString(PREF_POSTER_SEEN, todayKey).apply()
-                showPoster = false
-            }
+            var showPoster by remember { mutableStateOf(true) }
+            val dismissPoster = { showPoster = false }
             GuanGuanHuaTheme(darkTheme = appearance.isDark(isSystemInDarkTheme())) {
                 val navController = rememberNavController()
                 val session by viewModel.session.collectAsStateWithLifecycle()
@@ -298,6 +290,7 @@ class MainActivity : ComponentActivity() {
                                     viewModel = viewModel,
                                     onOpenWidget = { navController.navigate("profile/widget") },
                                     onOpenEdit = { navController.navigate("profile/edit") },
+                                    onReplayPoster = { showPoster = true },
                                 )
                             }
                             composable("trips") {
@@ -365,7 +358,6 @@ class MainActivity : ComponentActivity() {
         const val EXTRA_CONFIRM_END_TRIP = "confirmEndTrip"
         const val EXTRA_TRIP_KEEP_GOING = "tripKeepGoing"
         const val ACTION_OPEN_WIDGET = "com.guanguanhua.app.OPEN_WIDGET"
-        const val PREF_POSTER_SEEN = "birthdayPosterSeen"
 
         fun wantsWidget(intent: Intent?): Boolean =
             intent?.getBooleanExtra(EXTRA_OPEN_WIDGET, false) == true || intent?.action == ACTION_OPEN_WIDGET

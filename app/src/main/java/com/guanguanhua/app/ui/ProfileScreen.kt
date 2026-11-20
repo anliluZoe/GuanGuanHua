@@ -106,6 +106,7 @@ fun ProfileScreen(
     viewModel: AppViewModel,
     onOpenWidget: () -> Unit = {},
     onOpenEdit: () -> Unit = {},
+    onReplayPoster: () -> Unit = {},
 ) {
     val profile by viewModel.profile.collectAsStateWithLifecycle()
     val session by viewModel.session.collectAsStateWithLifecycle()
@@ -229,6 +230,17 @@ fun ProfileScreen(
             }
             Spacer(Modifier.height(16.dp))
             PillButton("编辑桌面组件", filled = false, onClick = onOpenWidget)
+        }
+        SoftCard(modifier = Modifier.fillMaxWidth()) {
+            Text("开屏彩蛋", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "剧院海报：红幕、追光、她。每次打开 App 都会先放一遍。",
+                color = QTheme.colors.muted,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Spacer(Modifier.height(14.dp))
+            PillButton("再看一遍", filled = false, onClick = onReplayPoster)
         }
         }
         AppearancePicker(value = appearance, onChange = viewModel::setAppearance)
