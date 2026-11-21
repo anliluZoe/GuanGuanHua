@@ -497,7 +497,7 @@ private fun UpdateCard() {
         AlertDialog(
             onDismissRequest = { needInstallPermission = null },
             title = { Text("允许安装未知应用") },
-            text = { Text("要装新版本，得先允许「管管花」安装未知应用。系统设置里打开一下就好。") },
+            text = { Text("要装新版本，得先允许「哒哒」安装未知应用。系统设置里打开一下就好。") },
             confirmButton = {
                 TextButton(onClick = {
                     needInstallPermission = null

@@ -528,7 +528,7 @@ app.get("/api/files/:filename", (req, res) => {
 const port = Number(process.env.PORT || 8080);
 if (require.main === module) {
   app.listen(port, "0.0.0.0", () => {
-    console.log(`管管花 API  http://0.0.0.0:${port}`);
+    console.log(`哒哒 API  http://0.0.0.0:${port}`);
   });
 }
 

@@ -169,7 +169,7 @@ jobs:
             exit 1
           fi
           chmod +x gradlew
-          echo "applicationId=com.guanguanhua.app（新应用身份；APK 文件名仍为 saveMoney.apk，以兼容 /api/update）"
+          echo "applicationId=com.guanguanhua.app（桌面名「哒哒」/ DaDa；改名只动资源，仍覆盖安装；APK 文件名仍为 saveMoney.apk，以兼容 /api/update）"
           echo "打包 versionCode=$VERSION_CODE versionName=$VERSION_NAME"
           echo "使用固定 upload keystore 签名，以便后续 Actions 构建可覆盖安装"
           ./gradlew assembleDebug --no-daemon \

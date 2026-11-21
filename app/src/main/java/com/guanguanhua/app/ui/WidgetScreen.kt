@@ -233,7 +233,7 @@ fun WidgetScreen(viewModel: AppViewModel, onBack: () -> Unit) {
             )
             Spacer(Modifier.height(6.dp))
             Text(
-                "真机需在系统桌面「添加小部件 → 管管花」。照片铺满，说明叠在正中间。",
+                "真机需在系统桌面「添加小部件 → 哒哒」。照片铺满，说明叠在正中间。",
                 color = QTheme.colors.muted,
                 style = MaterialTheme.typography.bodySmall,
             )
@@ -242,7 +242,7 @@ fun WidgetScreen(viewModel: AppViewModel, onBack: () -> Unit) {
             Text("加到桌面", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(6.dp))
             Text(
-                "长按桌面空白处 → 小组件 / 微件 → 找到「管管花」拖上去。照片铺满组件，说明叠在正中间，没有「管管花」底栏。",
+                "长按桌面空白处 → 小组件 / 微件 → 找到「哒哒」拖上去。照片铺满组件，说明叠在正中间，没有「哒哒」底栏。",
                 color = QTheme.colors.muted,
                 style = MaterialTheme.typography.bodySmall,
             )
@@ -265,7 +265,7 @@ fun WidgetScreen(viewModel: AppViewModel, onBack: () -> Unit) {
                     val manager = AppWidgetManager.getInstance(context)
                     val provider = ComponentName(context, HouseholdWidgetReceiver::class.java)
                     pinHint = if (!manager.isRequestPinAppWidgetSupported) {
-                        "这个桌面不支持一键添加，请长按桌面空白处，在小组件里找「管管花」。"
+                        "这个桌面不支持一键添加，请长按桌面空白处，在小组件里找「哒哒」。"
                     } else if (manager.requestPinAppWidget(provider, null, null)) {
                         "系统会弹出添加确认，选一块空位就好。"
                     } else {

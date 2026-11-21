@@ -6,7 +6,7 @@
 2. 用 JDK 21 + Android SDK 打 debug APK（`setup-android` 只装 `platform-tools`、`build-tools;35.0.0`、`platforms;android-35`，**不装**已下线的 `tools` 包，并用 `yes | sdkmanager --licenses` 非交互接受许可），用仓库 Secrets 里的 **upload keystore** 签名（避免每次 runner 默认 `debug.keystore` 不同导致无法覆盖安装），`versionCode = 1000 + github.run_number`，`versionName = 1.2.{run_number}`，输出改名为 `saveMoney.apk`
 3. `scp` 到服务器，再 `docker cp` 进容器，执行 `/app/scripts/publish-update.sh`，核对 `http://127.0.0.1:8080/api/update/latest` 已是新版本
 
-`applicationId` 现为 `com.guanguanhua.app`。这是新的应用身份，**不能覆盖安装**旧的 `com.savemoney.app`；用户需装新包，旧 App 可自行卸载。CI 打出的包仍改名为 **`saveMoney.apk`**，发布路径仍是 `/api/update/download/saveMoney.apk`，不要改文件名，以免应用内更新失效。
+`applicationId` 现为 `com.guanguanhua.app`（桌面名「哒哒」，英文 DaDa）。改名只动资源，包名和签名不变，所以 CI 打出的包会**覆盖安装**在已装的应用上。旧的 `com.savemoney.app`（省钱助手）是另一个应用身份，不会覆盖，需另装新包或卸载。CI 打出的包仍改名为 **`saveMoney.apk`**，发布路径仍是 `/api/update/download/saveMoney.apk`，不要改文件名，以免应用内更新失效。
 
 工作流文件：`.github/workflows/deploy.yml`。
 
@@ -173,7 +173,7 @@ curl -sS http://8.153.195.112:8080/api/health
 curl -sS http://8.153.195.112:8080/api/update/latest
 ```
 
-手机「我们」→「检查更新」。允许「管管花」安装未知应用。若手机上还装着旧的 `com.savemoney.app`，这次更新**不会**覆盖它，需要另外安装新包。
+手机「我们」→「检查更新」。允许「哒哒」安装未知应用。若手机上还装着旧的 `com.savemoney.app`（省钱助手），这次更新**不会**覆盖它，需要另外安装新包。
 
 ## 常见失败
 

@@ -1,8 +1,8 @@
-# 管管花（GuanGuanHua）
+# 哒哒（DaDa）
 
 两人共享的小空间：经期记录、旅行足迹和桌面组件。**数据存在自己的后端**，两部手机用同一个家庭码同步。
 
-应用身份：桌面名 **管管花**（英文环境 **GuanGuanHua**），`applicationId` 为 **`com.guanguanhua.app`**。这是一次新的应用身份，**不能覆盖安装**旧的 `com.savemoney.app`；请装新包。旧 App 可自行卸载，本地数据不会自动迁移。
+应用身份：桌面名 **哒哒**（英文环境 **DaDa**），`applicationId` 仍为 **`com.guanguanhua.app`**。改名只动了显示名，包名、签名、`versionCode` 规则都没动，所以新版本是**覆盖安装**在现有 App 上，手机上不会多出一个图标、数据也不丢。旧的 `com.savemoney.app`（省钱助手）是另一个应用身份，需要单独装新包或卸载。
 
 - 记录经期开始和结束，预测下次，并提前提醒
 - 开始一段**旅程**，记下每一站（住宿、美食、风景、博物馆、杂物店），可加评分、消费、照片和路线
@@ -16,7 +16,7 @@
 3. 第二部手机同样打开「我们」，填名字，输入家庭码，点 **加入**。
 4. 每个家庭**暂时最多两个人**。在「编辑资料」点「退出这个家庭」只让这台手机退出登录，**不会删**服务器上的身份、经期和足迹。再用家庭码加入：名字对得上就回到原来的身份；已经有两个人且名字对不上时，会列出这两人的名字和头像，点选其中一个进入（沿用对方的登录令牌，没有密码）。
 5. 之后两边的经期、足迹、头像和桌面组件都会同步；在「我们」页可以看到家庭码，改名字/头像走 **编辑资料**。
-6. 桌面组件：打开「我们 → 编辑桌面组件」上传一张合照、写一句说明（建议 ≤40 字，叠在照片正中间，可设颜色），再把「管管花」小组件加到桌面。空状态是「还没有照片」。相册上传会先压成 JPEG。怎么加、以及 `GET/PATCH /api/widget`、`POST/DELETE /api/widget/image`：见 **[docs/widget.md](docs/widget.md)**。
+6. 桌面组件：打开「我们 → 编辑桌面组件」上传一张合照、写一句说明（建议 ≤40 字，叠在照片正中间，可设颜色），再把「哒哒」小组件加到桌面。空状态是「还没有照片」。相册上传会先压成 JPEG。怎么加、以及 `GET/PATCH /api/widget`、`POST/DELETE /api/widget/image`：见 **[docs/widget.md](docs/widget.md)**。
 
 若库里已经有超过两人的旧家庭，加入选择器只列出**当前还在的成员**，不会自动删人；需要的话请在服务器上手动清理多余成员。
 
@@ -66,7 +66,15 @@ appVersionName=1.1.2
 ./gradlew assembleDebug -PappVersionCode=3 -PappVersionName=1.1.1
 ```
 
-推到 `main` 时 GitHub Actions 会用 `versionCode = 1000 + run_number`、`versionName = 1.2.{run_number}`，不改仓库里的这两个数字。`applicationId` 是 `com.guanguanhua.app`。服务器上的下载文件名仍是 `saveMoney.apk`（`/api/update/download/saveMoney.apk`），不要改，以免阿里云应用内更新失效。
+推到 `main` 时 GitHub Actions 会用 `versionCode = 1000 + run_number`、`versionName = 1.2.{run_number}`，不改仓库里的这两个数字。服务器上的下载文件名仍是 `saveMoney.apk`（`/api/update/download/saveMoney.apk`），这只是服务器上的文件名，桌面显示的是「哒哒」；不要改它，以免阿里云的应用内更新失效。
+
+### 改名字 / 改图标不会变成新 App
+
+覆盖安装（更新而不是装第二个 App）只取决于三件事：**`applicationId` 不变、签名不变、`versionCode` 变大**。
+
+- 改桌面名（`app_name` / `widget_name`）、图标、主题、页面文案都只是资源，随便改，更新照样覆盖。
+- 唯一不能动的是 `app/build.gradle.kts` 里的 `applicationId = "com.guanguanhua.app"`。动了它（历史上 `com.savemoney.app → com.guanguanhua.app` 那次）系统就会当成另一个 App，只能重新装。
+- 签名也别换：CI 用固定的 `ANDROID_KEYSTORE_*`；本机直接装 `assembleDebug` 的包时用的是默认 debug keystore。**同一个手机上要么一路装 CI 包，要么一路装本机 debug 包**，混装会报签名冲突。
 
 ## 应用内检查更新（自家服务器）
 
@@ -131,9 +139,9 @@ curl http://xxxxx/api/health
 curl http://xxxxx/api/update/latest
 ```
 
-确认 JSON 后，手机上打开「我们」→「检查更新」。安装时如系统要求，需要允许「管管花」安装未知应用。
+确认 JSON 后，手机上打开「我们」→「检查更新」。安装时如系统要求，需要允许「哒哒」安装未知应用。
 
-**从旧包 `com.savemoney.app` 换过来：** 这是新 App，系统不会覆盖旧安装。先装新包，再按需卸载旧的「管管花」；家庭和记录在服务器上，用同一家庭码重新加入即可。之后同一 `applicationId` 的更新仍走覆盖安装。
+**从旧包 `com.savemoney.app` 换过来：** 那是另一个应用身份，系统不会覆盖安装。装上新包后按需卸载旧的「省钱助手」；家庭和记录在服务器上，用同一家庭码重新加入即可。之后同一 `applicationId`（`com.guanguanhua.app`）的更新都走覆盖安装。
 
 ## 界面截图
 
